@@ -7,10 +7,10 @@ Read `PROGRESS.md` for the dated log, decisions and known gaps.
 ---
 
 ## PHASE 0 - Stabilise and baseline
-- [ ] Read the whole project; run makemigrations/migrate/seed/runserver; fix errors
-- [ ] pytest config, factories for every model, Makefile (`make test/run/lint`), ruff + black, pre-commit
-- [ ] Baseline tests: cross-student access denied, overpayment rejected, balance = billed - paid - waived, receipt numbers unique per institution, student number generation
-- [ ] PLAN.md and PROGRESS.md created; git repo initialised, baseline committed
+- [x] Read the whole project; run makemigrations/migrate/seed/runserver; fix errors
+- [x] pytest config, factories for every model, Makefile (`make test/run/lint`), ruff + black, pre-commit
+- [x] Baseline tests: cross-student access denied, overpayment rejected, balance = billed - paid - waived, receipt numbers unique per institution, student number generation
+- [x] PLAN.md and PROGRESS.md created; git repo initialised, baseline committed
 
 ## PHASE 1 - Foundation (tenancy, roles, workflow, notifications, audit)
 - [ ] Multi-tenancy: `Institution`, `TenantModel`/`TenantManager`, middleware, per-institution uniqueness, isolation tests (models, views, search, exports)
