@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block content %}
+{% if sitting %}
+<div class="noprint">
+  <button class="btn" onclick="window.print()">Print exam card</button>
+  <a class="btn ghost" href="{% url 'student_portal' %}">Back to my account</a>
+</div>
+<h1>Exam card</h1>
+<div class="head"><div><h2>{{ s.name }}</h2>
+<p class="muted">{{ s.student_no }} · {{ s.programme.name }} · {% if s.school_class %}Class {{ s.class_label }}{% else %}Year {{ s.year_or_grade }}{% endif %}</p>
+<p class="muted">Term: {{ sitting.term }}</p></div>
+<div class="bal {% if sitting.cleared %}clear{% else %}owing{% endif %}"><small>Candidate number</small><b>{{ sitting.exam_no }}</b>
+<small>{{ sitting.venue|default:"Venue to be announced" }}</small>
+<small>{% if sitting.cleared %}Cleared to sit{% else %}Not cleared — {{ sitting.note|default:"contact the office" }}{% endif %}</small></div></div>
+<h2>Exams this term</h2>
+<table class="tbl"><tr><th>Course or subject</th></tr>
+{% for e in exam_rows %}<tr><td>{{ e.label }}</td></tr>
+{% empty %}<tr><td class="muted">Nothing enrolled for {{ sitting.term.name }}.</td></tr>{% endfor %}</table>
+<p class="muted">Bring this card and your student number to every exam. Report to the office if anything here is wrong.</p>
+{% else %}
+<div class="noprint"><a class="btn ghost" href="{% url 'student_portal' %}">Back to my account</a></div>
+<h1>Exam card</h1>
+<p class="muted">You have not been entered for any exam sitting yet. The registrar enters students when exams approach — check again soon.</p>
+{% endif %}
+{% endblock %}

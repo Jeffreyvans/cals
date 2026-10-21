@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% block content %}
+<div class="noprint"><button class="btn" onclick="window.print()">Print report</button>
+<a class="btn ghost" href="{% url 'export_debtors' %}?show={{ show }}">Export CSV</a></div>
+<h1>Debtors report</h1>
+<p class="muted">Every student who has been billed, what is still owed, and how late the money is. Amounts are net of credit notes.</p>
+<p class="muted">{% if show == 'owing' %}<b>Owing</b>{% else %}<a href="?show=owing">Owing</a>{% endif %} ·
+{% if show == 'paid' %}<b>Fully paid</b>{% else %}<a href="?show=paid">Fully paid</a>{% endif %} ·
+{% if show == 'all' %}<b>Everyone billed</b>{% else %}<a href="?show=all">Everyone billed</a>{% endif %}</p>
+<div class="stats">
+<div><b>{{ rows|length }}</b>Students shown</div>
+<div><b>{{ CUR }}{{ totals.billed }}</b>Total billed</div>
+<div><b>{{ CUR }}{{ totals.paid }}</b>Total received</div>
+<div><b>{{ CUR }}{{ totals.waived }}</b>Waived</div>
+<div class="warn"><b>{{ CUR }}{{ totals.owed }}</b>Still owed</div>
+</div>
+<h2>How late the money is</h2>
+<table class="tbl"><tr>{% for label, amount in aging %}<th>{{ label }}</th>{% endfor %}</tr>
+<tr>{% for label, amount in aging %}<td class="r">{{ CUR }}{{ amount }}</td>{% endfor %}</tr></table>
+<h2>Students</h2>
+<table class="tbl"><tr><th>Student</th><th>Programme</th><th class="r">Billed</th><th class="r">Received</th><th class="r">Waived</th><th class="r">Owed</th></tr>
+{% for s in rows %}<tr><td><a href="{% url 'student_detail' s.pk %}">{{ s.name }}</a> <span class="muted">{{ s.student_no }}</span></td>
+<td>{{ s.programme.name }}{% if s.school_class %} · {{ s.class_label }}{% endif %}</td>
+<td class="r">{{ CUR }}{{ s.billed_amt }}</td><td class="r">{{ CUR }}{{ s.paid_amt }}</td>
+<td class="r">{% if s.waived_amt %}{{ CUR }}{{ s.waived_amt }}{% else %}—{% endif %}</td>
+<td class="r"><b>{{ CUR }}{{ s.owed }}</b></td></tr>
+{% empty %}<tr><td colspan="6" class="muted">No students match this filter.</td></tr>{% endfor %}
+<tr><th>Total</th><th></th><th class="r">{{ CUR }}{{ totals.billed }}</th><th class="r">{{ CUR }}{{ totals.paid }}</th><th class="r">{{ CUR }}{{ totals.waived }}</th><th class="r">{{ CUR }}{{ totals.owed }}</th></tr></table>
+{% endblock %}

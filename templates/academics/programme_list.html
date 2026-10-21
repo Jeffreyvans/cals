@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% block content %}
+<h1>Programmes</h1>
+<p class="muted">Programmes and courses are used in college mode. Schools use <a href="{% url 'class_list' %}">classes and subjects</a> instead.</p>
+
+{% for p in programmes %}
+<div class="card">
+  <div class="head">
+    <div><b>{{ p.name }}</b> <span class="badge">{{ p.get_level_display }}</span>
+      <span class="muted">{{ p.duration_months }} months · {{ CUR }}{{ p.tuition_fee }} tuition</span></div>
+  </div>
+  <table class="tbl">
+    <tr><th>Code</th><th>Course</th><th class="r">Credits</th><th>Lecturer</th></tr>
+    {% for c in p.courses.all %}<tr>
+      <td>{{ c.code }}</td><td>{{ c.title }}</td><td class="r">{{ c.credits }}</td>
+      <td>{% if c.lecturer %}{{ c.lecturer.get_full_name|default:c.lecturer.username }}{% else %}<span class="muted">Not set</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="4" class="muted">No courses yet. Add one below.</td></tr>{% endfor %}
+  </table>
+</div>
+{% empty %}<p class="muted">No programmes yet. Add your first programme below, then add its courses.</p>{% endfor %}
+
+<div class="cols">
+  <form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="new_programme">
+    <h2>Add a programme</h2>{{ programme_form.as_p }}<button class="btn">Save programme</button></form>
+  <form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="new_course">
+    <h2>Add a course</h2>{{ course_form.as_p }}<button class="btn">Save course</button></form>
+</div>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block content %}
+<h1>Find a student</h1>
+<input id="q" class="search" placeholder="Type a name, student number or programme" autofocus data-url="{% url 'student_search_api' %}">
+<table class="tbl"><thead><tr><th>No.</th><th>Name</th><th>Programme</th><th>Status</th><th class="r">Balance</th></tr></thead><tbody id="results"></tbody></table>
+<p id="empty" class="muted" hidden>No student matches that search.</p>
+{% endblock %}
+{% block js %}<script>const CUR="{{ CUR }}",BASE="{% url 'student_search' %}";initSearch();</script>{% endblock %}

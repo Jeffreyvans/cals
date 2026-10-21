@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block content %}<h1>Receive payment</h1><p class="muted">{{ s.name }} · balance {{ CUR }}{{ s.balance }}</p>
+<form method="post" class="form">{% csrf_token %}{{ form.as_p }}<button class="btn">Save and print receipt</button></form>{% endblock %}

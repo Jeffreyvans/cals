@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block content %}
+<h1>School settings</h1>
+<p class="muted">School mode shows classes, streams, subjects and class teachers. College mode shows programmes, courses and credits. Switch any time - your data is kept either way.</p>
+<form method="post" class="form">{% csrf_token %}{{ form.as_p }}<button class="btn">Save settings</button></form>
+<p class="muted">You are currently in <b>{% if IS_SCHOOL %}school mode{% else %}college mode{% endif %}</b>.</p>
+{% endblock %}

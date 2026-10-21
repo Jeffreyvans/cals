@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block content %}
+<h1>Waive part of an invoice</h1>
+<p class="muted">A credit note forgives money the student cannot pay. It reduces what they owe, but no cash is received.</p>
+<div class="cols">
+<div class="card"><b>{{ invoice.description }}</b>
+<p class="muted">{{ invoice.student.name }} · {{ invoice.student.student_no }}</p>
+<table class="tbl"><tr><td>Amount</td><td class="r">{{ CUR }}{{ invoice.amount }}</td></tr>
+<tr><td>Received</td><td class="r">{{ CUR }}{{ invoice.paid }}</td></tr>
+<tr><td>Already waived</td><td class="r">{{ CUR }}{{ invoice.waived }}</td></tr>
+<tr><td>Still owed</td><td class="r"><b>{{ CUR }}{{ invoice.balance }}</b></td></tr></table></div>
+<form method="post" class="inline wide">{% csrf_token %}<h2>New credit note</h2>{{ form.as_p }}
+<button class="btn">Issue credit note</button>
+<p><a href="{% url 'student_detail' invoice.student.pk %}">Back to student</a></p></form>
+</div>
+{% endblock %}

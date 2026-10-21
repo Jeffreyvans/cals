@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block content %}<h1>My children</h1>
+<p class="muted">Follow each child's timetable, results, attendance and fees from here.</p>
+{% for g in links %}<a class="card link-card" href="{% url 'child_detail' g.student.pk %}"><b>{{ g.student.name }}</b>
+<span class="muted">{{ g.student.student_no }} · {{ g.student.programme.name }}{% if g.student.school_class %} · Class {{ g.student.class_label }}{% endif %}</span></a>
+{% empty %}<p class="muted">No children are linked to your account yet. Ask the school registrar to link your children.</p>{% endfor %}
+
+<h2>Notices</h2>
+{% for a in announcements %}<div class="card"><b>{{ a.title }}</b> <span class="muted">{{ a.posted|date:"d M Y" }}</span><p>{{ a.body }}</p></div>
+{% empty %}<p class="muted">No notices yet.</p>{% endfor %}
+{% endblock %}

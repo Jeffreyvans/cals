@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block content %}
+<h1>Subjects</h1>
+<p class="muted">Subjects are taught to classes in school mode. Colleges use <a href="{% url 'programme_list' %}">programmes and courses</a> instead.</p>
+<div class="cols">
+  <div>
+    <table class="tbl">
+      <tr><th>Code</th><th>Subject</th><th>Level</th><th>Teacher</th><th>Marks</th></tr>
+      {% for s in subjects %}<tr>
+        <td>{{ s.code }}</td><td>{{ s.name }}</td><td>{{ s.get_level_display }}</td>
+        <td>{% if s.lecturer %}{{ s.lecturer.get_full_name|default:s.lecturer.username }}{% else %}—{% endif %}</td>
+        <td><a href="{% url 'subject_roster' s.pk %}">Open roster</a></td>
+      </tr>{% empty %}<tr><td colspan="5" class="muted">No subjects yet. Add your first subject on the right.</td></tr>{% endfor %}
+    </table>
+  </div>
+  {% if can_edit %}
+  <form method="post" class="inline wide">{% csrf_token %}
+    <h2>Add a subject</h2>{{ form.as_p }}<button class="btn">Save subject</button></form>
+  {% endif %}
+</div>
+{% endblock %}

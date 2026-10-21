@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block content %}<h1>My courses</h1>
+{% for c in courses %}<a class="card link-card" href="{% url 'course_roster' c.pk %}"><b>{{ c.code }} · {{ c.title }}</b><span class="muted">{{ c.programme.name }} · {{ c.enrollments.count }} students</span></a>
+{% empty %}<p class="muted">No courses are assigned to you yet. Ask the registrar.</p>{% endfor %}
+{% if subjects %}<h2>My subjects</h2>
+{% for s in subjects %}<a class="card link-card" href="{% url 'subject_roster' s.pk %}"><b>{{ s.code }} · {{ s.name }}</b><span class="muted">{{ s.get_level_display }} · {{ s.enrollments.count }} students</span></a>
+{% endfor %}{% endif %}
+<h2>Announcements</h2>{% for a in announcements %}<div class="card"><b>{{ a.title }}</b><p>{{ a.body }}</p></div>{% endfor %}{% endblock %}

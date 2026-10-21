@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block content %}
+<h1>Overview</h1>
+<div class="stats"><div><b>{{ students }}</b>Active students</div><div class="warn"><b>{{ owing }}</b>Students owing fees</div><div><b>{{ courses }}</b>Courses running</div></div>
+<a class="btn" href="{% url 'student_search' %}">Find a student</a>
+<h2>Announcements</h2>{% for a in announcements %}<div class="card"><b>{{ a.title }}</b><p>{{ a.body }}</p></div>{% empty %}<p class="muted">No announcements yet. Add one in Administration.</p>{% endfor %}
+{% endblock %}

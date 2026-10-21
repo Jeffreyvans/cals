@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block content %}
+<h1>Grade scale</h1>
+<p class="muted">Marks become grades using these bands. The highest band whose minimum mark is reached wins. With no bands saved, the default scale is A from 75, B from 65, C from 50, D from 40 and F from 0.</p>
+<div class="cols">
+  <div>
+    <table class="tbl"><tr><th>Grade</th><th class="r">From mark</th><th class="r">Points</th><th></th></tr>
+    {% for b in bands %}<tr><td><span class="grade">{{ b.letter }}</span></td><td class="r">{{ b.min_mark }}</td><td class="r">{{ b.points }}</td>
+      <td><form method="post" action="{% url 'grade_band_delete' b.pk %}">{% csrf_token %}<button class="link">Remove</button></form></td></tr>
+    {% empty %}<tr><td colspan="4" class="muted">No bands yet, so the default scale is in use.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <form method="post" class="inline wide">{% csrf_token %}
+    <h2>Add a band</h2>{{ form.as_p }}<button class="btn">Save band</button>
+  </form>
+</div>
+{% endblock %}

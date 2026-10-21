@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block bare %}
+<div class="login"><div class="login-art"><h1>{{ INSTITUTION }}</h1><p>Fees, courses and results in one place.</p></div>
+<form method="post" class="login-form">{% csrf_token %}<h2>Sign in</h2>
+{% if form.errors %}<div class="msg error">Wrong username or password. Try again.</div>{% endif %}
+<label>Username<input name="username" autofocus required></label>
+<label>Password<input name="password" type="password" required></label>
+<button class="btn">Sign in</button><p class="muted">Students, lecturers and office staff use the same page. You'll land on your own portal.</p></form></div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block content %}
+<h1>Classes</h1>
+<p class="muted">Classes and streams are used in school mode. Open a class to add streams, set the class teacher and see the class list.</p>
+<div class="cols">
+  <div>
+    <table class="tbl">
+      <tr><th>Class</th><th>Level</th><th>Streams</th><th>Class teacher</th><th class="r">Students</th></tr>
+      {% for r in rows %}<tr>
+        <td><a href="{% url 'class_detail' r.c.pk %}">{{ r.c.name }}</a></td>
+        <td>{{ r.c.get_level_display }}</td>
+        <td>{% for s in r.c.streams.all %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% empty %}None yet{% endfor %}</td>
+        <td>{% if r.teacher %}{{ r.teacher.get_full_name|default:r.teacher.username }}{% else %}<span class="muted">Not set</span>{% endif %}</td>
+        <td class="r">{{ r.n }}</td>
+      </tr>{% empty %}<tr><td colspan="5" class="muted">No classes yet. Add your first class on the right.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <form method="post" class="inline wide">{% csrf_token %}
+    <h2>Add a class</h2>{{ form.as_p }}<button class="btn">Save class</button>
+    <p class="muted">Tip: add streams like A and B from the class page after you create the class.</p>
+  </form>
+</div>
+{% endblock %}

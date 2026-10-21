@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block content %}
+<div class="noprint">
+  <button class="btn" onclick="window.print()">Print report</button>
+  {% if user.role == 'student' %}<a class="btn ghost" href="{% url 'student_portal' %}">Back to my account</a>
+  {% else %}<a class="btn ghost" href="{% url 'student_detail' s.pk %}">Back to student</a>{% endif %}
+</div>
+<h1>Report card</h1>
+<div class="head"><div><h2>{{ s.name }}</h2>
+<p class="muted">{{ s.student_no }} · {{ s.programme.name }} · {% if s.school_class %}Class {{ s.class_label }}{% else %}Year {{ s.year_or_grade }}{% endif %}</p>
+<p class="muted">Guardian: {{ s.guardian_name|default:"—" }} {{ s.guardian_phone }}</p></div>
+<div class="bal clear"><small>Average mark</small><b>{{ average|default:"—" }}</b><small>{{ marked }} of {{ total }} results in</small>
+<small>Attendance: {{ attendance_present }} of {{ attendance_sessions }} sessions{% if attendance_pct %} ({{ attendance_pct }}%){% endif %}</small></div></div>
+{% if user.role == 'lecturer' %}<p class="muted">This report only shows the courses and subjects you teach.</p>{% endif %}
+{% for term, rows, sessions, present, pct in terms %}<h2>{{ term }}</h2>
+<p class="muted">Attendance this term: {{ present }} of {{ sessions }} sessions{% if pct %} ({{ pct }}%){% endif %}</p>
+<table class="tbl"><tr><th>Course or subject</th><th class="r">Mark</th><th>Grade</th><th class="r">Position</th></tr>
+{% for e in rows %}<tr><td>{{ e.label }}</td><td class="r">{{ e.mark|default_if_none:"—" }}</td>
+<td><span class="grade">{{ e.grade }}</span></td>
+<td class="r">{{ e.position|default:"—" }}{% if e.cohort_size %} of {{ e.cohort_size }}{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">No enrolments for this term.</td></tr>{% endfor %}</table>
+{% empty %}<p class="muted">No results yet. Marks appear here once a teacher enters them.</p>{% endfor %}
+<p class="muted">Position compares marks for the same course or subject in the same term.</p>
+{% endblock %}

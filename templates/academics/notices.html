@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block content %}
+<h1>Notices</h1>
+<p class="muted">Announcements shown on dashboards and portals. Students and parents only see notices aimed at them, and class notices only reach that class.</p>
+{% if can_post %}
+<form method="post" class="inline wide">{% csrf_token %}
+  <h2>Post a notice</h2>{{ form.as_p }}<button class="btn">Post notice</button>
+</form>
+{% endif %}
+{% for a in notices %}<div class="card">
+  <b>{{ a.title }}</b>
+  <span class="muted">{{ a.get_audience_display }}{% if a.school_class %} · {{ a.school_class }}{% endif %} · {{ a.posted|date:"d M Y" }}{% if a.posted_by %} · {{ a.posted_by.get_full_name|default:a.posted_by.username }}{% endif %}</span>
+  <p>{{ a.body }}</p>
+  {% if can_post %}<form method="post">{% csrf_token %}
+    <input type="hidden" name="action" value="delete"><input type="hidden" name="pk" value="{{ a.pk }}">
+    <button class="link">Remove</button></form>{% endif %}
+</div>{% empty %}<p class="muted">No notices yet.</p>{% endfor %}
+{% endblock %}

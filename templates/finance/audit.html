@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block content %}
+<div class="noprint"><button class="btn" onclick="window.print()">Print</button>
+<a class="btn ghost" href="{% url 'audit_export' %}?action={{ action }}&amp;from={{ raw_from }}&amp;to={{ raw_to }}">Export CSV</a></div>
+<h1>Money audit log</h1>
+<p class="muted">Every invoice, payment, credit note, edit and deletion, newest first (latest 200).</p>
+<form method="get" class="inline">
+<input type="hidden" name="action" value="{{ action }}">
+<label>From <input type="date" name="from" value="{{ raw_from }}"></label>
+<label>To <input type="date" name="to" value="{{ raw_to }}"></label>
+<button class="btn">Apply</button>
+<a class="btn ghost" href="{% url 'audit_log' %}">All time</a>
+</form>
+<p class="muted">{% if not action %}<b>All</b>{% else %}<a href="?from={{ raw_from }}&amp;to={{ raw_to }}">All</a>{% endif %}{% for value, label in actions %} ·
+{% if action == value %}<b>{{ label }}</b>{% else %}<a href="?action={{ value }}&amp;from={{ raw_from }}&amp;to={{ raw_to }}">{{ label }}</a>{% endif %}{% endfor %}</p>
+<table class="tbl"><tr><th>When</th><th>Who</th><th>Action</th><th>Details</th><th>Student</th><th>Reference</th><th class="r">Amount</th></tr>
+{% for e in entries %}<tr><td>{{ e.created|date:"d M Y H:i" }}</td><td>{{ e.actor_name }}</td>
+<td>{{ e.get_action_display }}</td><td>{{ e.description }}</td>
+<td>{% if e.student %}<a href="{% url 'student_detail' e.student.pk %}">{{ e.student.name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+<td>{% if e.reference %}{{ e.reference }}{% else %}—{% endif %}</td>
+<td class="r">{{ CUR }}{{ e.amount }}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted">Nothing recorded yet.</td></tr>{% endfor %}</table>
+{% endblock %}

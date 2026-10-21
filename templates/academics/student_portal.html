@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block content %}
+<div class="head"><div><h1>Hello, {{ s.user.first_name|default:s.user.username }}</h1><p class="muted">{{ s.student_no }} · {{ s.programme.name }} · {% if s.school_class %}Class {{ s.class_label }}{% else %}Year {{ s.year_or_grade }}{% endif %}</p></div>
+<div class="bal {% if s.balance > 0 %}owing{% else %}clear{% endif %}"><small>You owe</small><b>{{ CUR }}{{ s.balance }}</b><small>Paid {{ CUR }}{{ s.total_paid }} of {{ CUR }}{{ s.total_billed }}{% if s.total_waived %} · {{ CUR }}{{ s.total_waived }} waived{% endif %}</small></div></div>
+
+<h2>My timetable</h2>
+<table class="tbl"><tr><th>Day</th><th>Time</th><th>Lesson</th><th>Teacher</th><th>Venue</th></tr>
+{% for t in timetable %}<tr><td>{{ t.get_day_display }}</td><td>{{ t.start_time|time:"H:i" }} – {{ t.end_time|time:"H:i" }}</td><td>{{ t.title }}</td><td>{{ t.lecturer.get_full_name|default:t.lecturer.username }}</td><td>{{ t.venue|default:"—" }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">No lessons on your timetable yet. Ask your lecturer or the registrar.</td></tr>{% endfor %}</table>
+
+<h2>My courses and results</h2><table class="tbl"><tr><th>Course or subject</th><th>Term</th><th>Mark</th><th>Grade</th></tr>
+{% for e in enrollments %}<tr><td>{{ e.label }}</td><td>{{ e.term }}</td><td>{{ e.mark|default_if_none:"—" }}</td><td>{{ e.grade }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No courses yet. Ask your lecturer or the registrar to enrol you.</td></tr>{% endfor %}</table>
+<p><a class="btn ghost" href="{% url 'my_report' %}">Open my report card</a> <a class="btn ghost" href="{% url 'my_exam_card' %}">My exam card</a></p>
+
+<h2>My attendance</h2><table class="tbl"><tr><th>Term</th><th class="r">Sessions</th><th class="r">Present</th><th class="r">Rate</th></tr>
+{% for term, sessions, present, pct in attendance %}<tr><td>{{ term }}</td><td class="r">{{ sessions }}</td><td class="r">{{ present }}</td><td class="r">{% if pct %}{{ pct }}%{% else %}—{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">No attendance recorded yet. Your teacher records it in class.</td></tr>{% endfor %}</table>
+
+<h2>Payments</h2><table class="tbl"><tr><th>Invoice</th><th class="r">Balance</th><th>Receipts</th></tr>
+{% for i in invoices %}<tr><td>{{ i.description }}</td><td class="r">{{ i.balance }}{% if i.waived %} <span class="muted">({{ CUR }}{{ i.waived }} waived)</span>{% endif %}</td><td>{% for p in i.payments.all %}<a href="{% url 'receipt' p.pk %}">{{ p.receipt_no }}</a> {% endfor %}</td></tr>{% empty %}<tr><td colspan="3" class="muted">No invoices yet.</td></tr>{% endfor %}</table>
+
+<h2>Activities</h2>{% for a in activities %}<div class="card"><b>{{ a.title }}</b> <span class="muted">{{ a.get_kind_display }} · {{ a.date }}</span></div>{% empty %}<p class="muted">Nothing recorded yet.</p>{% endfor %}
+<h2>Notices</h2>{% for a in announcements %}<div class="card"><b>{{ a.title }}</b><p>{{ a.body }}</p></div>{% empty %}<p class="muted">No notices yet.</p>{% endfor %}{% endblock %}

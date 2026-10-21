@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted">Parent view · <a href="{% url 'parent_portal' %}">Back to my children</a></p>
+<div class="head"><div><h1>{{ s.name }}</h1>
+<p class="muted">{{ s.student_no }} · {{ s.programme.name }} · {% if s.school_class %}Class {{ s.class_label }}{% else %}Year {{ s.year_or_grade }}{% endif %}</p>
+<p class="muted">On record: {{ s.guardian_name|default:"—" }} {{ s.guardian_phone }}</p></div>
+<div class="bal {% if s.balance > 0 %}owing{% else %}clear{% endif %}"><small>Fees owed</small><b>{{ CUR }}{{ s.balance }}</b>
+<small>Billed {{ CUR }}{{ s.total_billed }} · Paid {{ CUR }}{{ s.total_paid }}{% if s.total_waived %} · Waived {{ CUR }}{{ s.total_waived }}{% endif %}</small></div></div>
+
+<h2>Timetable</h2>
+<table class="tbl"><tr><th>Day</th><th>Time</th><th>Lesson</th><th>Teacher</th><th>Venue</th></tr>
+{% for t in timetable %}<tr><td>{{ t.get_day_display }}</td><td>{{ t.start_time|time:"H:i" }} – {{ t.end_time|time:"H:i" }}</td><td>{{ t.title }}</td><td>{{ t.lecturer.get_full_name|default:t.lecturer.username }}</td><td>{{ t.venue|default:"—" }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">No lessons on the timetable yet.</td></tr>{% endfor %}</table>
+
+<h2>Results</h2>
+<table class="tbl"><tr><th>Course or subject</th><th>Term</th><th>Mark</th><th>Grade</th></tr>
+{% for e in enrollments %}<tr><td>{{ e.label }}</td><td>{{ e.term }}</td><td>{{ e.mark|default_if_none:"—" }}</td><td>{{ e.grade }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Nothing enrolled yet.</td></tr>{% endfor %}</table>
+
+<h2>Attendance</h2>
+<table class="tbl"><tr><th>Term</th><th class="r">Sessions</th><th class="r">Present</th><th class="r">Rate</th></tr>
+{% for term, sessions, present, pct in attendance %}<tr><td>{{ term }}</td><td class="r">{{ sessions }}</td><td class="r">{{ present }}</td><td class="r">{% if pct %}{{ pct }}%{% else %}—{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">No attendance recorded yet.</td></tr>{% endfor %}</table>
+
+<h2>Fees</h2>
+<table class="tbl"><tr><th>Invoice</th><th>Due</th><th class="r">Amount</th><th class="r">Balance</th></tr>
+{% for i in invoices %}<tr><td>{{ i.description }}</td><td>{{ i.due_date }}</td><td class="r">{{ i.amount }}</td><td class="r">{{ i.balance }}{% if i.waived %} <span class="muted">({{ CUR }}{{ i.waived }} waived)</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">No invoices yet.</td></tr>{% endfor %}</table>
+
+<h2>Exam card</h2>
+{% if sitting %}<div class="card"><b>{{ sitting.exam_no }}</b> <span class="muted">{{ sitting.term }} · {{ sitting.venue|default:"Venue to be announced" }}</span>
+<p>{% if sitting.cleared %}Cleared to sit the exams.{% else %}<b>Not cleared to sit.</b> {{ sitting.note|default:"Contact the office." }}{% endif %}</p>
+<table class="tbl"><tr><th>Course or subject</th></tr>
+{% for e in exam_rows %}<tr><td>{{ e.label }}</td></tr>
+{% empty %}<tr><td class="muted">Nothing enrolled for {{ sitting.term.name }}.</td></tr>{% endfor %}</table></div>
+{% else %}<p class="muted">Not entered for any exam sitting yet. The registrar enters students when exams approach.</p>{% endif %}
+
+<h2>Activities</h2>{% for a in activities %}<div class="card"><b>{{ a.title }}</b> <span class="muted">{{ a.get_kind_display }} · {{ a.date }}</span></div>{% empty %}<p class="muted">Nothing recorded yet.</p>{% endfor %}
+<h2>Notices</h2>{% for a in announcements %}<div class="card"><b>{{ a.title }}</b><p>{{ a.body }}</p></div>{% empty %}<p class="muted">No notices yet.</p>{% endfor %}
+{% endblock %}

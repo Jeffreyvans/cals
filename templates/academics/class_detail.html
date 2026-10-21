@@ -1,0 +1,49 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ c.name }}</h1>
+    <p class="muted">Level: {{ c.get_level_display }} · Class teacher: {% if class_teacher and class_teacher.teacher %}{{ class_teacher.teacher.get_full_name|default:class_teacher.teacher.username }}{% else %}not set{% endif %}{% if year %} · Year {{ year.name }}{% endif %}</p>
+  </div>
+  <p><a class="btn ghost" href="{% url 'class_list' %}">All classes</a></p>
+</div>
+
+{% if can_edit %}
+<div class="cols">
+  <form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="teacher">
+    <h2>Class teacher{% if year %} ({{ year.name }}){% endif %}</h2>
+    {{ teacher_form.as_p }}<button class="btn ghost">Save class teacher</button></form>
+  <form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="stream">
+    <h2>Add a stream</h2>
+    {{ stream_form.as_p }}<button class="btn ghost">Save stream</button></form>
+</div>
+{% endif %}
+
+<h2>Streams</h2>
+<p>{% for s in c.streams.all %}<span class="badge">{{ s.name }}</span> {% empty %}<span class="muted">No streams yet. Streams let you split a class into groups.</span>{% endfor %}</p>
+
+<h2>Students ({{ students|length }})</h2>
+<table class="tbl">
+  <tr><th>No.</th><th>Name</th><th>Stream</th><th>Status</th></tr>
+  {% for st in students %}<tr>
+    <td>{{ st.student_no }}</td>
+    <td><a href="{% url 'student_detail' st.pk %}">{{ st.name }}</a></td>
+    <td>{{ st.stream|default:"Whole class" }}</td>
+    <td>{{ st.get_status_display }}</td>
+  </tr>{% empty %}<tr><td colspan="4" class="muted">No students in this class yet. <a href="{% url 'student_create' %}">Register a student</a> and choose this class.</td></tr>{% endfor %}
+</table>
+
+<h2>Timetable{% if term %} ({{ term.name }}){% endif %}</h2>
+{% for label, entries in groups %}
+<h3>{{ label }}</h3>
+<table class="tbl">
+  <tr><th>Time</th><th>Stream</th><th>Subject</th><th>Teacher</th><th>Venue</th></tr>
+  {% for e in entries %}<tr>
+    <td>{{ e.start_time|time:"H:i" }} – {{ e.end_time|time:"H:i" }}</td>
+    <td>{{ e.stream|default:"Whole class" }}</td>
+    <td>{{ e.title }}</td>
+    <td>{{ e.lecturer.get_full_name|default:e.lecturer.username }}</td>
+    <td>{{ e.venue|default:"—" }}</td>
+  </tr>{% endfor %}
+</table>
+{% empty %}<p class="muted">No lessons on this timetable yet.{% if can_edit %} <a href="{% url 'timetable' %}">Add the first lesson</a>.{% endif %}</p>{% endfor %}
+{% endblock %}

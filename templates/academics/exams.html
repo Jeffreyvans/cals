@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% block content %}
+<h1>Exam sittings</h1>
+<p class="muted">Candidate numbers, venues and exam clearance for each term. Everyone enrolled in the term can be entered in one go, and fees owed are shown so you can decide who is cleared to sit.</p>
+{% if not term %}
+<p class="muted">No exam terms yet. <a href="{% url 'academic_years' %}">Add the current year and term</a> first.</p>
+{% else %}
+<p class="muted">{% for t in terms %}{% if t.pk == term.pk %}<b>{{ t }}</b>{% else %}<a href="?term={{ t.pk }}">{{ t }}</a>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+<h2>{{ term }} candidates</h2>
+{% if sittings %}
+<form method="post">{% csrf_token %}
+<table class="tbl"><tr><th>Exam no.</th><th>Student</th><th>Programme</th><th class="r">Fees owed</th><th>Venue</th><th>Cleared</th><th>Note</th><th></th></tr>
+{% for s in sittings %}<tr>
+<td>{{ s.exam_no }}</td>
+<td><a href="{% url 'student_detail' s.student.pk %}">{{ s.student.name }}</a></td>
+<td>{{ s.student.programme.name }}{% if s.student.school_class %} · {{ s.student.class_label }}{% endif %}</td>
+<td class="r">{{ CUR }}{{ s.balance }}</td>
+<td><input name="venue_{{ s.pk }}" value="{{ s.venue }}" maxlength="60" size="10" placeholder="Hall"></td>
+<td class="c"><input type="checkbox" name="cleared_{{ s.pk }}" {% if s.cleared %}checked{% endif %} aria-label="Cleared"></td>
+<td><input name="note_{{ s.pk }}" value="{{ s.note }}" maxlength="120" size="14" placeholder="Reason if blocked"></td>
+<td><button class="link" name="action" value="remove_{{ s.pk }}" onclick="return confirm('Remove this sitting?')">Remove</button></td>
+</tr>{% endfor %}</table>
+<button class="btn" name="action" value="save">Save changes</button>
+</form>
+{% else %}<p class="muted">Nobody is entered for {{ term }} yet.</p>{% endif %}
+
+{% if missing %}
+<h2>Not entered yet</h2>
+<p class="muted">{{ missing|length }} active student{{ missing|length|pluralize }} {{ missing|length|pluralize:"is,are" }} enrolled this term without a candidate number.</p>
+<form method="post" class="inline">{% csrf_token %}<button class="btn ghost" name="action" value="bulk">Enter everyone</button></form>
+<table class="tbl"><tr><th>Student</th><th>Programme</th><th></th></tr>
+{% for m in missing %}<tr><td>{{ m.name }}</td><td>{{ m.programme.name }}</td>
+<td><form method="post" class="inline">{% csrf_token %}<input type="hidden" name="pk" value="{{ m.pk }}"><button class="link" name="action" value="enter_one">Enter</button></form></td></tr>{% endfor %}
+</table>
+{% endif %}
+{% endif %}
+{% endblock %}

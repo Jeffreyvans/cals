@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block content %}
+<div class="receipt"><h1>{{ INSTITUTION }}</h1><h2>Payment receipt {{ p.receipt_no }}</h2>
+<table class="tbl"><tr><td>Student</td><td>{{ s.name }} ({{ s.student_no }})</td></tr><tr><td>For</td><td>{{ p.invoice.description }}</td></tr>
+<tr><td>Amount received</td><td><b>{{ CUR }}{{ p.amount }}</b></td></tr><tr><td>Method</td><td>{{ p.get_method_display }}{% if p.reference %} · {{ p.reference }}{% endif %}</td></tr>
+<tr><td>Date</td><td>{{ p.paid_on }}</td></tr><tr><td>Received by</td><td>{{ p.received_by_name }}</td></tr>
+<tr><td>Balance on this invoice</td><td>{{ CUR }}{{ p.invoice.balance }}</td></tr></table>
+<button class="btn noprint" onclick="print()">Print receipt</button></div>{% endblock %}

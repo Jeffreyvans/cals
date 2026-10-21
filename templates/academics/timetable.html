@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div><h1>{{ page_title }}</h1>
+    <p class="muted">{% if term %}Showing {{ term }}.{% else %}No current term is set, so all terms are shown.{% endif %}</p></div>
+</div>
+
+{% if form %}
+<form method="get" class="filters">
+  <select name="class" onchange="this.form.submit()" aria-label="Filter by class">
+    <option value="">All classes</option>
+    {% for c in classes %}<option value="{{ c.pk }}" {% if filter_class == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+  </select>
+  <select name="lecturer" onchange="this.form.submit()" aria-label="Filter by teacher">
+    <option value="">All teachers</option>
+    {% for l in lecturers %}<option value="{{ l.pk }}" {% if filter_lecturer == l.pk|stringformat:"s" %}selected{% endif %}>{{ l.get_full_name|default:l.username }}</option>{% endfor %}
+  </select>
+  {% if filter_class or filter_lecturer %}<a class="btn ghost" href="{% url 'timetable' %}">Clear filters</a>{% endif %}
+</form>
+
+<h2>Add a lesson</h2>
+<form method="post" class="inline wide">{% csrf_token %}{{ form.as_p }}<button class="btn">Save lesson</button></form>
+<p class="muted">Clashes are checked for you: a teacher cannot teach two groups at once, a class cannot have two lessons at once, and a venue cannot be double booked.</p>
+{% endif %}
+
+{% for label, entries in groups %}
+<h2>{{ label }}</h2>
+<table class="tbl">
+  <tr><th>Time</th><th>Group</th><th>Lesson</th><th>Teacher</th><th>Venue</th></tr>
+  {% for e in entries %}<tr>
+    <td>{{ e.start_time|time:"H:i" }} – {{ e.end_time|time:"H:i" }}</td>
+    <td>{{ e.group }}</td>
+    <td>{{ e.title }}</td>
+    <td>{{ e.lecturer.get_full_name|default:e.lecturer.username }}</td>
+    <td>{{ e.venue|default:"—" }}</td>
+  </tr>{% endfor %}
+</table>
+{% empty %}
+<p class="muted">Nothing on the timetable yet. {% if can_add %}Add the first lesson above.{% else %}Ask the registrar to add lessons for your classes.{% endif %}</p>
+{% endfor %}
+{% endblock %}

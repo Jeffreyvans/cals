@@ -1,0 +1,61 @@
+{% load static %}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}{{ INSTITUTION }}{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/app.css' %}"></head>
+<body>
+{% if user.is_authenticated %}
+<div class="shell">
+  <aside class="side" id="side">
+    <div class="brand">{{ INSTITUTION }}</div>
+    <nav>
+      {% if user.role == 'student' %}
+        <a href="{% url 'student_portal' %}">My account</a>
+      {% elif user.role == 'parent' %}
+        <a href="{% url 'parent_portal' %}">My children</a>
+      {% elif user.role == 'lecturer' %}
+        <a href="{% url 'lecturer_portal' %}">My courses</a>
+        <a href="{% url 'my_timetable' %}">My timetable</a>
+        <a href="{% url 'student_search' %}">Find a student</a>
+        <a href="{% url 'notices' %}">Notices</a>
+      {% else %}
+        <a href="{% url 'dashboard' %}">Overview</a>
+        <a href="{% url 'student_search' %}">Find a student</a>
+        <a href="{% url 'notices' %}">Notices</a>
+        <a href="{% url 'exams' %}">Exams</a>
+        <a href="{% url 'report_debtors' %}">Debtors</a>
+        <a href="{% url 'report_collections' %}">Collections</a>
+        {% if user.role == 'bursar' or user.role == 'admin' %}
+          <a href="{% url 'audit_log' %}">Audit log</a>
+        {% endif %}
+        {% if user.role == 'registrar' or user.role == 'admin' %}
+          <a href="{% url 'student_create' %}">Register student</a>
+          <a href="{% url 'academic_years' %}">Years and terms</a>
+          <a href="{% url 'timetable' %}">Timetable</a>
+          {% if IS_SCHOOL %}
+            <a href="{% url 'class_list' %}">Classes</a>
+            <a href="{% url 'subject_list' %}">Subjects</a>
+          {% else %}
+            <a href="{% url 'programme_list' %}">Programmes</a>
+          {% endif %}
+        {% endif %}
+        {% if user.role == 'admin' %}
+          <a href="{% url 'school_settings' %}">School settings</a>
+          <a href="{% url 'grade_bands' %}">Grade scale</a>
+          <a href="{% url 'admin:index' %}">Administration</a>
+        {% endif %}
+      {% endif %}
+    </nav>
+    <div class="who">{{ user.get_full_name|default:user.username }}<small>{{ user.get_role_display }}</small>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link">Sign out</button></form></div>
+  </aside>
+  <main>
+    <button class="menu" onclick="document.getElementById('side').classList.toggle('open')" aria-label="Menu">Menu</button>
+    {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+    {% if user.role == 'registrar' or user.role == 'admin' %}{% if not CURRENT_YEAR %}<div class="msg">No academic year yet. <a href="{% url 'academic_years' %}">Add the current year and term</a> so timetables and results know which period they belong to.</div>{% endif %}{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}{% block bare %}{% endblock %}{% endif %}
+<script src="{% static 'js/app.js' %}"></script>{% block js %}{% endblock %}
+</body></html>

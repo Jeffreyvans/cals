@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% block content %}
+<div class="head"><div><h1>{{ s.name }}</h1><p class="muted">{{ s.student_no }} · {{ s.programme.name }} · {% if s.school_class %}Class {{ s.class_label }}{% else %}Year {{ s.year_or_grade }}{% endif %} · {{ s.get_status_display }}</p>
+<p class="muted">Guardian: {{ s.guardian_name|default:"—" }} {{ s.guardian_phone }}</p></div>
+{% if show_money %}<div class="bal {% if s.balance > 0 %}owing{% else %}clear{% endif %}"><small>Remaining balance</small><b>{{ CUR }}{{ s.balance }}</b>
+<small>Billed {{ CUR }}{{ s.total_billed }} · Paid {{ CUR }}{{ s.total_paid }}{% if s.total_waived %} · Waived {{ CUR }}{{ s.total_waived }}{% endif %}</small></div>{% endif %}</div>
+{% if user.role == 'bursar' or user.role == 'admin' %}<p><a class="btn" href="{% url 'record_payment' s.pk %}">Receive payment</a> <a class="btn ghost" href="{% url 'create_invoice' s.pk %}">Add invoice</a></p>{% endif %}
+{% if show_money %}<h2>Fees</h2><table class="tbl"><tr><th>Invoice</th><th>Due</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Waived</th><th class="r">Balance</th><th>Receipts</th><th></th></tr>
+{% for i in invoices %}<tr><td>{{ i.description }}</td><td>{{ i.due_date }}</td><td class="r">{{ i.amount }}</td><td class="r">{{ i.paid }}</td>
+<td class="r">{% if i.waived %}{{ CUR }}{{ i.waived }}{% for w in i.waivers.all %} <a href="{% url 'credit_note' w.pk %}">{{ w.note_no }}</a>{% endfor %}{% else %}—{% endif %}</td>
+<td class="r">{{ i.balance }}</td>
+<td>{% for p in i.payments.all %}<a href="{% url 'receipt' p.pk %}">{{ p.receipt_no }}</a> {% endfor %}</td>
+<td>{% if user.role == 'bursar' or user.role == 'admin' %}<a href="{% url 'waive' i.pk %}">Waive</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="muted">No invoices yet.</td></tr>{% endfor %}</table>{% endif %}
+<h2>Courses and subjects</h2><p><a class="btn ghost" href="{% url 'student_report' s.pk %}">Open report card</a></p><table class="tbl"><tr><th>Course or subject</th><th>Term</th><th>Mark</th><th>Grade</th></tr>
+{% for e in enrollments %}<tr><td>{{ e.label }}</td><td>{{ e.term }}</td><td>{{ e.mark|default_if_none:"—" }}</td><td>{{ e.grade }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Not enrolled in anything yet. Use the form below.</td></tr>{% endfor %}</table>
+{% if user.role == 'registrar' or user.role == 'admin' %}<form method="post" action="{% url 'enroll' s.pk %}" class="inline">{% csrf_token %}{{ enroll_form.as_p }}<button class="btn ghost">Enroll</button></form>{% endif %}
+<h2>Parent / guardian account</h2>
+<table class="tbl"><tr><th>Login</th><th>Name</th><th>Phone</th><th>Linked</th><th></th></tr>
+{% for g in guardians %}<tr><td>{{ g.parent.username }}</td><td>{{ g.parent.get_full_name|default:"—" }}</td><td>{{ g.parent.phone|default:"—" }}</td><td>{{ g.linked|date:"d M Y" }}</td>
+<td>{% if user.role == 'registrar' or user.role == 'admin' %}<form method="post" action="{% url 'unlink_guardian' s.pk g.pk %}">{% csrf_token %}<button class="link">Remove</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No parent account is linked yet. Link one so parents can follow progress from home.</td></tr>{% endfor %}</table>
+{% if user.role == 'registrar' or user.role == 'admin' %}<form method="post" action="{% url 'link_guardian' s.pk %}" class="inline">{% csrf_token %}{{ guardian_form.as_p }}<button class="btn ghost">Link parent</button></form>{% endif %}
+<h2>Activities</h2><table class="tbl"><tr><th>Date</th><th>Type</th><th>Title</th><th>Detail</th></tr>
+{% for a in activities %}<tr><td>{{ a.date }}</td><td>{{ a.get_kind_display }}</td><td>{{ a.title }}</td><td>{{ a.detail }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No activities recorded.</td></tr>{% endfor %}</table>
+{% if user.role != 'bursar' %}<form method="post" action="{% url 'add_activity' s.pk %}" class="inline">{% csrf_token %}{{ activity_form.as_p }}<button class="btn ghost">Add activity</button></form>{% endif %}
+{% endblock %}
