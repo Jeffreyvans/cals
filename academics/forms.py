@@ -1,8 +1,25 @@
 from django import forms
+
 from accounts.models import User
-from .models import (AcademicYear, Activity, Announcement, ClassTeacher, Course,
-                     Enrollment, GradeBand, Guardian, Programme, SchoolClass,
-                     SchoolSettings, Stream, Subject, Student, Term, TimetableEntry)
+
+from .models import (
+    AcademicYear,
+    Activity,
+    Announcement,
+    ClassTeacher,
+    Course,
+    Enrollment,
+    GradeBand,
+    Guardian,
+    Programme,
+    SchoolClass,
+    SchoolSettings,
+    Stream,
+    Student,
+    Subject,
+    Term,
+    TimetableEntry,
+)
 
 
 def _terms():
@@ -128,7 +145,7 @@ class ClassTeacherForm(forms.ModelForm):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.fields["teacher"].queryset = User.objects.filter(
+        self.fields["teacher"].queryset = User.tenant_objects.filter(
             role__in=("lecturer", "admin"), is_active=True).order_by("first_name", "username")
         self.fields["teacher"].empty_label = "Choose a teacher"
 
@@ -140,7 +157,7 @@ class SubjectForm(forms.ModelForm):
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
-        self.fields["lecturer"].queryset = User.objects.filter(
+        self.fields["lecturer"].queryset = User.tenant_objects.filter(
             role__in=("lecturer", "admin"), is_active=True).order_by("first_name", "username")
         self.fields["lecturer"].empty_label = "Choose the teacher"
         self.fields["lecturer"].required = False
@@ -160,7 +177,7 @@ class CourseForm(forms.ModelForm):
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.fields["programme"].empty_label = "Choose a programme"
-        self.fields["lecturer"].queryset = User.objects.filter(
+        self.fields["lecturer"].queryset = User.tenant_objects.filter(
             role="lecturer", is_active=True).order_by("first_name", "username")
         self.fields["lecturer"].required = False
 
@@ -189,7 +206,7 @@ class TimetableEntryForm(forms.ModelForm):
         if "stream" in self.fields:
             self.fields["stream"].queryset = Stream.objects.select_related("school_class")
             self.fields["stream"].empty_label = "Whole class (no split)"
-        self.fields["lecturer"].queryset = User.objects.filter(
+        self.fields["lecturer"].queryset = User.tenant_objects.filter(
             role__in=("lecturer", "admin"), is_active=True).order_by("first_name", "username")
         self.fields["lecturer"].empty_label = "Choose a teacher"
         self.fields["academic_year"].queryset = AcademicYear.objects.all()

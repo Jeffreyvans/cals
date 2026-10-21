@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Roles and permissions{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Roles and permissions</h1>
+    <p class="muted">Who may do what inside {{ inst.name }}. Tick a box to give a role that permission.</p>
+  </div>
+  <a class="btn" href="{% url 'role_create' %}">Add a role</a>
+</div>
+
+<h2>Roles</h2>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Role</th><th>Code</th><th class="r">Permissions</th><th></th></tr></thead>
+  <tbody>
+  {% for role in roles %}
+    <tr>
+      <td><strong>{{ role.name }}</strong>{% if role.is_system %} <span class="badge">built in</span>{% endif %}
+        <br><span class="muted">{{ role.description }}</span></td>
+      <td><code>{{ role.code }}</code></td>
+      <td class="r">{{ role.held_count }}</td>
+      <td class="r"><a href="{% url 'role_detail' role.pk %}">Edit</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">No roles yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Permission matrix</h2>
+<form method="post" action="{% url 'role_matrix' %}">
+{% csrf_token %}
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead>
+    <tr>
+      <th>Permission</th>
+      {% for role in roles %}<th class="c">{{ role.code }}</th>{% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+  {% for cat in categories %}
+    <tr><th colspan="{{ roles|length|add:1 }}">{{ cat.name }}</th></tr>
+    {% for code, desc in cat.perms %}
+    <tr>
+      <td><code>{{ code }}</code><br><span class="muted">{{ desc }}</span></td>
+      {% for role in roles %}
+      <td class="c">
+        <input type="checkbox" name="p_{{ role.pk }}_{{ code }}" {% if code in role.held_codes %}checked{% endif %}
+               aria-label="{{ code }} for {{ role.code }}">
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<button class="btn">Save permissions</button>
+</form>
+{% endblock %}

@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from finance.models import Invoice, MoneyLog, Payment, Waiver
+
 from .test_audit import BaseAudit
 
 User = get_user_model()

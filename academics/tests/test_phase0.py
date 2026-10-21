@@ -3,8 +3,8 @@ from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
 
+from academics.models import AcademicYear, Programme, Student, Term
 from accounts.models import User
-from academics.models import Student, Programme, Term, AcademicYear
 from finance.models import Invoice, Payment, Waiver
 
 

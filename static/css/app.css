@@ -47,3 +47,10 @@ h3{margin:1.2em 0 .5em;font-size:1.02rem}
 .chips{display:flex;gap:.4rem;flex-wrap:wrap}
 .grade{font-weight:700}
 .tbl-wrap{overflow-x:auto}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
+.bell{position:relative;text-decoration:none;color:var(--side);font-weight:500}
+.bell .dot{position:absolute;top:-.55rem;right:-.9rem;background:var(--accent);color:#2b1d00;border-radius:99px;font-size:.72rem;font-weight:700;padding:.05rem .35rem}
+.card.unread{border-left:5px solid var(--accent)}
+textarea{font:inherit}
+

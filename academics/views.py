@@ -1,25 +1,58 @@
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+
 from accounts.decorators import role_required
 from accounts.models import User
+from core.access import module_required
 from finance.models import Invoice
-from .forms import (ActivityForm, AnnouncementForm, ClassTeacherForm, CourseForm,
-                    EnrollForm, GradeBandForm, GuardianForm, ProgrammeForm,
-                    SchoolClassForm, SchoolSettingsForm, StreamForm,
-                    StudentRegistrationForm, SubjectForm, TermForm,
-                    TimetableEntryForm, YearForm)
-from .models import (DAY_CHOICES, AcademicYear, Announcement, Attendance,
-                     ClassTeacher, Course, Enrollment, ExamSitting, GradeBand,
-                     Guardian, Programme, SchoolClass, SchoolSettings, Stream,
-                     Student, Subject, Term, TimetableEntry, balances_by_student)
+
+from .forms import (
+    ActivityForm,
+    AnnouncementForm,
+    ClassTeacherForm,
+    CourseForm,
+    EnrollForm,
+    GradeBandForm,
+    GuardianForm,
+    ProgrammeForm,
+    SchoolClassForm,
+    SchoolSettingsForm,
+    StreamForm,
+    StudentRegistrationForm,
+    SubjectForm,
+    TermForm,
+    TimetableEntryForm,
+    YearForm,
+)
+from .models import (
+    DAY_CHOICES,
+    AcademicYear,
+    Announcement,
+    Attendance,
+    ClassTeacher,
+    Course,
+    Enrollment,
+    ExamSitting,
+    GradeBand,
+    Guardian,
+    Programme,
+    SchoolClass,
+    SchoolSettings,
+    Student,
+    Subject,
+    Term,
+    TimetableEntry,
+    balances_by_student,
+)
 
 MONEY_ROLES = ("admin", "registrar", "bursar")
 
@@ -223,7 +256,9 @@ def student_create(request):
         d = form.cleaned_data
         user = User.objects.create_user(d["username"], d["email"], d["password"],
             first_name=d["first_name"], last_name=d["last_name"], role="student")
-        s = form.save(commit=False); s.user = user; s.save()
+        s = form.save(commit=False)
+        s.user = user
+        s.save()
         if s.programme.tuition_fee:
             Invoice.objects.create(student=s, description=f"Tuition – {s.programme.name}",
                 amount=s.programme.tuition_fee, due_date=date.today(),
@@ -239,9 +274,11 @@ def enroll(request, pk):
     if request.method == "POST":
         f = EnrollForm(s, request.POST)
         if f.is_valid():
-            e = f.save(commit=False); e.student = s
+            e = f.save(commit=False)
+            e.student = s
             try:
-                e.save(); messages.success(request, "Enrolled.")
+                e.save()
+                messages.success(request, "Enrolled.")
             except ValidationError as err:
                 messages.error(request, " ".join(err.messages))
         else:
@@ -255,7 +292,9 @@ def add_activity(request, pk):
     if request.method == "POST":
         f = ActivityForm(request.POST)
         if f.is_valid():
-            a = f.save(commit=False); a.student = s; a.save()
+            a = f.save(commit=False)
+            a.student = s
+            a.save()
             messages.success(request, "Activity recorded.")
         else:
             messages.error(request, f"Could not save the activity. {_err(f)}")
@@ -285,7 +324,8 @@ def academic_years(request):
         elif action == "year_current":
             y = AcademicYear.objects.filter(pk=request.POST.get("pk")).first()
             if y:
-                y.is_current = True; y.save()
+                y.is_current = True
+                y.save()
                 messages.success(request, f"{y.name} is now the current year.")
             else:
                 messages.error(request, "That academic year was not found.")
@@ -293,7 +333,8 @@ def academic_years(request):
         elif action == "term_current":
             t = Term.objects.filter(pk=request.POST.get("pk")).first()
             if t:
-                t.is_current = True; t.save()
+                t.is_current = True
+                t.save()
                 messages.success(request, f"{t.name} is now the current term.")
             else:
                 messages.error(request, "That term was not found.")
@@ -340,7 +381,9 @@ def class_detail(request, pk):
                 if c.streams.filter(name__iexact=name).exists():
                     messages.error(request, f"{c.name} already has a stream called {name}.")
                 else:
-                    s = f.save(commit=False); s.school_class = c; s.save()
+                    s = f.save(commit=False)
+                    s.school_class = c
+                    s.save()
                     messages.success(request, f"Stream {s.name} added to {c.name}.")
             else:
                 messages.error(request, f"Could not add the stream. {_err(f)}")
@@ -430,7 +473,7 @@ def timetable(request):
         "groups": _by_day(entries), "form": form, "can_add": True,
         "page_title": "Timetable", "term": _current_term(),
         "classes": SchoolClass.objects.all(),
-        "lecturers": User.objects.filter(role__in=("lecturer", "admin"), is_active=True)
+        "lecturers": User.tenant_objects.filter(role__in=("lecturer", "admin"), is_active=True)
                                  .order_by("first_name"),
         "filter_class": request.GET.get("class", ""),
         "filter_lecturer": request.GET.get("lecturer", "")})
@@ -594,6 +637,7 @@ def _enrolled_this_term(term):
     return Student.objects.filter(pk__in=ids, status="active")
 
 
+@module_required("exams")
 @role_required("registrar", "bursar")
 def exams(request):
     terms = list(Term.objects.select_related("academic_year"))

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Notifications</h1>
+    <p class="muted">{{ unread }} unread.</p>
+  </div>
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="action" value="read_all">
+    <button class="btn ghost">Mark all as read</button>
+  </form>
+</div>
+
+{% for n in rows %}
+  <div class="card {% if not n.read_at %}unread{% endif %}">
+    <strong>{{ n.title }}</strong>
+    {% if not n.read_at %}<span class="badge">new</span>{% endif %}
+    <p class="muted">{{ n.body }}</p>
+    <p class="muted"><small>{{ n.created|date:"j M Y, H:i" }} &middot; {{ n.category }}</small></p>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="notification" value="{{ n.pk }}">
+      {% if n.link %}<input type="hidden" name="next" value="{{ n.link }}">
+      <a class="btn ghost" href="{{ n.link|default:'#' }}">Open</a>{% endif %}
+      {% if not n.read_at %}<button class="link" name="action" value="read">Mark as read</button>{% endif %}
+    </form>
+  </div>
+{% empty %}
+  <div class="card"><p class="muted">Nothing here yet.</p></div>
+{% endfor %}
+{% endblock %}

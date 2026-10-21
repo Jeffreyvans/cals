@@ -1,9 +1,12 @@
 from django.contrib import admin
+
+from core.admin import TenantAdminMixin
+
 from .models import Invoice, MoneyLog, Payment, Waiver
 
 
 @admin.register(Invoice)
-class InvoiceAdmin(admin.ModelAdmin):
+class InvoiceAdmin(TenantAdminMixin, admin.ModelAdmin):
     list_display = ("description", "student", "amount", "due_date", "created_by")
     search_fields = ("description", "student__name", "student__user__username")
     readonly_fields = ("created", "created_by")
@@ -52,7 +55,7 @@ class InvoiceAdmin(admin.ModelAdmin):
 
 
 @admin.register(Payment)
-class PaymentAdmin(admin.ModelAdmin):
+class PaymentAdmin(TenantAdminMixin, admin.ModelAdmin):
     list_display = ("receipt_no", "invoice", "amount", "method", "paid_on",
                     "received_by")
     search_fields = ("receipt_no", "invoice__description",
@@ -95,7 +98,7 @@ class PaymentAdmin(admin.ModelAdmin):
 
 
 @admin.register(Waiver)
-class WaiverAdmin(admin.ModelAdmin):
+class WaiverAdmin(TenantAdminMixin, admin.ModelAdmin):
     list_display = ("note_no", "invoice", "amount", "reason", "created",
                     "recorded_by")
     search_fields = ("note_no", "reason", "invoice__description")
@@ -137,7 +140,7 @@ class WaiverAdmin(admin.ModelAdmin):
 
 
 @admin.register(MoneyLog)
-class MoneyLogAdmin(admin.ModelAdmin):
+class MoneyLogAdmin(TenantAdminMixin, admin.ModelAdmin):
     """Append-only: the trail can be read but never touched."""
     list_display = ("created", "actor_name", "action", "description",
                     "student", "reference", "amount")

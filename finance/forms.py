@@ -1,5 +1,7 @@
 from django import forms
+
 from .models import Invoice, Payment, Waiver
+
 
 class PaymentForm(forms.ModelForm):
     class Meta:

@@ -4,9 +4,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
+from academics.models import Course, Enrollment, GradeBand, Programme, Student, Subject
 from accounts.models import User
-from academics.models import (Course, Enrollment, GradeBand, Programme, Student,
-                              Subject)
 
 
 class GradeBandTests(TestCase):
@@ -216,7 +215,8 @@ class StudentReportTests(BaseAssessment):
         resp = self.client.get(reverse("student_report", args=[self.a.pk]))
         self.assertContains(resp, "IT101")
         self.assertNotContains(resp, "NET101")
-        self.assertNotContains(resp, "88")
+        # Look inside the marks table so the CSRF token cannot trip the check.
+        self.assertNotIn(">88<", resp.content.decode())
 
     def test_registrar_and_bursar_can_open_the_report(self):
         for user in (self.registrar, self.bursar):

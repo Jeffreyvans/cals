@@ -1,8 +1,8 @@
 from django.test import TestCase
 from django.urls import reverse
 
+from academics.models import Course, Enrollment, Guardian, Programme, Student
 from accounts.models import User
-from academics.models import (Course, Enrollment, Guardian, Programme, Student)
 
 
 class BaseParents(TestCase):

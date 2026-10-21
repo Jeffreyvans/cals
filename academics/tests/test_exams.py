@@ -3,9 +3,17 @@ from datetime import date
 from django.test import TestCase
 from django.urls import reverse
 
+from academics.models import (
+    AcademicYear,
+    Course,
+    Enrollment,
+    ExamSitting,
+    Guardian,
+    Programme,
+    Student,
+    Term,
+)
 from accounts.models import User
-from academics.models import (AcademicYear, Course, Enrollment, ExamSitting,
-                              Guardian, Programme, Student, Term)
 from finance.models import Invoice
 
 

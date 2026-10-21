@@ -1,9 +1,8 @@
 from django.test import TestCase
 from django.urls import reverse
 
+from academics.models import Announcement, Guardian, Programme, SchoolClass, SchoolSettings, Student
 from accounts.models import User
-from academics.models import (Announcement, Guardian, Programme, SchoolClass,
-                              SchoolSettings, Student)
 
 
 class BaseNotices(TestCase):

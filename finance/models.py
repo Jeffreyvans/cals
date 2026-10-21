@@ -1,10 +1,14 @@
 from decimal import Decimal
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Sum
 
-class Invoice(models.Model):
+from core.models import TenantModel
+
+
+class Invoice(TenantModel):
     student = models.ForeignKey("academics.Student", on_delete=models.CASCADE, related_name="invoices")
     description = models.CharField(max_length=200)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -27,7 +31,7 @@ class Invoice(models.Model):
                 actor=self.created_by, description=self.description)
     def __str__(self): return f"{self.description} – {self.student.name}"
 
-class Payment(models.Model):
+class Payment(TenantModel):
     class Method(models.TextChoices):
         CASH = "cash", "Cash"
         MOBILE = "mobile", "Mobile money"
@@ -40,7 +44,12 @@ class Payment(models.Model):
     received_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="payments_received")
     paid_on = models.DateTimeField(auto_now_add=True)
-    receipt_no = models.CharField(max_length=20, unique=True, blank=True)
+    receipt_no = models.CharField(max_length=20, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "receipt_no"], name="uniq_receipt_no")
+        ]
 
     def available_for_payment(self):
         """Invoice balance left after ignoring this payment itself."""
@@ -85,16 +94,21 @@ class Payment(models.Model):
     def __str__(self): return f"{self.receipt_no} {self.amount}"
 
 
-class Waiver(models.Model):
+class Waiver(TenantModel):
     """A credit note: money the office chooses not to collect from an invoice."""
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="waivers")
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     reason = models.CharField(max_length=200,
                               help_text="Why the money is being forgiven.")
-    note_no = models.CharField(max_length=20, unique=True, blank=True)
+    note_no = models.CharField(max_length=20, blank=True)
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="waivers_recorded")
     created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "note_no"], name="uniq_credit_note_no")
+        ]
 
     def available_for_waiver(self):
         """Invoice balance left after ignoring this waiver itself."""
@@ -139,7 +153,7 @@ class Waiver(models.Model):
     def __str__(self): return f"{self.note_no} {self.amount}"
 
 
-class MoneyLog(models.Model):
+class MoneyLog(TenantModel):
     """Append-only record of every invoice, payment and credit note."""
     class Action(models.TextChoices):
         INVOICE = "invoice", "Invoice issued"

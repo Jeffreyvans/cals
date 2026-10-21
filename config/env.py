@@ -35,8 +35,8 @@ def env_int(name, default=0):
         return default
     try:
         return int(raw)
-    except ValueError:
-        raise ValueError(f"{name} must be a whole number, got {raw!r}.")
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a whole number, got {raw!r}.") from exc
 
 
 def load_dotenv(path):

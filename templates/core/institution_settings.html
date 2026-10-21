@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Institution settings{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Institution settings</h1>
+    <p class="muted">{{ inst.name }} &middot; {{ inst.get_type_display }} &middot; <code>{{ inst.slug }}</code></p>
+  </div>
+  <a class="btn ghost" href="{% url 'role_list' %}">Roles and permissions</a>
+</div>
+
+<h2>Details</h2>
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="details">
+  <p><label>Institution name<input name="name" value="{{ inst.name }}" required></label></p>
+  <p><label>Currency symbol<input name="currency" value="{{ inst.currency }}" maxlength="10"></label></p>
+  <p><label>Time zone<input name="timezone" value="{{ inst.timezone }}" maxlength="64"></label></p>
+  <p><label>Language<input name="language" value="{{ inst.language }}" maxlength="10"></label></p>
+  <p><label>Contact email<input name="contact_email" type="email" value="{{ inst.contact_email }}"></label></p>
+  <p><label>Contact phone<input name="contact_phone" value="{{ inst.contact_phone }}"></label></p>
+  <p><label>Address<textarea name="address" rows="2">{{ inst.address }}</textarea></label></p>
+  <p><label>Primary colour<input name="primary_color" value="{{ inst.primary_color }}" placeholder="#12403c"></label></p>
+  <p><label>Accent colour<input name="accent_color" value="{{ inst.accent_color }}" placeholder="#e8a317"></label></p>
+  <button class="btn">Save details</button>
+</form>
+
+<h2>Modules</h2>
+<p class="muted">Switch off what this institution does not use. The menu and the pages follow these switches.</p>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Module</th><th>On</th><th></th></tr></thead>
+  <tbody>
+  {% for s in switches %}
+    <tr>
+      <td><code>{{ s.code }}</code></td>
+      <td>{% if s.on %}<span class="badge">on</span>{% else %}<span class="badge">off</span>{% endif %}</td>
+      <td class="r">
+        <form method="post">{% csrf_token %}
+          <input type="hidden" name="action" value="module">
+          <input type="hidden" name="code" value="{{ s.code }}">
+          {% if s.on %}
+            <button class="btn ghost" name="enabled" value="off">Switch off</button>
+          {% else %}
+            <button class="btn ghost" name="enabled" value="on">Switch on</button>
+          {% endif %}
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<form method="post" class="inline">
+  {% csrf_token %}<input type="hidden" name="action" value="seed_roles">
+  <button class="btn ghost">Restore the default roles</button>
+</form>
+{% endblock %}

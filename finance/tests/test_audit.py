@@ -157,9 +157,11 @@ class AuditLogViewTests(BaseAudit):
         self.assertEqual(resp.context["action"], "")
 
     def test_nav_link_shows_for_bursar_but_not_registrar(self):
+        # The menu now points at the institution-wide audit trail, which also
+        # covers money. The finance-only log is one click away from there.
         self.client.force_login(self.bursar)
         resp = self.client.get(reverse("dashboard"))
-        self.assertContains(resp, reverse("audit_log"))
+        self.assertContains(resp, reverse("audit_trail"))
         self.client.force_login(self.registrar)
         resp = self.client.get(reverse("dashboard"))
-        self.assertNotContains(resp, reverse("audit_log"))
+        self.assertNotContains(resp, reverse("audit_trail"))

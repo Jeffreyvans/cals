@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Audit log</h1>
+    <p class="muted">Every recorded action inside {{ inst.name }}.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'audit_trail_export' %}">Export CSV</a>
+</div>
+
+<form method="get" class="filters">
+  <select name="action">
+    <option value="">All actions</option>
+    {% for a in actions %}<option value="{{ a }}" {% if a == action %}selected{% endif %}>{{ a }}</option>{% endfor %}
+  </select>
+  <input type="date" name="from" value="{{ date_from }}" aria-label="From date">
+  <input type="date" name="to" value="{{ date_to }}" aria-label="To date">
+  <button class="btn ghost">Filter</button>
+  <a class="btn ghost" href="{% url 'audit_trail' %}">Clear</a>
+</form>
+
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Object</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.created|date:"j M Y H:i" }}</td>
+      <td>{{ r.actor_name }}</td>
+      <td><code>{{ r.action }}</code></td>
+      <td>{{ r.model_name }} {{ r.object_id }}</td>
+      <td class="muted">{{ r.ip_address|default:"—" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No entries for this filter.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted"><a href="{% url 'audit_log' %}">Finance audit log</a> &middot; <a href="{% url 'sensitive_log' %}">Restricted record views</a></p>
+{% endblock %}

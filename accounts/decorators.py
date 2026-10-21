@@ -1,6 +1,8 @@
 from functools import wraps
+
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+
 
 def role_required(*roles):
     """Allow only users whose role is in `roles` (admins always pass)."""

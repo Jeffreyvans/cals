@@ -1,14 +1,18 @@
 import csv
-from datetime import date as date_cls, datetime
+from datetime import date as date_cls
+from datetime import datetime
 from decimal import Decimal
 
 from django.contrib import messages
-from django.db.models import (DecimalField, ExpressionWrapper, F, Sum, Value)
+from django.db.models import DecimalField, ExpressionWrapper, F, Sum, Value
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from accounts.decorators import role_required
+
 from academics.models import Student, balances_by_student
+from accounts.decorators import role_required
+from core.access import module_required
+
 from .forms import InvoiceForm, PaymentForm, WaiverForm
 from .models import Invoice, MoneyLog, Payment, Waiver
 
@@ -25,27 +29,36 @@ def _parse_date(raw):
         return None
 
 
+@module_required("finance")
 @role_required("bursar")
 def record_payment(request, pk):
     s = get_object_or_404(Student, pk=pk)
     form = PaymentForm(s, request.POST or None)
     if form.is_valid():
-        p = form.save(commit=False); p.received_by = request.user; p.save()
+        p = form.save(commit=False)
+        p.received_by = request.user
+        p.save()
         messages.success(request, f"Payment received. Receipt {p.receipt_no}.")
         return redirect("receipt", pk=p.pk)
+
     return render(request, "finance/payment_form.html", {"s": s, "form": form})
 
+@module_required("finance")
 @role_required("bursar")
 def create_invoice(request, pk):
     s = get_object_or_404(Student, pk=pk)
     form = InvoiceForm(request.POST or None)
     if form.is_valid():
-        i = form.save(commit=False); i.student = s
-        i.created_by = request.user; i.save()
+        i = form.save(commit=False)
+        i.student = s
+        i.created_by = request.user
+        i.save()
         messages.success(request, "Invoice added to the student's account.")
         return redirect("student_detail", pk=pk)
+
     return render(request, "finance/invoice_form.html", {"s": s, "form": form})
 
+@module_required("finance")
 @role_required("bursar")
 def waive(request, pk):
     invoice = get_object_or_404(Invoice.objects.select_related("student__user"), pk=pk)
@@ -59,6 +72,7 @@ def waive(request, pk):
         return redirect("credit_note", pk=w.pk)
     return render(request, "finance/waive_form.html", {"invoice": invoice, "form": form})
 
+@module_required("finance")
 @role_required("bursar", "registrar")
 def credit_note(request, pk):
     w = get_object_or_404(Waiver.objects.select_related("invoice__student__user",
@@ -82,6 +96,7 @@ def _audit_entries(request):
     return entries, action, raw_from, raw_to
 
 
+@module_required("finance")
 @role_required("bursar", "admin")
 def audit_log(request):
     """Every money event, newest first."""
@@ -91,6 +106,7 @@ def audit_log(request):
         "actions": MoneyLog.Action.choices,
         "raw_from": raw_from, "raw_to": raw_to})
 
+@module_required("finance")
 @role_required("bursar", "registrar", "student")
 def receipt(request, pk):
     p = get_object_or_404(Payment.objects.select_related("invoice__student__user", "received_by"), pk=pk)
@@ -148,6 +164,7 @@ def _clean_show(raw):
     return raw if raw in ("all", "owing", "paid") else "owing"
 
 
+@module_required("finance")
 @role_required("bursar", "registrar")
 def report_debtors(request):
     """Who owes what, how overdue it is, printable for the office wall."""
@@ -157,6 +174,7 @@ def report_debtors(request):
         "rows": rows, "show": show, "totals": totals, "aging": _aging_data()})
 
 
+@module_required("finance")
 @role_required("bursar", "registrar")
 def export_debtors(request):
     show = _clean_show(request.GET.get("show", "owing"))
@@ -212,6 +230,7 @@ def _collections_data(date_from, date_to):
         len(students), list(methods.items())
 
 
+@module_required("finance")
 @role_required("bursar", "registrar")
 def report_collections(request):
     """Money received in a period, broken down by payment method."""
@@ -223,6 +242,7 @@ def report_collections(request):
         "methods": methods, "raw_from": raw_from, "raw_to": raw_to})
 
 
+@module_required("finance")
 @role_required("bursar", "registrar")
 def export_collections(request):
     date_from, date_to, _, _ = _date_filters(request)
@@ -247,6 +267,7 @@ def export_collections(request):
     return resp
 
 
+@module_required("finance")
 @role_required("bursar", "admin")
 def export_audit(request):
     entries, _, _, _ = _audit_entries(request)

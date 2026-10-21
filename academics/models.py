@@ -1,10 +1,13 @@
 from collections import Counter
 from decimal import Decimal
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q, Sum
+
+from core.models import TenantModel
 
 DAY_CHOICES = [(1, "Monday"), (2, "Tuesday"), (3, "Wednesday"), (4, "Thursday"),
                (5, "Friday"), (6, "Saturday"), (7, "Sunday")]
@@ -23,16 +26,32 @@ def balances_by_student():
     return billed, paid, waived
 
 
-class SchoolSettings(models.Model):
-    """One row (id=1) holding the switches that change how the school uses EduSphere."""
+class SchoolSettings(TenantModel):
+    """The switches that change how this institution uses EduSphere.
+
+    One row per institution, holding the school mode.
+    """
     class Mode(models.TextChoices):
         SCHOOL = "school", "School mode: classes, grades and subjects"
         COLLEGE = "college", "College mode: programmes, years and credits"
     mode = models.CharField(max_length=10, choices=Mode.choices, default=Mode.COLLEGE)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["institution"], name="uniq_school_settings_institution")
+        ]
+
     @classmethod
-    def get(cls):
-        obj, _ = cls.objects.get_or_create(pk=1)
+    def get(cls, institution=None):
+        from core.tenancy import current_institution_id
+
+        if institution is None:
+            institution_id = current_institution_id()
+        else:
+            institution_id = institution.pk if hasattr(institution, "pk") else institution
+        obj = cls.objects.filter(institution_id=institution_id).first()
+        if obj is None and institution_id is not None:
+            obj = cls.objects.create(institution_id=institution_id)
         return obj
 
     @property
@@ -43,12 +62,16 @@ class SchoolSettings(models.Model):
         return f"School settings ({self.get_mode_display()})"
 
 
-class AcademicYear(models.Model):
-    name = models.CharField(max_length=20, unique=True, help_text="For example 2026")
+class AcademicYear(TenantModel):
+    name = models.CharField(max_length=20, help_text="For example 2026")
     start_date = models.DateField()
     end_date = models.DateField()
     is_current = models.BooleanField(default=False)
-    class Meta: ordering = ["-name"]
+    class Meta:
+        ordering = ["-name"]
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "name"], name="uniq_year_name")
+        ]
 
     def clean(self):
         super().clean()
@@ -58,12 +81,13 @@ class AcademicYear(models.Model):
     def save(self, *a, **kw):
         super().save(*a, **kw)
         if self.is_current:
-            AcademicYear.objects.filter(is_current=True).exclude(pk=self.pk).update(is_current=False)
+            AcademicYear.objects.filter(is_current=True, institution=self.institution) \
+                .exclude(pk=self.pk).update(is_current=False)
 
     def __str__(self): return self.name
 
 
-class Term(models.Model):
+class Term(TenantModel):
     academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name="terms")
     name = models.CharField(max_length=40, help_text="For example Term 1 or Semester 2")
     start_date = models.DateField()
@@ -85,22 +109,27 @@ class Term(models.Model):
     def save(self, *a, **kw):
         super().save(*a, **kw)
         if self.is_current:
-            Term.objects.filter(is_current=True).exclude(pk=self.pk).update(is_current=False)
+            Term.objects.filter(is_current=True, institution=self.institution) \
+                .exclude(pk=self.pk).update(is_current=False)
 
     def __str__(self): return f"{self.name} ({self.academic_year.name})"
 
 
-class SchoolClass(models.Model):
+class SchoolClass(TenantModel):
     class Level(models.TextChoices):
         PRIMARY = "primary", "Primary"
         SECONDARY = "secondary", "Secondary"
-    name = models.CharField(max_length=60, unique=True, help_text="For example Grade 3 or Form 2")
+    name = models.CharField(max_length=60, help_text="For example Grade 3 or Form 2")
     level = models.CharField(max_length=20, choices=Level.choices, default=Level.PRIMARY)
-    class Meta: ordering = ["name"]
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "name"], name="uniq_class_name")
+        ]
     def __str__(self): return self.name
 
 
-class Stream(models.Model):
+class Stream(TenantModel):
     school_class = models.ForeignKey(SchoolClass, on_delete=models.CASCADE, related_name="streams")
     name = models.CharField(max_length=30, help_text="For example A or Blue")
     class Meta:
@@ -109,7 +138,7 @@ class Stream(models.Model):
     def __str__(self): return f"{self.school_class.name} {self.name}"
 
 
-class ClassTeacher(models.Model):
+class ClassTeacher(TenantModel):
     school_class = models.ForeignKey(SchoolClass, on_delete=models.CASCADE, related_name="class_teachers")
     academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name="class_teachers")
     teacher = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
@@ -120,12 +149,12 @@ class ClassTeacher(models.Model):
     def __str__(self): return f"{self.school_class} – {self.teacher}"
 
 
-class Subject(models.Model):
+class Subject(TenantModel):
     class Level(models.TextChoices):
         PRIMARY = "primary", "Primary"
         SECONDARY = "secondary", "Secondary"
         COLLEGE = "college", "College / institute"
-    code = models.CharField(max_length=20, unique=True)
+    code = models.CharField(max_length=20)
     name = models.CharField(max_length=150)
     level = models.CharField(max_length=20, choices=Level.choices, default=Level.SECONDARY)
     lecturer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
@@ -134,10 +163,13 @@ class Subject(models.Model):
     class Meta:
         ordering = ["level", "code"]
         verbose_name_plural = "subjects"
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "code"], name="uniq_subject_code")
+        ]
     def __str__(self): return f"{self.code} – {self.name}"
 
 
-class TimetableEntry(models.Model):
+class TimetableEntry(TenantModel):
     academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name="lessons")
     term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name="lessons")
     day = models.PositiveSmallIntegerField(choices=DAY_CHOICES)
@@ -249,7 +281,7 @@ class TimetableEntry(models.Model):
     def __str__(self): return f"{self.get_day_display()} {self.start_time:%H:%M} {self.title}"
 
 
-class Programme(models.Model):
+class Programme(TenantModel):
     class Level(models.TextChoices):
         PRIMARY = "primary", "Primary school"
         SECONDARY = "secondary", "Secondary school"
@@ -260,32 +292,40 @@ class Programme(models.Model):
         MASTERS = "masters", "Master's degree"
         PHD = "phd", "Doctorate"
     name = models.CharField(max_length=150)
-    code = models.CharField(max_length=20, unique=True)
+    code = models.CharField(max_length=20)
     level = models.CharField(max_length=20, choices=Level.choices)
     duration_months = models.PositiveIntegerField(default=12)
     tuition_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "code"], name="uniq_programme_code")
+        ]
     def __str__(self): return f"{self.name} ({self.get_level_display()})"
 
 
-class Course(models.Model):
-    code = models.CharField(max_length=20, unique=True)
+class Course(TenantModel):
+    code = models.CharField(max_length=20)
     title = models.CharField(max_length=150)
     programme = models.ForeignKey(Programme, on_delete=models.CASCADE, related_name="courses")
     credits = models.PositiveSmallIntegerField(default=3)
     lecturer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, limit_choices_to={"role": "lecturer"}, related_name="courses")
-    class Meta: ordering = ["code"]
+    class Meta:
+        ordering = ["code"]
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "code"], name="uniq_course_code")
+        ]
     def __str__(self): return f"{self.code} – {self.title}"
 
 
-class Student(models.Model):
+class Student(TenantModel):
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
         DEFERRED = "deferred", "Deferred"
         GRADUATED = "graduated", "Graduated"
         WITHDRAWN = "withdrawn", "Withdrawn"
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="student")
-    student_no = models.CharField(max_length=20, unique=True, blank=True)
+    student_no = models.CharField(max_length=20, blank=True)
     programme = models.ForeignKey(Programme, on_delete=models.PROTECT, related_name="students")
     school_class = models.ForeignKey(SchoolClass, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="students")
@@ -298,9 +338,15 @@ class Student(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     created = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "student_no"], name="uniq_student_no")
+        ]
+
     def save(self, *a, **kw):
+        adding = self._state.adding
         super().save(*a, **kw)
-        if not self.student_no:
+        if adding and not self.student_no:
             self.student_no = f"{self.created.year}{self.pk:05d}"
             super().save(update_fields=["student_no"])
 
@@ -331,7 +377,7 @@ class Student(models.Model):
     def __str__(self): return f"{self.student_no} {self.name}"
 
 
-class Guardian(models.Model):
+class Guardian(TenantModel):
     """Links a parent account to a student so the parent can follow their progress."""
     parent = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
                                related_name="wards")
@@ -347,7 +393,7 @@ class Guardian(models.Model):
         return f"{self.parent.get_full_name() or self.parent.username} – {self.student.name}"
 
 
-class GradeBand(models.Model):
+class GradeBand(TenantModel):
     """One row per grade: a mark of min_mark or higher earns this letter and points."""
     letter = models.CharField(max_length=5)
     min_mark = models.DecimalField(max_digits=5, decimal_places=2,
@@ -357,6 +403,9 @@ class GradeBand(models.Model):
     class Meta:
         ordering = ["-min_mark"]
         verbose_name_plural = "grade bands"
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "letter"], name="uniq_grade_band_letter")
+        ]
 
     def clean(self):
         super().clean()
@@ -382,8 +431,8 @@ class GradeBand(models.Model):
             return "—", None
         bands = list(cls.objects.order_by("-min_mark"))
         if not bands:
-            bands = [cls(letter=l, min_mark=Decimal(m), points=Decimal(p))
-                     for l, m, p in DEFAULT_GRADE_BANDS]
+            bands = [cls(letter=letter, min_mark=Decimal(mark_min), points=Decimal(pts))
+                     for letter, mark_min, pts in DEFAULT_GRADE_BANDS]
         for b in bands:
             if mark >= b.min_mark:
                 return b.letter, b.points
@@ -392,7 +441,7 @@ class GradeBand(models.Model):
     def __str__(self): return f"{self.letter} from {self.min_mark:g}"
 
 
-class Enrollment(models.Model):
+class Enrollment(TenantModel):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="enrollments")
     course = models.ForeignKey(Course, null=True, blank=True, on_delete=models.CASCADE,
         related_name="enrollments")
@@ -455,7 +504,7 @@ class Enrollment(models.Model):
     def __str__(self): return f"{self.student} – {self.label}"
 
 
-class Activity(models.Model):
+class Activity(TenantModel):
     class Kind(models.TextChoices):
         ASSIGN = "assignment", "Assignment"
         TEST = "test", "Test / Exam"
@@ -468,14 +517,16 @@ class Activity(models.Model):
     title = models.CharField(max_length=150)
     date = models.DateField()
     detail = models.CharField(max_length=250, blank=True)
-    class Meta: ordering = ["-date"]
+    class Meta:
+        ordering = ["-date"]
 
 
-class Attendance(models.Model):
+class Attendance(TenantModel):
     enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name="attendance")
     date = models.DateField()
     present = models.BooleanField(default=True)
-    class Meta: unique_together = ("enrollment", "date")
+    class Meta:
+        unique_together = ("enrollment", "date")
 
     @classmethod
     def rates_by_term(cls, enrollments):
@@ -501,7 +552,7 @@ class Attendance(models.Model):
         return sorted(dates), grid
 
 
-class Announcement(models.Model):
+class Announcement(TenantModel):
     title = models.CharField(max_length=150)
     body = models.TextField()
     audience = models.CharField(max_length=20, default="all",
@@ -513,7 +564,8 @@ class Announcement(models.Model):
     posted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="announcements")
     posted = models.DateTimeField(auto_now_add=True)
-    class Meta: ordering = ["-posted"]
+    class Meta:
+        ordering = ["-posted"]
 
     def __str__(self):
         return self.title
@@ -545,7 +597,7 @@ class Announcement(models.Model):
         return cls.objects.none()
 
 
-class ExamSitting(models.Model):
+class ExamSitting(TenantModel):
     """A student's entry to sit a term's exams: candidate number, venue, clearance."""
     student = models.ForeignKey(Student, on_delete=models.CASCADE,
                                 related_name="exam_sittings")

@@ -1,6 +1,7 @@
-from pathlib import Path
+import os
 import secrets
 import sys
+from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -34,12 +35,14 @@ if env_bool("EDUSPHERE_SSL", False):
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = env_int("EDUSPHERE_HSTS_SECONDS", 0)
 
-if "test" in sys.argv:
+if "test" in sys.argv or "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ:
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "accounts", "academics", "finance",
+    "core",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -48,6 +51,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "core.middleware.InstitutionMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
 TEMPLATES = [{

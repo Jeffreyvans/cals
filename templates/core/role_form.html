@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{% if role %}Edit role{% else %}Add a role{% endif %}{% endblock %}
+{% block content %}
+<h1>{% if role %}Edit role{% else %}Add a role{% endif %}</h1>
+<p class="muted">A role is a job inside {{ inst.name }}. Give it a name and a code, then tick its permissions on the roles page.</p>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Name<input name="name" value="{{ role.name|default:'' }}" maxlength="80" required></label></p>
+  <p><label>Code<input name="code" value="{{ role.code|default:'' }}" maxlength="60" {% if role %}readonly{% endif %}></label></p>
+  <p><label>Description<textarea name="description" rows="2">{{ role.description|default:'' }}</textarea></label></p>
+  <button class="btn">Save role</button>
+  <a class="btn ghost" href="{% url 'role_list' %}">Cancel</a>
+</form>
+{% if role and not role.is_system %}
+<form method="post" action="{% url 'role_delete' role.pk %}" class="inline">
+  {% csrf_token %}<button class="btn ghost">Remove this role</button>
+</form>
+{% endif %}
+{% endblock %}

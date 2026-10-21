@@ -6,9 +6,20 @@ from django.test import TestCase
 from django.urls import reverse
 
 from academics.forms import EnrollForm, StudentRegistrationForm
-from academics.models import (AcademicYear, ClassTeacher, Course, Enrollment,
-                              Programme, SchoolClass, SchoolSettings, Stream,
-                              Student, Subject, Term, TimetableEntry)
+from academics.models import (
+    AcademicYear,
+    ClassTeacher,
+    Course,
+    Enrollment,
+    Programme,
+    SchoolClass,
+    SchoolSettings,
+    Stream,
+    Student,
+    Subject,
+    Term,
+    TimetableEntry,
+)
 
 User = get_user_model()
 

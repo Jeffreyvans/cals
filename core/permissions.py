@@ -1,0 +1,96 @@
+"""The permission catalogue.
+
+Permissions are data: every code below can be granted to any role inside any
+institution. Views ask for a code with ``@permission_required_code`` and
+templates ask with ``{% if perms_code.finance_receive_payment %}``.
+"""
+
+PERMISSIONS = [
+    # code, description, category
+    ("students.view_all", "See every student record", "students"),
+    ("students.view_own", "See only their own record", "students"),
+    ("students.create", "Register new students", "students"),
+    ("students.edit", "Edit student records", "students"),
+    ("students.transfer", "Transfer students in or out", "students"),
+    ("students.promote", "Promote students to the next class", "students"),
+    ("students.graduate", "Graduate students and issue certificates", "students"),
+    ("students.view_health", "See health records", "students"),
+    ("students.view_counselling", "See counselling notes", "students"),
+    ("finance.receive_payment", "Receive payments and issue receipts", "finance"),
+    ("finance.issue_invoice", "Create invoices", "finance"),
+    ("finance.approve_refund", "Approve refunds and credit notes", "finance"),
+    ("finance.manage_fee_structures", "Create and edit fee structures", "finance"),
+    ("finance.view_reports", "See finance reports and exports", "finance"),
+    ("finance.view_ledger", "See the ledger and trial balance", "finance"),
+    ("academics.enter_marks", "Enter marks for own classes", "academics"),
+    ("academics.moderate_marks", "Moderate marks before release", "academics"),
+    ("academics.approve_results", "Approve results for release", "academics"),
+    ("academics.release_results", "Release results to students and parents", "academics"),
+    ("academics.manage_courses", "Create courses and offerings", "academics"),
+    ("academics.manage_timetable", "Build the timetable", "academics"),
+    ("academics.manage_structure", "Set up years, terms, classes and subjects", "academics"),
+    ("academics.take_attendance", "Mark attendance", "academics"),
+    ("academics.view_reports", "See academic reports", "academics"),
+    ("admissions.manage", "Manage applications and admissions", "admissions"),
+    ("admissions.review", "Review applications", "admissions"),
+    ("admissions.decide", "Accept or reject applications", "admissions"),
+    ("notices.view", "Read notices", "notices"),
+    ("notices.post", "Post and remove notices", "notices"),
+    ("parent_portal.view_child", "See their linked children", "parent_portal"),
+    ("parent_portal.view_finance", "See and pay child fees", "parent_portal"),
+    ("library.manage", "Manage the library catalogue", "library"),
+    ("library.borrow", "Borrow and return books", "library"),
+    ("health.view_records", "See health records", "health"),
+    ("health.manage", "Record clinic visits and medication", "health"),
+    ("counselling.view_notes", "See counselling notes", "counselling"),
+    ("counselling.manage", "Record counselling sessions", "counselling"),
+    ("hr.manage", "Manage staff files and contracts", "hr"),
+    ("hr.approve_leave", "Approve leave requests", "hr"),
+    ("payroll.manage", "Run payroll", "payroll"),
+    ("payroll.approve", "Approve payroll runs", "payroll"),
+    ("procurement.manage", "Manage requisitions and purchase orders", "procurement"),
+    ("procurement.approve", "Approve purchase orders", "procurement"),
+    ("estates.manage", "Manage work orders and assets", "estates"),
+    ("security.manage", "Manage visitors and incidents", "security"),
+    ("compliance.manage", "Manage policies and audits", "compliance"),
+    ("marketing.manage", "Manage enquiries and campaigns", "marketing"),
+    ("governance.manage", "Manage meetings and resolutions", "governance"),
+    ("exams.manage", "Manage examinations and sittings", "exams"),
+    ("exams.invigilate", "Invigilation and mark sheets", "exams"),
+    ("lms.manage", "Manage courses on the learning platform", "lms"),
+    ("lms.grade", "Grade assignments and quizzes", "lms"),
+    ("boarding.manage", "Manage hostels, rooms and roll call", "boarding"),
+    ("transport.manage", "Manage routes and buses", "transport"),
+    ("catering.manage", "Manage meals and the tuck shop", "catering"),
+    ("careers.manage", "Manage placements and attachments", "careers"),
+    ("research.manage", "Manage research supervision", "research"),
+    ("labs.manage", "Manage lab equipment and bookings", "labs"),
+    ("ict.manage", "Manage helpdesk tickets and devices", "ict"),
+    ("student_affairs.manage", "Manage discipline, clubs and events", "student_affairs"),
+    ("sports.manage", "Manage teams, fixtures and house points", "sports"),
+    ("admin.manage_users", "Create and edit user accounts", "admin"),
+    ("admin.manage_roles", "Edit roles and the permission matrix", "admin"),
+    ("admin.manage_settings", "Edit institution settings and branding", "admin"),
+    ("admin.manage_modules", "Switch modules on and off", "admin"),
+    ("admin.view_audit", "Read the audit log", "admin"),
+    ("admin.workflow_approve", "Approve workflow requests", "admin"),
+    ("admin.dashboard_school", "See school-wide dashboards", "admin"),
+]
+
+PERMISSION_CODES = [code for code, _desc, _cat in PERMISSIONS]
+
+from core.access import (  # noqa: E402  (re-exported for convenience)
+    module_required,
+    permission_required_code,
+    user_has_any_code,
+    user_has_code,
+)
+
+__all__ = [
+    "PERMISSIONS",
+    "PERMISSION_CODES",
+    "module_required",
+    "permission_required_code",
+    "user_has_any_code",
+    "user_has_code",
+]

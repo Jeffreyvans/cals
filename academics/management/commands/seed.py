@@ -4,12 +4,27 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
+from academics.models import (
+    AcademicYear,
+    Activity,
+    Announcement,
+    Attendance,
+    ClassTeacher,
+    Course,
+    Enrollment,
+    ExamSitting,
+    GradeBand,
+    Guardian,
+    Programme,
+    SchoolClass,
+    SchoolSettings,
+    Stream,
+    Student,
+    Subject,
+    Term,
+    TimetableEntry,
+)
 from accounts.models import User
-from academics.models import (AcademicYear, Activity, Announcement, Attendance,
-                              ClassTeacher, Course, Enrollment, ExamSitting,
-                              GradeBand, Guardian, Programme, SchoolClass,
-                              SchoolSettings, Stream, Student, Subject, Term,
-                              TimetableEntry)
 from finance.models import Invoice, Payment, Waiver
 
 
@@ -26,8 +41,12 @@ class Command(BaseCommand):
             s.mode = o["mode"]
             s.save()
 
-        mk = lambda u, f, l, r, **k: User.objects.get_or_create(
-            username=u, defaults=dict(first_name=f, last_name=l, role=r, **k))[0]
+        def mk(username, first, last, role, **extra):
+            return User.objects.get_or_create(
+                username=username,
+                defaults=dict(first_name=first, last_name=last, role=role, **extra),
+            )[0]
+
         admin = mk("admin", "System", "Admin", "admin", is_staff=True, is_superuser=True)
         reg, bur, lec = mk("registrar", "Rudo", "Moyo", "registrar"), \
             mk("bursar", "Tendai", "Chuma", "bursar"), \
@@ -36,14 +55,18 @@ class Command(BaseCommand):
             u.set_password("demo1234")
             u.save()
 
-        P = lambda c, n, l, fee, m: Programme.objects.get_or_create(
-            code=c, defaults=dict(name=n, level=l, tuition_fee=fee, duration_months=m))[0]
-        dip = P("DIT", "Diploma in Information Technology", "diploma", 900, 24)
-        P("SC-WEB", "Web Development (Short Course)", "short", 250, 3)
-        pri = P("PRI", "Primary School", "primary", 150, 12)
-        sec = P("SEC", "Secondary School (O-Level)", "secondary", 300, 12)
-        P("BSC", "BSc Computer Science", "degree", 2400, 48)
-        P("MSC", "MSc Data Science", "masters", 3800, 24)
+        def programme(code, name, level, fee, months):
+            return Programme.objects.get_or_create(
+                code=code,
+                defaults=dict(name=name, level=level, tuition_fee=fee, duration_months=months),
+            )[0]
+
+        dip = programme("DIT", "Diploma in Information Technology", "diploma", 900, 24)
+        programme("SC-WEB", "Web Development (Short Course)", "short", 250, 3)
+        pri = programme("PRI", "Primary School", "primary", 150, 12)
+        sec = programme("SEC", "Secondary School (O-Level)", "secondary", 300, 12)
+        programme("BSC", "BSc Computer Science", "degree", 2400, 48)
+        programme("MSC", "MSc Data Science", "masters", 3800, 24)
         c1 = Course.objects.get_or_create(code="IT101", defaults=dict(
             title="Programming Fundamentals", programme=dip, lecturer=lec))[0]
         Course.objects.get_or_create(code="IT102", defaults=dict(
@@ -81,16 +104,18 @@ class Command(BaseCommand):
             for s in ("A", "B"):
                 Stream.objects.get_or_create(school_class=cls, name=s)
 
-        subj = lambda c, n, l: Subject.objects.get_or_create(
-            code=c, defaults=dict(name=n, level=l, lecturer=lec))[0]
-        mth1 = subj("MTH1", "Mathematics", "primary")
-        eng1 = subj("ENG1", "English", "primary")
-        subj("SCI1", "Science", "primary")
-        subj("SHO1", "Shona", "primary")
-        mth2 = subj("MTH2", "Mathematics", "secondary")
-        eng2 = subj("ENG2", "English", "secondary")
-        subj("BIO2", "Biology", "secondary")
-        subj("GEO2", "Geography", "secondary")
+        def subject(code, name, level):
+            return Subject.objects.get_or_create(
+                code=code, defaults=dict(name=name, level=level, lecturer=lec))[0]
+
+        mth1 = subject("MTH1", "Mathematics", "primary")
+        eng1 = subject("ENG1", "English", "primary")
+        subject("SCI1", "Science", "primary")
+        subject("SHO1", "Shona", "primary")
+        mth2 = subject("MTH2", "Mathematics", "secondary")
+        eng2 = subject("ENG2", "English", "secondary")
+        subject("BIO2", "Biology", "secondary")
+        subject("GEO2", "Geography", "secondary")
         for s in Subject.objects.filter(lecturer__isnull=True):
             s.lecturer = lec
             s.save(update_fields=["lecturer"])

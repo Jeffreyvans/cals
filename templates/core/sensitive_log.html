@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Restricted record views{% endblock %}
+{% block content %}
+<h1>Restricted record views</h1>
+<p class="muted">Health, counselling and other restricted records that were opened inside {{ inst.name }}.</p>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>When</th><th>Who</th><th>Record</th><th>Page</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.created|date:"j M Y H:i" }}</td>
+      <td>{{ r.actor_name }}</td>
+      <td>{{ r.record_type }} {{ r.record_id }}</td>
+      <td class="muted">{{ r.view_name }}</td>
+      <td class="muted">{{ r.ip_address|default:"—" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No restricted views recorded.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

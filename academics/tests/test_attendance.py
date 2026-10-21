@@ -4,9 +4,8 @@ from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
 
+from academics.models import Attendance, Course, Enrollment, Programme, Student, Subject
 from accounts.models import User
-from academics.models import (Attendance, Course, Enrollment, Programme, Student,
-                              Subject)
 
 
 class BaseAttendance(TestCase):

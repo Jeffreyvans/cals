@@ -70,7 +70,7 @@ class StudentPortalScopeTests(TestCase):
         programme = Programme.objects.create(name="Form 1", code="F1", level="secondary")
         u1 = User.objects.create_user("a1", password="pw123456", role="student")
         u2 = User.objects.create_user("a2", password="pw123456", role="student")
-        s1 = Student.objects.create(user=u1, programme=programme, student_no="S0301")
+        Student.objects.create(user=u1, programme=programme, student_no="S0301")
         s2 = Student.objects.create(user=u2, programme=programme, student_no="S0302")
         course = Course.objects.create(code="ENG101", title="English", programme=programme)
         Enrollment.objects.create(student=s2, course=course, term="Term 1")

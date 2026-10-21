@@ -1,13 +1,26 @@
+from decimal import Decimal
+
 from django.core.management import call_command
 from django.test import TestCase
 
-from decimal import Decimal
-
+from academics.models import (
+    AcademicYear,
+    Announcement,
+    Attendance,
+    ClassTeacher,
+    Course,
+    ExamSitting,
+    GradeBand,
+    Programme,
+    SchoolClass,
+    SchoolSettings,
+    Stream,
+    Student,
+    Subject,
+    Term,
+    TimetableEntry,
+)
 from accounts.models import User
-from academics.models import (AcademicYear, Announcement, Attendance,
-                              ClassTeacher, Course, ExamSitting, GradeBand,
-                              Guardian, Programme, SchoolClass, SchoolSettings,
-                              Stream, Student, Subject, Term, TimetableEntry)
 from finance.models import Invoice, MoneyLog, Payment, Waiver
 
 

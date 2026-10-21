@@ -1,7 +1,12 @@
 import pytest
-from django.contrib.auth import get_user_model
 
-from academics.factories import AcademicYearFactory, ProgrammeFactory, SchoolClassFactory, StudentFactory, TermFactory
+from academics.factories import (
+    AcademicYearFactory,
+    ProgrammeFactory,
+    SchoolClassFactory,
+    StudentFactory,
+    TermFactory,
+)
 from accounts.factories import UserFactory
 
 
