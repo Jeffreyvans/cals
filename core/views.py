@@ -22,6 +22,7 @@ from core.models import (
 from core.modules import ALL_MODULES, is_enabled, set_module
 from core.permissions import PERMISSIONS
 from core.roles import ensure_permissions, ensure_roles
+from core.terminology import terminology_for
 
 PERM_CATEGORIES = []
 for _code, _desc, _cat in PERMISSIONS:
@@ -79,14 +80,41 @@ def settings_view(request):
             log_action(request.user, "institution.roles_seeded", inst, request=request)
             messages.success(request, "Default roles restored.")
             return redirect("institution_settings")
+        if action == "terminology":
+            from core.terminology import preset_labels, save_terminology
+
+            preset = request.POST.get("preset", "")
+            labels = preset_labels(preset, inst.type) or {}
+            labels.update({
+                field: request.POST.get(field, "")
+                for field, _label in terminology_fields()
+            })
+            _record, changed = save_terminology(inst, labels)
+            log_action(request.user, "institution.terminology_updated", inst,
+                       after={"changed": changed}, request=request)
+            messages.success(request, "The words this institution uses were saved.")
+            return redirect("institution_settings")
     switches = []
     for code in ALL_MODULES:
         switches.append({"code": code, "on": is_enabled(code, inst)})
+    terms = terminology_for(inst)
+    term_fields = [
+        {"field": field, "label": label, "value": terms.get(field, "")}
+        for field, label in terminology_fields()
+    ]
     return render(request, "core/institution_settings.html", {
         "inst": inst,
         "switches": switches,
         "modules": ALL_MODULES,
+        "terms": terms,
+        "term_fields": term_fields,
     })
+
+
+def terminology_fields():
+    from core.terminology import FIELDS
+
+    return FIELDS
 
 
 # ---------- roles and permissions ----------

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Approvals{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Approvals</h1>
+    <p class="muted">Requests waiting for a decision at {{ inst.name }}.</p>
+  </div>
+  {% if mine %}<span class="badge">{{ mine|length }} waiting for you</span>{% endif %}
+</div>
+
+<form method="get" class="filters">
+  <select name="status" aria-label="Status">
+    {% for value, label in statuses %}
+      <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn ghost">Show</button>
+</form>
+
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Request</th><th>Workflow</th><th>Asked by</th><th>Step</th><th>Status</th><th></th></th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td><strong>{{ row.subject_label|default:row.subject_type }}</strong>
+        {% if row.subject_type %}<br><span class="muted">{{ row.subject_type }} #{{ row.subject_id }}</span>{% endif %}
+        {% if row.reason %}<br><span class="muted">{{ row.reason|truncatechars:90 }}</span>{% endif %}</td>
+      <td>{{ row.template.name }}</td>
+      <td>{{ row.requester.get_full_name|default:row.requester.username|default:"-" }}</td>
+      <td class="r">{{ row.current_step }} of {{ row.template.steps.count }}</td>
+      <td>{{ row.get_status_display }}</td>
+      <td class="r"><a href="{% url 'approval_detail' row.pk %}">Open</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">Nothing here.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

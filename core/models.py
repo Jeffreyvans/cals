@@ -285,6 +285,11 @@ class ApprovalRequest(TenantModel):
     def __str__(self):
         return f"{self.subject_type} #{self.subject_id} - {self.get_status_display()}"
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("approval_detail", kwargs={"pk": self.pk})
+
     @property
     def is_open(self):
         return self.status == self.Status.PENDING

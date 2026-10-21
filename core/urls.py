@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import approvals, org, views
 
 urlpatterns = [
     path("settings/institution/", views.settings_view, name="institution_settings"),
@@ -9,6 +9,18 @@ urlpatterns = [
     path("settings/roles/new/", views.role_create, name="role_create"),
     path("settings/roles/<int:pk>/", views.role_detail, name="role_detail"),
     path("settings/roles/<int:pk>/delete/", views.role_delete, name="role_delete"),
+    path("settings/departments/", org.department_list, name="department_list"),
+    path("settings/departments/new/", org.department_create, name="department_create"),
+    path("settings/departments/<int:pk>/", org.department_detail, name="department_detail"),
+    path("settings/departments/<int:pk>/delete/", org.department_delete, name="department_delete"),
+    path("settings/staff/", org.staff_list, name="staff_list"),
+    path("settings/staff/<int:pk>/", org.staff_detail, name="staff_detail"),
+    path("settings/workflows/", approvals.workflow_list, name="workflow_list"),
+    path("settings/workflows/new/", approvals.workflow_create, name="workflow_create"),
+    path("settings/workflows/<int:pk>/", approvals.workflow_detail, name="workflow_detail"),
+    path("settings/workflows/<int:pk>/delete/", approvals.workflow_delete, name="workflow_delete"),
+    path("approvals/", approvals.approvals, name="approvals"),
+    path("approvals/<int:pk>/", approvals.approval_detail, name="approval_detail"),
     path("notifications/", views.notifications, name="notifications"),
     path("audit/", views.audit_log, name="audit_trail"),
     path("audit/export/", views.audit_export, name="audit_trail_export"),

@@ -24,6 +24,22 @@
   <button class="btn">Save details</button>
 </form>
 
+<h2>The words this institution uses</h2>
+<p class="muted">A primary school says "Pupil" and "Grade". A college says "Student" and "Year". These words are used across the screens.</p>
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="terminology">
+  <p><label>Start from
+    <select name="preset">
+      <option value="standard">Standard for a {{ inst.get_type_display|lower }}</option>
+      <option value="international">International (Class / Year / Student / Teacher)</option>
+      <option value="local">Keep what is there</option>
+    </select></label></p>
+  {% for field in term_fields %}
+    <p><label>{{ field.label }}<input name="{{ field.field }}" value="{{ field.value }}" maxlength="30"></label></p>
+  {% endfor %}
+  <button class="btn">Save words</button>
+</form>
+
 <h2>Modules</h2>
 <p class="muted">Switch off what this institution does not use. The menu and the pages follow these switches.</p>
 <div class="tbl-wrap">

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{% if template %}Edit workflow{% else %}Add a workflow{% endif %}{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{% if template %}Edit {{ template.name }}{% else %}Add an approval workflow{% endif %}</h1>
+    <p class="muted">{{ inst.name }}</p>
+  </div>
+  <a class="btn ghost" href="{% url 'workflow_list' %}">Back to workflows</a>
+</div>
+
+{% if template %}
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="template">
+  <p><label>Name<input name="name" value="{{ template.name }}" required maxlength="120"></label></p>
+  <p><label>Used for<input name="applies_to" value="{{ template.applies_to }}" maxlength="60"
+     placeholder="leave, refund, results"></label></p>
+  <p><label>Description<input name="description" value="{{ template.description }}" maxlength="200"></label></p>
+  <p><label class="inline-check"><input type="checkbox" name="is_active" {% if template.is_active %}checked{% endif %}> Active</label></p>
+  <button class="btn">Save workflow</button>
+</form>
+
+<h2>Steps</h2>
+<p class="muted">The request waits at the first step, then moves to the next one each time somebody approves.</p>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th class="r">#</th><th>Step</th><th>Approver role</th><th>Or permission</th><th class="r">People</th><th></th></tr></thead>
+  <tbody>
+  {% for step in steps %}
+    <tr>
+      <td class="r">{{ step.order }}</td>
+      <td>{{ step.name|default:"-" }}</td>
+      <td>{{ step.approver_role.name }} <span class="muted">({{ step.approver_role.code }})</span></td>
+      <td><code>{{ step.required_permission|default:"-" }}</code></td>
+      <td class="r">{{ step.holders }}</td>
+      <td class="r">
+        <form method="post">{% csrf_token %}
+          <input type="hidden" name="action" value="delete_step">
+          <input type="hidden" name="step" value="{{ step.pk }}">
+          <button class="btn ghost">Remove</button>
+        </form>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No steps yet. A workflow without steps cannot be used.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="add_step">
+  <p><label>Step name<input name="name" maxlength="120" placeholder="Head of department"></label></p>
+  <p><label>Approver role
+    <select name="role" required>
+      {% for r in roles %}<option value="{{ r.pk }}">{{ r.name }} ({{ r.code }})</option>{% endfor %}
+    </select></label></p>
+  <p><label>Or permission code<input name="required_permission" maxlength="80" placeholder="finance.approve_refund"></label>
+    <span class="helptext">Holders of this permission may act on the step as well.</span></p>
+  <button class="btn">Add step</button>
+</form>
+{% else %}
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Name<input name="name" required maxlength="120" placeholder="Leave request"></label></p>
+  <p><label>Code<input name="code" required maxlength="60" placeholder="leave"></label>
+    <span class="helptext">Lower case letters and dashes. It is how code finds this workflow.</span></p>
+  <p><label>Used for<input name="applies_to" maxlength="60" placeholder="leave"></label></p>
+  <p><label>Description<input name="description" maxlength="200"></label></p>
+  <button class="btn">Create workflow</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -47,8 +47,12 @@
           <a href="{% url 'grade_bands' %}">Grade scale</a>
           <a href="{% url 'institution_settings' %}">Institution</a>
           <a href="{% url 'role_list' %}">Roles and permissions</a>
+          <a href="{% url 'department_list' %}">Departments</a>
+          <a href="{% url 'workflow_list' %}">Workflows</a>
           <a href="{% url 'admin:index' %}">Administration</a>
         {% endif %}
+        {% has_perm request "admin.workflow_approve" as can_approve %}
+        {% if can_approve %}<a href="{% url 'approvals' %}">Approvals</a>{% endif %}
       {% endif %}
     </nav>
     <div class="who">{{ user.get_full_name|default:user.username }}<small>{{ user.get_role_display }}</small>

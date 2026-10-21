@@ -71,9 +71,11 @@ PERMISSIONS = [
     ("admin.manage_users", "Create and edit user accounts", "admin"),
     ("admin.manage_roles", "Edit roles and the permission matrix", "admin"),
     ("admin.manage_settings", "Edit institution settings and branding", "admin"),
+    ("admin.manage_departments", "Edit departments and staff profiles", "admin"),
     ("admin.manage_modules", "Switch modules on and off", "admin"),
     ("admin.view_audit", "Read the audit log", "admin"),
     ("admin.workflow_approve", "Approve workflow requests", "admin"),
+    ("admin.manage_workflows", "Edit approval workflows and their steps", "admin"),
     ("admin.dashboard_school", "See school-wide dashboards", "admin"),
 ]
 

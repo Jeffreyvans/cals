@@ -14,6 +14,7 @@ def institution(request):
 
         unread = unread_count(user)
     from core.modules import enabled_modules
+    from core.terminology import terminology_for
 
     return {
         "INSTITUTION": inst.name if inst is not None else settings.INSTITUTION_NAME,
@@ -26,4 +27,5 @@ def institution(request):
         "CURRENT_TERM": Term.objects.filter(is_current=True).first(),
         "UNREAD_COUNT": unread,
         "ENABLED_MODULES": enabled_modules(inst),
+        "TERMS": terminology_for(inst),
     }

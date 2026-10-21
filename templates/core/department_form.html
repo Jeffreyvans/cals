@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{% if dept %}Edit department{% else %}Add a department{% endif %}{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{% if dept %}Edit {{ dept.name }}{% else %}Add a department{% endif %}</h1>
+    <p class="muted">{{ inst.name }}</p>
+  </div>
+  <a class="btn ghost" href="{% url 'department_list' %}">Back to departments</a>
+</div>
+
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Name<input name="name" value="{{ dept.name|default:'' }}" required maxlength="120"></label></p>
+  <p><label>Code<input name="code" value="{{ dept.code|default:'' }}" required maxlength="20"></label>
+    <span class="helptext">Short code used on reports, for example SCI or ACC.</span></p>
+  <p><label>Under
+    <select name="parent">
+      <option value="">- none -</option>
+      {% for d in departments %}
+        <option value="{{ d.pk }}" {% if dept.parent_id == d.pk %}selected{% endif %}>{{ d.code }} - {{ d.name }}</option>
+      {% endfor %}
+    </select></label></p>
+  <p><label>Head of department
+    <select name="head">
+      <option value="">- not set -</option>
+      {% for h in heads %}
+        <option value="{{ h.pk }}" {% if dept.head_id == h.pk %}selected{% endif %}>{{ h.get_full_name|default:h.username }}</option>
+      {% endfor %}
+    </select></label></p>
+  <button class="btn">Save department</button>
+</form>
+{% endblock %}

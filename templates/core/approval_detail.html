@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Approval request{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ approval.subject_label|default:approval.subject_type }}</h1>
+    <p class="muted">{{ approval.template.name }} &middot; asked by
+      {{ approval.requester.get_full_name|default:approval.requester.username|default:"-" }}
+      on {{ approval.created|date:"j M Y, H:i" }}</p>
+  </div>
+  <a class="btn ghost" href="{% url 'approvals' %}">Back to approvals</a>
+</div>
+
+<div class="cols">
+  <div>
+    <h2>The request</h2>
+    <div class="card">
+      <p><strong>Type</strong> {{ approval.subject_type }} #{{ approval.subject_id }}</p>
+      <p><strong>Status</strong> {{ approval.get_status_display }}</p>
+      <p><strong>Reason</strong> {{ approval.reason|default:"-" }}</p>
+    </div>
+
+    {% if may_act and approval.is_open %}
+    <h2>Your decision</h2>
+    <form method="post" class="inline wide">
+      {% csrf_token %}
+      <p><label>Comment<textarea name="comment" rows="3"></textarea></label></p>
+      <div class="chips">
+        <button class="btn" name="decision" value="approve">Approve</button>
+        <button class="btn ghost" name="decision" value="return">Return for changes</button>
+        <button class="btn ghost" name="decision" value="reject">Reject</button>
+      </div>
+    </form>
+    {% elif approval.is_open %}
+    <p class="muted">You are not the approver for this step, so you cannot decide it.</p>
+    {% endif %}
+  </div>
+
+  <div>
+    <h2>Steps</h2>
+    <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th class="r">#</th><th>Approver</th><th>State</th></tr></thead>
+      <tbody>
+      {% for step in steps %}
+        <tr>
+          <td class="r">{{ step.order }}</td>
+          <td>{{ step.approver_role.name }}</td>
+          <td>{{ step.state }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    <h2>History</h2>
+    <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>When</th><th>Who</th><th>Decision</th><th>Comment</th></tr></thead>
+      <tbody>
+      {% for a in actions %}
+        <tr>
+          <td>{{ a.created|date:"j M H:i" }}</td>
+          <td>{{ a.actor.get_full_name|default:a.actor.username|default:"-" }}</td>
+          <td>{{ a.get_decision_display }}</td>
+          <td>{{ a.comment|default:"-" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

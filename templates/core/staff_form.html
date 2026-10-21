@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Staff profile{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ profile.user.get_full_name|default:profile.user.username }}</h1>
+    <p class="muted">{{ inst.name }} &middot; <code>{{ profile.user.username }}</code></p>
+  </div>
+  <a class="btn ghost" href="{% url 'staff_list' %}">Back to staff</a>
+</div>
+
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Job title<input name="job_title" value="{{ profile.job_title }}" maxlength="120"></label></p>
+  <p><label>Employee number<input name="employee_no" value="{{ profile.employee_no }}" maxlength="30"></label></p>
+  <p><label>Phone<input name="phone" value="{{ profile.phone }}" maxlength="30"></label></p>
+  <p><label>Date joined<input name="date_joined" type="date" value="{{ profile.date_joined|date:'Y-m-d' }}"></label></p>
+  <p><label>Departments
+    <select name="departments" multiple size="6">
+      {% for d in departments %}
+        <option value="{{ d.pk }}" {% if d.pk in profile.department_ids %}selected{% endif %}>{{ d.code }} - {{ d.name }}</option>
+      {% endfor %}
+    </select>
+    <span class="helptext">Hold Ctrl to pick more than one.</span></label></p>
+  <button class="btn">Save profile</button>
+</form>
+{% endblock %}

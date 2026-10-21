@@ -4,7 +4,7 @@ A request walks through the steps of its template in order. Every action is
 recorded, and the people who need to act are notified.
 """
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from core.models import ApprovalAction, ApprovalRequest, WorkflowTemplate
@@ -52,9 +52,15 @@ def _approvers_for(step, institution):
 
     if not step:
         return User.objects.none()
-    users = User.objects.filter(
-        institution=institution, is_active=True, extra_roles=step.approver_role
-    ).distinct()
+    users = list(
+        User.objects.filter(
+            institution=institution,
+            is_active=True,
+        ).filter(
+            models.Q(extra_roles=step.approver_role)
+            | models.Q(primary_role=step.approver_role)
+        ).distinct()
+    )
     if step.required_permission:
         extra = [
             u
@@ -62,7 +68,7 @@ def _approvers_for(step, institution):
             if user_has_code(u, step.required_permission)
         ]
         if extra:
-            users = list(users) + extra
+            users = users + [u for u in extra if u not in users]
     return users
 
 

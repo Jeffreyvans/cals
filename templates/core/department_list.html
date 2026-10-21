@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Departments{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Departments</h1>
+    <p class="muted">The units of {{ inst.name }}. Departments group staff and hold the courses they own.</p>
+  </div>
+  <a class="btn" href="{% url 'department_create' %}">Add a department</a>
+</div>
+
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Code</th><th>Department</th><th>Head</th><th>Under</th><th class="r">Staff</th><th></th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td><code>{{ row.code }}</code></td>
+      <td><strong>{{ row.name }}</strong></td>
+      <td>{% if row.head %}{{ row.head.get_full_name|default:row.head.username }}{% else %}<span class="muted">not set</span>{% endif %}</td>
+      <td>{% if row.parent %}{{ row.parent.name }}{% else %}<span class="muted">-</span>{% endif %}</td>
+      <td class="r">{{ row.staff_count }}</td>
+      <td class="r">
+        <a href="{% url 'department_detail' row.pk %}">Edit</a>
+        &middot; <a href="{% url 'department_delete' row.pk %}">Remove</a>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No departments yet. Add the first one above.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<p class="muted"><a href="{% url 'staff_list' %}">See the staff profiles</a></p>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Approval workflows{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Approval workflows</h1>
+    <p class="muted">The routes a request takes before it is approved. Each step names the role that may act on it.</p>
+  </div>
+  <a class="btn" href="{% url 'workflow_create' %}">Add a workflow</a>
+</div>
+
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Workflow</th><th>Code</th><th>Used for</th><th class="r">Steps</th><th class="r">Waiting</th><th></th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td><strong>{{ row.name }}</strong>{% if not row.is_active %} <span class="badge">inactive</span>{% endif %}
+        <br><span class="muted">{{ row.description }}</span></td>
+      <td><code>{{ row.code }}</code></td>
+      <td>{{ row.applies_to|default:"-" }}</td>
+      <td class="r">{{ row.step_count }}</td>
+      <td class="r">{{ row.open_count }}</td>
+      <td class="r">
+        <a href="{% url 'workflow_detail' row.pk %}">Edit</a>
+        &middot; <a href="{% url 'workflow_delete' row.pk %}">Remove</a>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No workflows yet. Add one above.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<p class="muted"><a href="{% url 'approvals' %}">Go to the approvals inbox</a></p>
+{% endblock %}
