@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.core.management import call_command
 from django.test import TestCase
 
+from academics.demo import seed_demo
 from academics.models import (
     AcademicYear,
     Announcement,
@@ -21,6 +22,7 @@ from academics.models import (
     TimetableEntry,
 )
 from accounts.models import User
+from core.models import Institution
 from finance.models import Invoice, MoneyLog, Payment, Waiver
 
 
@@ -123,3 +125,58 @@ class SeedCommandTests(TestCase):
         self.assertEqual(MoneyLog.objects.exclude(description="").count(),
                          MoneyLog.objects.count(),
                          "every entry should say what it was for")
+
+
+class SeedDemoReuseTests(TestCase):
+    """`seed_demo` must be reusable: a second institution gets its own data."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.first = Institution.objects.create(
+            name="Riverdale College", slug="riverdale", type="college")
+        cls.second = Institution.objects.create(
+            name="Hillcrest School", slug="hillcrest", type="secondary")
+
+    def test_seeding_two_institutions_keeps_their_rows_apart(self):
+        seed_demo(self.first)
+        seed_demo(self.second, prefix="hill_")
+        self.assertEqual(User.objects.filter(username__in=["admin", "student1"]).count(), 2)
+        self.assertEqual(User.objects.filter(username__startswith="hill_").count(), 10)
+        self.assertEqual(Student.all_objects.filter(
+            institution=self.first).count(), 5)
+        self.assertEqual(Student.all_objects.filter(
+            institution=self.second).count(), 5)
+        self.assertEqual(Programme.all_objects.filter(
+            institution=self.first).count(), 6)
+        self.assertEqual(Programme.all_objects.filter(
+            institution=self.second).count(), 6)
+
+    def test_the_prefix_puts_the_institution_on_every_username(self):
+        seed_demo(self.second, prefix="hill_")
+        self.assertTrue(User.objects.filter(username="hill_admin").exists())
+        self.assertFalse(User.objects.filter(username="admin").exists())
+
+    def test_the_mode_is_set_on_the_settings_row(self):
+        seed_demo(self.second, prefix="hill_", mode="school")
+        settings_row = SchoolSettings.get(self.second)
+        self.assertEqual(settings_row.mode, SchoolSettings.Mode.SCHOOL)
+        self.assertTrue(settings_row.is_school)
+
+    def test_seeding_the_same_institution_twice_does_not_duplicate(self):
+        seed_demo(self.first)
+        students = Student.all_objects.filter(institution=self.first).count()
+        seed_demo(self.first)
+        self.assertEqual(
+            Student.all_objects.filter(institution=self.first).count(), students)
+
+    def test_the_seed_command_can_seed_a_named_institution(self):
+        call_command("seed", institution="hillcrest", prefix="hill_")
+        self.assertTrue(User.objects.filter(username="hill_admin").exists())
+        self.assertEqual(Student.all_objects.filter(institution=self.second).count(), 5)
+
+    def test_the_seed_command_reports_an_unknown_institution(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            call_command("seed", institution="nowhere")
+

@@ -43,15 +43,22 @@ class SchoolSettings(TenantModel):
 
     @classmethod
     def get(cls, institution=None):
+        """The settings row of one institution, created on first use.
+
+        Called with no argument it uses the current institution. Called with
+        an institution (or its pk) it reads that institution's row even when
+        another institution is current, so the row is looked up through
+        `all_objects` instead of the tenant-scoped manager.
+        """
         from core.tenancy import current_institution_id
 
         if institution is None:
             institution_id = current_institution_id()
         else:
             institution_id = institution.pk if hasattr(institution, "pk") else institution
-        obj = cls.objects.filter(institution_id=institution_id).first()
-        if obj is None and institution_id is not None:
-            obj = cls.objects.create(institution_id=institution_id)
+        if institution_id is None:
+            return None
+        obj, _created = cls.all_objects.get_or_create(institution_id=institution_id)
         return obj
 
     @property

@@ -6,6 +6,8 @@ from .models import AcademicYear, SchoolSettings, Term
 def institution(request):
     """Values every template needs: the institution, the mode and the period."""
     s = SchoolSettings.get()
+    is_school = s is not None and s.is_school
+    mode = s.mode if s is not None else SchoolSettings.Mode.COLLEGE
     inst = getattr(request, "institution", None)
     unread = 0
     user = getattr(request, "user", None)
@@ -21,8 +23,8 @@ def institution(request):
         "INSTITUTION_OBJECT": inst,
         "CUR": inst.currency if inst is not None else settings.CURRENCY,
         "CURRENCY": inst.currency if inst is not None else settings.CURRENCY,
-        "MODE": s.mode,
-        "IS_SCHOOL": s.is_school,
+        "MODE": mode,
+        "IS_SCHOOL": is_school,
         "CURRENT_YEAR": AcademicYear.objects.filter(is_current=True).first(),
         "CURRENT_TERM": Term.objects.filter(is_current=True).first(),
         "UNREAD_COUNT": unread,
