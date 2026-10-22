@@ -69,6 +69,7 @@ PERMISSIONS = [
     ("student_affairs.manage", "Manage discipline, clubs and events", "student_affairs"),
     ("sports.manage", "Manage teams, fixtures and house points", "sports"),
     ("admin.manage_users", "Create and edit user accounts", "admin"),
+    ("admin.create_institutions", "Create and set up new institutions", "admin"),
     ("admin.manage_roles", "Edit roles and the permission matrix", "admin"),
     ("admin.manage_settings", "Edit institution settings and branding", "admin"),
     ("admin.manage_departments", "Edit departments and staff profiles", "admin"),

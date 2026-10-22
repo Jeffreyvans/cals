@@ -8,6 +8,10 @@ from core.permissions import PERMISSION_CODES, PERMISSIONS
 
 ALL = "*"
 
+# These permissions are for the platform, not for a school. A role inside an
+# institution never gets them by default, even the institution admin.
+PLATFORM_ONLY = {"admin.create_institutions"}
+
 DEFAULT_ROLES = [
     {
         "code": "institution_admin",
@@ -351,9 +355,12 @@ def ensure_roles(institution):
         )
         roles[spec["code"]] = role
         if spec["permissions"] == ALL:
-            codes = list(PERMISSION_CODES)
+            codes = [c for c in PERMISSION_CODES if c not in PLATFORM_ONLY]
         else:
             codes = [c for c in spec["permissions"] if c in permissions]
         for code in codes:
             RolePermission.objects.get_or_create(role=role, permission=permissions[code])
+        RolePermission.objects.filter(
+            role=role, permission__code__in=PLATFORM_ONLY
+        ).delete()
     return roles

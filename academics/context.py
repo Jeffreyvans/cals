@@ -15,6 +15,7 @@ def institution(request):
         from core.notifications import unread_count
 
         unread = unread_count(user)
+    from core.branding import brand_variables
     from core.modules import enabled_modules
     from core.terminology import terminology_for
 
@@ -30,4 +31,5 @@ def institution(request):
         "UNREAD_COUNT": unread,
         "ENABLED_MODULES": enabled_modules(inst),
         "TERMS": terminology_for(inst),
+        "BRAND": brand_variables(inst),
     }

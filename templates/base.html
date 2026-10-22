@@ -2,7 +2,8 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}{{ INSTITUTION }}{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{% static 'css/app.css' %}"></head>
+<link rel="stylesheet" href="{% static 'css/app.css' %}">
+<style>:root{ {% for name, value in BRAND.items %}{{ name }}:{{ value }};{% endfor %}}</style></head>
 <body>
 {% if user.is_authenticated %}
 <div class="shell">
@@ -53,6 +54,7 @@
         {% endif %}
         {% has_perm request "admin.workflow_approve" as can_approve %}
         {% if can_approve %}<a href="{% url 'approvals' %}">Approvals</a>{% endif %}
+        {% if user.is_superuser %}<a href="{% url 'setup_wizard' %}">Set up an institution</a>{% endif %}
       {% endif %}
     </nav>
     <div class="who">{{ user.get_full_name|default:user.username }}<small>{{ user.get_role_display }}</small>

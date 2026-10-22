@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ inst.name }} is ready{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ inst.name }} is ready</h1>
+    <p class="muted">{{ inst.get_type_display }} &middot; <code>{{ inst.slug }}</code> &middot; {{ inst.currency }}</p>
+  </div>
+</div>
+
+<div class="card">
+  <h3>What was created</h3>
+  <ul>
+    <li>The institution, its branding and its own copy of the roles and permissions.</li>
+    <li>The first academic year and the first term, both marked as the current ones.</li>
+    <li>The grade scale used for report cards and transcripts.</li>
+    <li>The first administrator account, whose details you gave in the step before this one.</li>
+    {% if demo_enabled %}
+      <li>Demo data: programmes, classes, subjects, students, fees, a timetable and marks.</li>
+    {% endif %}
+  </ul>
+</div>
+
+{% if logins %}
+<div class="card">
+  <h3>Demo logins</h3>
+  <p class="muted">Every account below uses the password <code>demo1234</code>.</p>
+  <div class="tbl-wrap">
+  <table class="tbl">
+    <thead><tr><th>Username</th><th>Password</th></tr></thead>
+    <tbody>
+      {% for row in logins %}
+        <tr><td><code>{{ row.username }}</code></td><td><code>{{ row.password }}</code></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>Signing in</h3>
+  <p>Each institution has its own accounts, so sign in as the administrator of
+    <strong>{{ inst.name }}</strong> to reach its screens.</p>
+</div>
+
+<p><a class="btn" href="{% url 'login' %}">Go to the sign-in page</a>
+   <a class="btn ghost" href="{% url 'setup_wizard' %}">Set up another institution</a></p>
+{% endblock %}

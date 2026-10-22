@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Set up a new institution{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Set up a new institution</h1>
+    <p class="muted">Step {{ step_index|add:1 }} of {{ step_count }} &middot; {{ step_label }}</p>
+  </div>
+</div>
+
+<ol class="steps">
+  {% for name, label in steps %}
+    <li class="{% if name == step %}now{% elif forloop.counter0 < step_index %}done{% endif %}">{{ label }}</li>
+  {% endfor %}
+</ol>
+
+{% if errors %}
+<div class="msg error" role="alert">
+  <strong>Fix these before you continue:</strong>
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" class="inline wide">
+  {% csrf_token %}
+
+  {% if step == "details" %}
+    <p><label>Institution name<input name="name" value="{{ form.name|default:'' }}" required maxlength="200" autofocus></label></p>
+    <p><label>Web name
+      <input name="slug" value="{{ form.slug|default:'' }}" maxlength="100" placeholder="lindenet">
+      <span class="helptext">Letters, numbers and dashes. It appears in the address of this institution.</span></label></p>
+    <p><label>Kind of institution
+      <select name="type" required>
+        {% for value, label in institution_types %}
+          <option value="{{ value }}" {% if form.type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select></label></p>
+    <p><label>Currency symbol<input name="currency" value="{{ form.currency|default:'$' }}" maxlength="10"></label></p>
+    <p><label>Time zone<input name="timezone" value="{{ form.timezone|default:'Africa/Harare' }}" maxlength="64"></label></p>
+    <p><label>Language<input name="language" value="{{ form.language|default:'en' }}" maxlength="10"></label></p>
+    <p><label>Contact email<input name="contact_email" type="email" value="{{ form.contact_email|default:'' }}" maxlength="200"></label></p>
+    <p><label>Contact phone<input name="contact_phone" value="{{ form.contact_phone|default:'' }}" maxlength="30"></label></p>
+    <p><label>Address<textarea name="address" rows="2" maxlength="2000">{{ form.address|default:'' }}</textarea></label></p>
+    <h3>Branding</h3>
+    <p><label>Primary colour
+      <input name="primary_color" value="{{ form.primary_color|default:'#12403c' }}" maxlength="20" placeholder="#12403c">
+      <span class="helptext">The sidebar colour. Text stays readable whatever you choose.</span></label></p>
+    <p><label>Accent colour
+      <input name="accent_color" value="{{ form.accent_color|default:'#e8a317' }}" maxlength="20" placeholder="#e8a317">
+      <span class="helptext">The colour of buttons and highlights.</span></label></p>
+
+  {% elif step == "year" %}
+    <p><label>Academic year name
+      <input name="year_name" value="{{ form.year_name|default:'' }}" maxlength="20" placeholder="2026" required autofocus>
+      <span class="helptext">For example 2026, or 2026/27.</span></label></p>
+    <p><label>Year starts<input name="year_start" type="date" value="{{ form.year_start|default:'' }}" required></label></p>
+    <p><label>Year ends<input name="year_end" type="date" value="{{ form.year_end|default:'' }}" required></label></p>
+    <h3>First term</h3>
+    <p><label>Term name<input name="term_name" value="{{ form.term_name|default:'Term 1' }}" maxlength="40" required></label></p>
+    <p><label>Term starts<input name="term_start" type="date" value="{{ form.term_start|default:'' }}" required></label></p>
+    <p><label>Term ends<input name="term_end" type="date" value="{{ form.term_end|default:'' }}" required></label></p>
+
+  {% elif step == "modules" %}
+    <p class="muted">Switch off what this institution will not use. The menu and the pages follow these switches.</p>
+    <div class="module-grid">
+      {% for row in module_rows %}
+        <label class="module"><input type="checkbox" name="modules" value="{{ row.code }}" {% if row.on %}checked{% endif %}> {{ row.label }}</label>
+      {% endfor %}
+    </div>
+
+  {% elif step == "grading" %}
+    <p class="muted">The grade scale used for report cards and transcripts. The lowest mark is the mark the grade starts at.</p>
+    <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Grade</th><th>Lowest mark</th><th>Points</th></tr></thead>
+      <tbody>
+        {% for row in grading %}
+        <tr>
+          <td><input name="letter" value="{{ row.letter }}" maxlength="5" aria-label="Grade letter"></td>
+          <td><input name="min_mark" value="{{ row.min_mark }}" inputmode="numeric" aria-label="Lowest mark for {{ row.letter }}"></td>
+          <td><input name="points" value="{{ row.points }}" inputmode="numeric" aria-label="Points for {{ row.letter }}"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+  {% elif step == "admin" %}
+    <p><label>Username<input name="username" value="{{ form.username|default:'' }}" maxlength="150" required autofocus>
+      <span class="helptext">The administrator signs in with this.</span></label></p>
+    <p><label>First name<input name="first_name" value="{{ form.first_name|default:'' }}" maxlength="150" required></label></p>
+    <p><label>Last name<input name="last_name" value="{{ form.last_name|default:'' }}" maxlength="150" required></label></p>
+    <p><label>Email<input name="email" type="email" value="{{ form.email|default:'' }}" maxlength="200"></label></p>
+    <p><label>Password<input name="password" type="password" minlength="8" required autocomplete="new-password">
+      <span class="helptext">At least 8 characters.</span></label></p>
+    <p><label>Password again<input name="password_confirm" type="password" minlength="8" required autocomplete="new-password"></label></p>
+
+  {% elif step == "demo" %}
+    <p class="muted">Demo data fills the institution with programmes, classes, subjects, students, fees, a timetable and marks, so you can look around before the real data goes in. It can be deleted later.</p>
+    <p><label class="check"><input type="checkbox" name="enabled" {% if demo.enabled %}checked{% endif %}> Fill this institution with demo data</label></p>
+    <p><label>Username prefix
+      <input name="prefix" value="{{ demo.prefix|default:'' }}" maxlength="20" placeholder="demo_">
+      <span class="helptext">Put in front of every demo username so they never clash with real accounts.</span></label></p>
+    <p class="muted">Nothing is saved yet. The last button creates the institution and everything you entered.</p>
+  {% endif %}
+
+  <div class="row">
+    {% if step_index > 0 %}<button class="btn ghost" name="action" value="back">Back</button>{% endif %}
+    <button class="btn" name="action" value="next">{% if step == "demo" %}Create the institution{% else %}Save and continue{% endif %}</button>
+  </div>
+</form>
+{% endblock %}

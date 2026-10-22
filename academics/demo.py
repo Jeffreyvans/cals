@@ -41,7 +41,8 @@ DEMO_LOGINS = ("admin", "registrar", "bursar", "lecturer", "parent",
                "student1", "student2", "student3", "student4", "student5")
 
 
-def seed_demo(institution, prefix="", mode=None, set_password=True):
+def seed_demo(institution, prefix="", mode=None, set_password=True,
+              academic_year=None, term=None):
     """Create demo users, academic structure, students, fees and timetables.
 
     `prefix` is put in front of every username, so a second institution can
@@ -51,6 +52,9 @@ def seed_demo(institution, prefix="", mode=None, set_password=True):
 
     `set_password` is False when the caller manages the accounts itself
     (the setup wizard), so an existing password is never reset.
+
+    `academic_year` and `term` let the caller hand over the period it has
+    already made, so the demo does not create a second one.
     """
     with use_institution(institution):
         settings_row = SchoolSettings.get(institution)
@@ -79,8 +83,7 @@ def seed_demo(institution, prefix="", mode=None, set_password=True):
             usernames[username] = wanted
             return user, wanted, created
 
-        mk("admin", "System", "Admin", "admin",
-                         is_staff=True, is_superuser=True)
+        mk("admin", "System", "Admin", "admin", is_staff=True)
         reg, _, _ = mk("registrar", "Rudo", "Moyo", "registrar")
         bur, _, _ = mk("bursar", "Tendai", "Chuma", "bursar")
         lec, _, _ = mk("lecturer", "Dr. Farai", "Ncube", "lecturer")
@@ -109,21 +112,29 @@ def seed_demo(institution, prefix="", mode=None, set_password=True):
 
         # ----- academic structure -----
         year_num = date.today().year
-        year, _ = AcademicYear.objects.get_or_create(name=str(year_num), defaults=dict(
-            start_date=date(year_num, 1, 1), end_date=date(year_num, 12, 31),
-            is_current=not AcademicYear.objects.filter(is_current=True).exists()))
-        if not AcademicYear.objects.filter(is_current=True).exists():
-            year.is_current = True
-            year.save()
+        if academic_year is not None:
+            year = academic_year
+        else:
+            year, _ = AcademicYear.objects.get_or_create(name=str(year_num), defaults=dict(
+                start_date=date(year_num, 1, 1), end_date=date(year_num, 12, 31),
+                is_current=not AcademicYear.objects.filter(is_current=True).exists()))
+            if not AcademicYear.objects.filter(is_current=True).exists():
+                year.is_current = True
+                year.save()
         term_spans = [("Term 1", (1, 12), (4, 10)), ("Term 2", (5, 4), (8, 28)),
                       ("Term 3", (9, 14), (12, 4))]
         terms = {}
-        for i, (name, start, end) in enumerate(term_spans):
-            term, _ = Term.objects.get_or_create(academic_year=year, name=name, defaults=dict(
-                start_date=date(year_num, *start), end_date=date(year_num, *end),
-                is_current=(i == 0 and not Term.objects.filter(is_current=True).exists())))
-            terms[name] = term
-        term1 = terms["Term 1"]
+        if term is not None:
+            terms[term.name] = term
+        else:
+            for i, (name, start, end) in enumerate(term_spans):
+                term_row, _ = Term.objects.get_or_create(
+                    academic_year=year, name=name,
+                    defaults=dict(start_date=date(year_num, *start),
+                                  end_date=date(year_num, *end),
+                                  is_current=(i == 0 and not Term.objects.filter(is_current=True).exists())))
+                terms[name] = term_row
+        term1 = terms.get("Term 1") or next(iter(terms.values()))
 
         classes = {}
         for name, level in [("Grade 1", "primary"), ("Grade 3", "primary"),

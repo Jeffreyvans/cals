@@ -6,7 +6,13 @@ from django.urls import reverse
 
 from core.access import permission_codes_for, user_has_code
 from core.models import Permission, Role
-from core.roles import DEFAULT_ROLES, LEGACY_ROLE_MAP, ensure_permissions, ensure_roles
+from core.roles import (
+    DEFAULT_ROLES,
+    LEGACY_ROLE_MAP,
+    PLATFORM_ONLY,
+    ensure_permissions,
+    ensure_roles,
+)
 from core.tenancy import use_institution
 
 User = get_user_model()
@@ -27,7 +33,18 @@ class RoleSeedingTests(TestCase):
         with use_institution(inst):
             admin = Role.objects.get(institution=inst, code="institution_admin")
             held = set(admin.role_permissions.values_list("permission__code", flat=True))
-        self.assertEqual(held, set(Permission.objects.values_list("code", flat=True)))
+        self.assertEqual(
+            held,
+            set(Permission.objects.values_list("code", flat=True)) - PLATFORM_ONLY,
+        )
+
+    def test_the_platform_permissions_stay_with_the_platform(self):
+        inst = self._institution()
+        ensure_roles(inst)
+        with use_institution(inst):
+            admin = Role.objects.get(institution=inst, code="institution_admin")
+            held = set(admin.role_permissions.values_list("permission__code", flat=True))
+        self.assertNotIn("admin.create_institutions", held)
 
     def test_the_bursar_does_not_hold_admin_permissions(self):
         inst = self._institution()

@@ -154,7 +154,7 @@ def clean_details(data):
         errors.append("The institution needs a web name (slug).")
     elif not slugify(clean["slug"]) == clean["slug"]:
         errors.append("The web name may only contain small letters, numbers and dashes.")
-    elif Institution.all_objects.filter(slug=clean["slug"]).exists():
+    elif Institution.objects.filter(slug=clean["slug"]).exists():
         errors.append(f"The web name '{clean['slug']}' is already taken.")
     if clean["type"] not in Institution.Type.values:
         errors.append("Choose the kind of institution.")
@@ -263,6 +263,9 @@ def clean_admin(data):
         errors.append("The email address does not look like an email address.")
     if len(clean["password"]) < 8:
         errors.append("The password must be at least 8 characters long.")
+    confirmation = data.get("password_confirm")
+    if confirmation and clean["password"] and confirmation != clean["password"]:
+        errors.append("The two passwords are not the same.")
     return clean, errors
 
 
@@ -332,7 +335,7 @@ def build_institution(state):
                 end_date=date.fromisoformat(year["year_end"]),
                 is_current=True,
             )
-            Term.objects.create(
+            term = Term.objects.create(
                 institution=institution,
                 academic_year=academic_year,
                 name=year["term_name"],
@@ -367,12 +370,20 @@ def build_institution(state):
                 user.primary_role = admin_role
                 user.save(update_fields=["primary_role"])
 
+            demo_logins = []
             if demo.get("enabled"):
-                from academics.demo import seed_demo
+                from academics.demo import DEMO_PASSWORD, seed_demo
 
                 mode = "school" if details["type"] in SCHOOL_TYPES else "college"
-                seed_demo(institution, prefix=demo.get("prefix") or "", mode=mode,
-                          set_password=False)
+                result = seed_demo(institution, prefix=demo.get("prefix") or "", mode=mode,
+                                   set_password=False, academic_year=academic_year, term=term)
+                demo_logins = [{"username": name, "password": DEMO_PASSWORD}
+                               for name in result.get("users", [])]
+
+            institution.settings = {**(institution.settings or {}),
+                                    "demo_data": bool(demo.get("enabled")),
+                                    "demo_logins": demo_logins}
+            institution.save(update_fields=["settings"])
 
             log_action(user, "institution.created", institution,
                        after={"slug": institution.slug, "type": institution.type,

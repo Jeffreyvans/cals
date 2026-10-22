@@ -33,6 +33,43 @@ ALL_MODULES = [
     "sso",
 ]
 
+# The name each module is given on the screens.
+MODULE_LABELS = {
+    "core_academics": "Core academics",
+    "finance": "Finance and fees",
+    "admissions": "Admissions",
+    "parent_portal": "Parent portal",
+    "lms": "Learning platform",
+    "exams": "Examinations",
+    "library": "Library",
+    "health": "Health and sick bay",
+    "counselling": "Counselling",
+    "student_affairs": "Student affairs",
+    "sports": "Sports and clubs",
+    "boarding": "Boarding",
+    "transport": "Transport",
+    "catering": "Catering and tuck shop",
+    "careers_attachment": "Careers and attachment",
+    "research": "Research and postgraduate",
+    "labs": "Labs and workshops",
+    "ict_helpdesk": "ICT helpdesk",
+    "hr": "Human resources",
+    "payroll": "Payroll",
+    "procurement_stores": "Procurement and stores",
+    "estates": "Estates and maintenance",
+    "security": "Security",
+    "compliance": "Compliance and quality",
+    "marketing": "Marketing and enquiries",
+    "governance": "Governance",
+    "api": "API and integrations",
+    "sso": "Single sign-on",
+}
+
+
+def module_label(code):
+    """The name of a module for the screens."""
+    return MODULE_LABELS.get(code, code.replace("_", " ").capitalize())
+
 
 def enabled_modules(institution):
     """The set of module codes switched on for this institution."""

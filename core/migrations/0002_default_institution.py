@@ -46,7 +46,7 @@ def backfill_institutions(apps, schema_editor):
 def seed_roles(apps, schema_editor):
     """Give the default institution its default roles and permissions."""
     from core.permissions import PERMISSIONS
-    from core.roles import DEFAULT_ROLES
+    from core.roles import DEFAULT_ROLES, PLATFORM_ONLY
 
     Institution = apps.get_model("core", "Institution")
     Permission = apps.get_model("core", "Permission")
@@ -72,7 +72,7 @@ def seed_roles(apps, schema_editor):
             },
         )
         codes = (
-            list(permissions)
+            [c for c in permissions if c not in PLATFORM_ONLY]
             if spec["permissions"] == "*"
             else [c for c in spec["permissions"] if c in permissions]
         )

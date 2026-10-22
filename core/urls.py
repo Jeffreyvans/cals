@@ -1,8 +1,10 @@
 from django.urls import path
 
-from . import approvals, org, views
+from . import approvals, org, views, wizard_views
 
 urlpatterns = [
+    path("setup/", wizard_views.setup_wizard, name="setup_wizard"),
+    path("setup/done/", wizard_views.setup_done, name="setup_done"),
     path("settings/institution/", views.settings_view, name="institution_settings"),
     path("settings/roles/", views.role_list, name="role_list"),
     path("settings/roles/matrix/", views.role_matrix, name="role_matrix"),
