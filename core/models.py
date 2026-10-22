@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from core.tenancy import current_institution_id, default_institution_id
+from core.tenancy import CurrentInstitutionId, current_institution_id, default_institution_id
 
 
 class TenantQuerySet(models.QuerySet):
@@ -26,8 +26,11 @@ class TenantManager(models.Manager):
     """Only ever returns rows belonging to the current institution."""
 
     def get_queryset(self):
+        # The institution is read when the query runs, not when the queryset
+        # is built, so a queryset captured at import time still reads the
+        # institution of the request that uses it.
         return TenantQuerySet(self.model, using=self._db).filter(
-            institution_id=current_institution_id()
+            institution_id=CurrentInstitutionId()
         )
 
     def for_institution(self, institution):

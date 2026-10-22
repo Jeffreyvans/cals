@@ -12,7 +12,7 @@ institution, so one institution can never see another institution's rows.
 
 from contextvars import ContextVar
 
-from django.db import connections, router
+from django.db import connections, models, router
 
 _current_institution = ContextVar("edusphere_current_institution", default=None)
 _default_ids = {}
@@ -100,3 +100,21 @@ def use_institution(institution):
 
 def clear_default_cache():
     _default_ids.clear()
+
+
+class CurrentInstitutionId(models.Func):
+    """The institution that is current when the query is compiled.
+
+    Filtering with this expression keeps the tenant filter lazy. Django builds
+    the choice list of a model form when the form class is imported, so an
+    eager filter would freeze whichever institution happened to be current
+    at import time into every form and every captured queryset. Reading the
+    value when the SQL is built keeps the filter correct for the request,
+    the background job or the test that runs it.
+    """
+
+    output_field = models.IntegerField()
+
+    def as_sql(self, compiler, connection, **extra_context):
+        return "(%s)", [current_institution_id()]
+

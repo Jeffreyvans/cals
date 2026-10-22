@@ -86,6 +86,52 @@ class InstitutionIsolationTests(TestCase):
             self.assertFalse(Role.objects.exists())
 
 
+class LazyTenantFilterTests(TestCase):
+    """A queryset built early must read the institution of the query.
+
+    Django builds the choice list of a model form when the form class is
+    imported, so the tenant filter has to be applied when the query runs.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.first = Institution.objects.create(
+            name="Riverdale College", slug="riverdale", type="college")
+        cls.second = Institution.objects.create(
+            name="Hillcrest School", slug="hillcrest", type="secondary")
+        with use_institution(cls.first):
+            Programme.objects.create(name="Diploma in IT", code="DIT", level="diploma")
+        with use_institution(cls.second):
+            Programme.objects.create(name="Grade 7", code="G7", level="grade")
+
+    def test_a_queryset_built_early_reads_the_institution_at_query_time(self):
+        with use_institution(self.first):
+            captured = Programme.objects.all()
+        with use_institution(self.second):
+            self.assertEqual([p.code for p in captured], ["G7"])
+
+    def test_counts_and_existence_also_use_the_current_institution(self):
+        with use_institution(self.first):
+            captured = Programme.objects.all()
+            self.assertEqual(captured.count(), 1)
+            self.assertTrue(captured.exists())
+        with use_institution(self.second):
+            self.assertEqual(captured.count(), 1)
+            self.assertTrue(captured.exists())
+
+    def test_a_model_form_built_at_import_time_sees_the_right_programmes(self):
+        from academics.forms import StudentRegistrationForm
+
+        with use_institution(self.first):
+            form = StudentRegistrationForm()
+            self.assertEqual(
+                [p.code for p in form.fields["programme"].queryset], ["DIT"])
+        with use_institution(self.second):
+            form = StudentRegistrationForm()
+            self.assertEqual(
+                [p.code for p in form.fields["programme"].queryset], ["G7"])
+
+
 class CrossInstitutionAccessTests(TestCase):
     """A signed-in user must not reach another institution's records."""
 

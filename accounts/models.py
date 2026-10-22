@@ -16,10 +16,10 @@ class TenantUserManager(UserManager):
     use_in_migrations = False
 
     def get_queryset(self):
-        from core.tenancy import current_institution_id
+        from core.tenancy import CurrentInstitutionId
 
         return TenantUserQuerySet(self.model, using=self._db).filter(
-            institution_id=current_institution_id()
+            institution_id=CurrentInstitutionId()
         )
 
     def for_institution(self, institution):
