@@ -6,10 +6,12 @@ from .models import (
     AcademicYear,
     Activity,
     Announcement,
+    ClassSubjectAllocation,
     ClassTeacher,
     Course,
     Enrollment,
     GradeBand,
+    GradeLevel,
     Guardian,
     Programme,
     SchoolClass,
@@ -161,6 +163,35 @@ class SubjectForm(forms.ModelForm):
             role__in=("lecturer", "admin"), is_active=True).order_by("first_name", "username")
         self.fields["lecturer"].empty_label = "Choose the teacher"
         self.fields["lecturer"].required = False
+
+
+class GradeLevelForm(forms.ModelForm):
+    class Meta:
+        model = GradeLevel
+        fields = ["name", "kind", "order"]
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["order"].help_text = "The step on the way up. Higher numbers come later."
+        self.fields["name"].help_text = "For example Grade 3 or Form 2."
+
+
+class ClassSubjectAllocationForm(forms.ModelForm):
+    class Meta:
+        model = ClassSubjectAllocation
+        fields = ["subject", "lecturer", "lessons_per_week"]
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["subject"].queryset = Subject.objects.exclude(level="college") \
+            .order_by("code")
+        self.fields["subject"].empty_label = "Choose a subject"
+        self.fields["lecturer"].queryset = User.tenant_objects.filter(
+            role__in=("lecturer", "admin"), is_active=True).order_by("first_name", "username")
+        self.fields["lecturer"].empty_label = "Choose the teacher"
+        self.fields["lecturer"].required = False
+        self.fields["lessons_per_week"].required = False
+        self.fields["lessons_per_week"].help_text = "How many lessons a week."
 
 
 class ProgrammeForm(forms.ModelForm):

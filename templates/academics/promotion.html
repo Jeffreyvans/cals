@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div>
+    <h1>Promotion</h1>
+    <p class="muted">Move students up a level when the year ends. A student only moves when the next level already has a class, and the move is written to the audit log.</p>
+  </div>
+  <p><a class="btn ghost" href="{% url 'grade_levels' %}">Levels and classes</a></p>
+</div>
+<form method="post">
+  {% csrf_token %}
+  <table class="tbl">
+    <tr><th></th><th>Student</th><th>Now in</th><th>Moves to</th></tr>
+    {% for row in plan %}<tr>
+      <td><input type="checkbox" name="students" value="{{ row.student.pk }}" checked></td>
+      <td><a href="{% url 'student_detail' row.student.pk %}">{{ row.student.name }}</a></td>
+      <td>{{ row.from_class.name }}{% if row.student.stream %} {{ row.student.stream.name }}{% endif %}</td>
+      <td>{{ row.to_class.name }} <span class="muted">({{ row.to_level.name }})</span></td>
+    </tr>{% empty %}
+    <tr><td colspan="4" class="muted">Nobody can be promoted. Put the classes on levels first, and make sure the next level has a class.</td></tr>{% endfor %}
+  </table>
+  {% if plan %}<div class="row"><button class="btn">Move the ticked students up</button></div>{% endif %}
+</form>
+{% endblock %}

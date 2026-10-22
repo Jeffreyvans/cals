@@ -1,0 +1,55 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div>
+    <h1>Levels</h1>
+    <p class="muted">The steps of the school: Grade 1, Grade 2, Form 1. Put each class on a level and the promotion tool knows who moves up next.</p>
+  </div>
+  <p><a class="btn ghost" href="{% url 'promotion' %}">Promote students</a></p>
+</div>
+<div class="cols">
+  <div>
+    <table class="tbl">
+      <tr><th>Level</th><th>Kind</th><th>Step</th><th>Classes</th></tr>
+      {% for level in levels %}<tr>
+        <td>{{ level.name }}</td>
+        <td>{{ level.get_kind_display }}</td>
+        <td>{{ level.order }}</td>
+        <td>{% for c in level.classes.all %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">No class yet</span>{% endfor %}</td>
+      </tr>{% empty %}<tr><td colspan="4" class="muted">No levels yet. Add one on the right.</td></tr>{% endfor %}
+    </table>
+
+    <h2>Classes</h2>
+    <p class="muted">Choose the level each class sits on.</p>
+    <table class="tbl">
+      <tr><th>Class</th><th>Level</th><th></th></tr>
+      {% for c in classes %}<tr>
+        <td><a href="{% url 'class_detail' c.pk %}">{{ c.name }}</a></td>
+        <td>{% if c.grade_level %}{{ c.grade_level.name }}{% else %}<span class="muted">Not on a level</span>{% endif %}</td>
+        <td>
+          <form method="post" class="inline">{% csrf_token %}
+            <input type="hidden" name="action" value="link">
+            <input type="hidden" name="class" value="{{ c.pk }}">
+            <select name="level">
+              <option value="">Choose a level</option>
+              {% for level in levels %}<option value="{{ level.pk }}">{{ level.name }}</option>{% endfor %}
+            </select>
+            <button class="btn ghost">Set</button>
+          </form>
+          {% if c.grade_level %}
+          <form method="post" class="inline">{% csrf_token %}
+            <input type="hidden" name="action" value="unlink">
+            <input type="hidden" name="class" value="{{ c.pk }}">
+            <button class="link">Remove</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>{% empty %}<tr><td colspan="3" class="muted">No classes yet.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <form method="post" class="inline wide">{% csrf_token %}
+    <input type="hidden" name="action" value="new_level">
+    <h2>Add a level</h2>{{ form.as_p }}<button class="btn">Save level</button>
+    <p class="muted">The step decides the order. A level with a higher step comes later, so Grade 2 (step 2) sits below Grade 3 (step 3).</p>
+  </form>
+</div>
+{% endblock %}

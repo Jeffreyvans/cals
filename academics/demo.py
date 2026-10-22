@@ -16,11 +16,13 @@ from academics.models import (
     Activity,
     Announcement,
     Attendance,
+    ClassSubjectAllocation,
     ClassTeacher,
     Course,
     Enrollment,
     ExamSitting,
     GradeBand,
+    GradeLevel,
     Guardian,
     Programme,
     SchoolClass,
@@ -39,6 +41,12 @@ DEMO_PASSWORD = "demo1234"
 
 DEMO_LOGINS = ("admin", "registrar", "bursar", "lecturer", "parent",
                "student1", "student2", "student3", "student4", "student5")
+
+
+def _step_of(name):
+    """The number at the end of a name: "Grade 3" is step 3."""
+    digits = "".join(ch for ch in name if ch.isdigit())
+    return int(digits) if digits else 0
 
 
 def seed_demo(institution, prefix="", mode=None, set_password=True,
@@ -146,6 +154,14 @@ def seed_demo(institution, prefix="", mode=None, set_password=True,
             for stream_name in ("A", "B"):
                 Stream.objects.get_or_create(school_class=school_class, name=stream_name)
 
+        # Every class sits on a level, so the promotion tool knows who moves up.
+        for name, school_class in classes.items():
+            grade_level, _ = GradeLevel.objects.get_or_create(
+                name=name, defaults=dict(kind=school_class.level, order=_step_of(name)))
+            if school_class.grade_level_id != grade_level.pk:
+                school_class.grade_level = grade_level
+                school_class.save(update_fields=["grade_level"])
+
         def subject(code, name, level):
             return Subject.objects.get_or_create(
                 code=code, defaults=dict(name=name, level=level, lecturer=lec))[0]
@@ -166,6 +182,13 @@ def seed_demo(institution, prefix="", mode=None, set_password=True,
             ClassTeacher.objects.get_or_create(
                 school_class=classes[cls_name], academic_year=year,
                 defaults={"teacher": lec})
+
+        # The subjects each class takes this year.
+        for cls_name, subject_row in (("Grade 3", mth1), ("Grade 3", eng1),
+                                      ("Form 2", mth2), ("Form 2", eng2)):
+            ClassSubjectAllocation.objects.get_or_create(
+                school_class=classes[cls_name], subject=subject_row, academic_year=year,
+                defaults={"lecturer": lec, "lessons_per_week": 3})
 
         lessons = [
             dict(term=term1, day=1, start_time=time(8, 0), end_time=time(8, 45),

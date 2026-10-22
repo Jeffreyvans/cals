@@ -5,19 +5,21 @@
 {% for y in years %}
 <div class="card">
   <div class="head">
-    <div><b>{{ y.name }}</b> <span class="muted">{{ y.start_date|date:"j M Y" }} – {{ y.end_date|date:"j M Y" }}</span></div>
+    <div><b>{{ y.name }}</b> <span class="muted">{{ y.start_date|date:"j M Y" }} – {{ y.end_date|date:"j M Y" }}</span>{% if y.is_closed %} <span class="badge">Closed</span>{% endif %}</div>
     <div>{% if y.is_current %}<span class="badge">Current year</span>{% else %}
       <form method="post">{% csrf_token %}<input type="hidden" name="action" value="year_current"><input type="hidden" name="pk" value="{{ y.pk }}"><button class="btn ghost">Make current</button></form>{% endif %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="{% if y.is_closed %}reopen_year{% else %}close_year{% endif %}"><input type="hidden" name="pk" value="{{ y.pk }}"><button class="link">{% if y.is_closed %}Open again{% else %}Close year{% endif %}</button></form>
     </div>
   </div>
   <table class="tbl">
-    <tr><th>Term</th><th>Dates</th><th>Current</th></tr>
+    <tr><th>Term</th><th>Dates</th><th>Current</th><th></th></tr>
     {% for t in y.terms.all %}<tr>
-      <td>{{ t.name }}</td>
+      <td>{{ t.name }}{% if t.is_closed %} <span class="badge">Closed</span>{% endif %}</td>
       <td>{{ t.start_date|date:"j M Y" }} – {{ t.end_date|date:"j M Y" }}</td>
       <td>{% if t.is_current %}<span class="badge">Current term</span>{% else %}
         <form method="post">{% csrf_token %}<input type="hidden" name="action" value="term_current"><input type="hidden" name="pk" value="{{ t.pk }}"><button class="link">Make current</button></form>{% endif %}</td>
-    </tr>{% empty %}<tr><td colspan="3" class="muted">No terms in this year yet. Add one below.</td></tr>{% endfor %}
+      <td><form method="post">{% csrf_token %}<input type="hidden" name="action" value="{% if t.is_closed %}reopen_term{% else %}close_term{% endif %}"><input type="hidden" name="pk" value="{{ t.pk }}"><button class="link">{% if t.is_closed %}Open again{% else %}Close term{% endif %}</button></form></td>
+    </tr>{% empty %}<tr><td colspan="4" class="muted">No terms in this year yet. Add one below.</td></tr>{% endfor %}
   </table>
 </div>
 {% empty %}<p class="muted">No academic years yet. Add your first year below, then add its terms.</p>{% endfor %}

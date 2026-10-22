@@ -35,6 +35,7 @@
         {% if user.role == 'registrar' or user.role == 'admin' %}
           <a href="{% url 'student_create' %}">Register student</a>
           <a href="{% url 'academic_years' %}">Years and terms</a>
+          <a href="{% url 'grade_levels' %}">Levels</a>
           <a href="{% url 'timetable' %}">Timetable</a>
           {% if IS_SCHOOL %}
             <a href="{% url 'class_list' %}">Classes</a>

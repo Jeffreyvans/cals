@@ -74,10 +74,15 @@ class AcademicYear(TenantModel):
     start_date = models.DateField()
     end_date = models.DateField()
     is_current = models.BooleanField(default=False)
+    is_closed = models.BooleanField(default=False,
+        help_text="A closed year cannot be changed any more.")
+    closed_on = models.DateField(null=True, blank=True)
     class Meta:
         ordering = ["-name"]
         constraints = [
-            models.UniqueConstraint(fields=["institution", "name"], name="uniq_year_name")
+            models.UniqueConstraint(fields=["institution", "name"], name="uniq_year_name"),
+            models.UniqueConstraint(fields=["institution"], condition=Q(is_current=True),
+                                    name="uniq_current_year"),
         ]
 
     def clean(self):
@@ -86,10 +91,12 @@ class AcademicYear(TenantModel):
             raise ValidationError({"end_date": "The end date must be after the start date."})
 
     def save(self, *a, **kw):
-        super().save(*a, **kw)
+        # The de-duplication happens before the write, because the database
+        # refuses two current years in one institution.
         if self.is_current:
-            AcademicYear.objects.filter(is_current=True, institution=self.institution) \
+            AcademicYear.all_objects.filter(is_current=True, institution=self.institution) \
                 .exclude(pk=self.pk).update(is_current=False)
+        super().save(*a, **kw)
 
     def __str__(self): return self.name
 
@@ -100,9 +107,16 @@ class Term(TenantModel):
     start_date = models.DateField()
     end_date = models.DateField()
     is_current = models.BooleanField(default=False)
+    is_closed = models.BooleanField(default=False,
+        help_text="A closed term cannot be changed any more.")
+    closed_on = models.DateField(null=True, blank=True)
     class Meta:
         ordering = ["academic_year__name", "start_date"]
         unique_together = ("academic_year", "name")
+        constraints = [
+            models.UniqueConstraint(fields=["institution"], condition=Q(is_current=True),
+                                    name="uniq_current_term"),
+        ]
 
     def clean(self):
         super().clean()
@@ -114,12 +128,50 @@ class Term(TenantModel):
                 raise ValidationError({"start_date": "Term dates must fall inside the academic year."})
 
     def save(self, *a, **kw):
-        super().save(*a, **kw)
+        # Only one term may be current in an institution, so the others are
+        # switched off before this one is written.
         if self.is_current:
-            Term.objects.filter(is_current=True, institution=self.institution) \
+            Term.all_objects.filter(is_current=True, institution=self.institution) \
                 .exclude(pk=self.pk).update(is_current=False)
+        super().save(*a, **kw)
 
     def __str__(self): return f"{self.name} ({self.academic_year.name})"
+
+
+class GradeLevel(TenantModel):
+    """One step on the way through the school: Grade 3, Form 2, Year 1.
+
+    Classes hang off a grade level, so the promotion tool knows which class
+    comes next. The order decides the way up: the level with the next higher
+    number in the same kind is the next one.
+    """
+
+    class Kind(models.TextChoices):
+        PRIMARY = "primary", "Primary"
+        SECONDARY = "secondary", "Secondary"
+        COLLEGE = "college", "College year"
+
+    name = models.CharField(max_length=60, help_text="For example Grade 3")
+    code = models.CharField(max_length=20, blank=True)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.SECONDARY)
+    order = models.PositiveIntegerField(default=0,
+        help_text="The step on the way up. Higher numbers come later.")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["kind", "order", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "name"], name="uniq_grade_level_name")
+        ]
+
+    def __str__(self): return self.name
+
+    @property
+    def next_level(self):
+        """The level a student moves to after this one, if there is one."""
+        return GradeLevel.all_objects.filter(
+            institution=self.institution, kind=self.kind, is_active=True, order__gt=self.order
+        ).order_by("order", "name").first()
 
 
 class SchoolClass(TenantModel):
@@ -128,6 +180,9 @@ class SchoolClass(TenantModel):
         SECONDARY = "secondary", "Secondary"
     name = models.CharField(max_length=60, help_text="For example Grade 3 or Form 2")
     level = models.CharField(max_length=20, choices=Level.choices, default=Level.PRIMARY)
+    grade_level = models.ForeignKey(GradeLevel, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="classes",
+        help_text="The step this class belongs to. Used by the promotion tool.")
     class Meta:
         ordering = ["name"]
         constraints = [
@@ -174,6 +229,31 @@ class Subject(TenantModel):
             models.UniqueConstraint(fields=["institution", "code"], name="uniq_subject_code")
         ]
     def __str__(self): return f"{self.code} – {self.name}"
+
+
+class ClassSubjectAllocation(TenantModel):
+    """The subjects a class takes in a year, and who teaches them.
+
+    This is the list the marks sheet, the timetable and the report card work
+    from: a class has a subject in a year because it was allocated.
+    """
+
+    school_class = models.ForeignKey(SchoolClass, on_delete=models.CASCADE, related_name="allocations")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="allocations")
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name="allocations")
+    lecturer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, limit_choices_to={"role__in": ("lecturer", "admin")},
+        related_name="allocations")
+    lessons_per_week = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["school_class__name", "subject__code"]
+        unique_together = ("school_class", "subject", "academic_year")
+        verbose_name = "class subject allocation"
+        verbose_name_plural = "class subject allocations"
+
+    def __str__(self):
+        return f"{self.school_class} – {self.subject} ({self.academic_year.name})"
 
 
 class TimetableEntry(TenantModel):

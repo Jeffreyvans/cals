@@ -18,10 +18,12 @@ from finance.models import Invoice
 from .forms import (
     ActivityForm,
     AnnouncementForm,
+    ClassSubjectAllocationForm,
     ClassTeacherForm,
     CourseForm,
     EnrollForm,
     GradeBandForm,
+    GradeLevelForm,
     GuardianForm,
     ProgrammeForm,
     SchoolClassForm,
@@ -43,6 +45,7 @@ from .models import (
     Enrollment,
     ExamSitting,
     GradeBand,
+    GradeLevel,
     Guardian,
     Programme,
     SchoolClass,
@@ -53,6 +56,7 @@ from .models import (
     TimetableEntry,
     balances_by_student,
 )
+from .services import promote_students, promotion_plan
 
 MONEY_ROLES = ("admin", "registrar", "bursar")
 
@@ -339,9 +343,92 @@ def academic_years(request):
             else:
                 messages.error(request, "That term was not found.")
             return redirect("academic_years")
+        elif action in ("close_year", "reopen_year", "close_term", "reopen_term"):
+            return _close_or_reopen(request, action)
     return render(request, "academics/academic_years.html", {
         "years": AcademicYear.objects.prefetch_related("terms"),
         "year_form": year_form, "term_form": term_form})
+
+
+def _close_or_reopen(request, action):
+    """Close or reopen a year or a term."""
+    from .services import close_term, close_year, reopen_term, reopen_year
+
+    pk = request.POST.get("pk")
+    if action.endswith("year"):
+        row = AcademicYear.objects.filter(pk=pk).first()
+        if row is None:
+            messages.error(request, "That academic year was not found.")
+            return redirect("academic_years")
+        if action == "close_year":
+            close_year(row, user=request.user, request=request)
+            messages.success(request, f"{row.name} is closed. It cannot be changed any more.")
+        else:
+            reopen_year(row, user=request.user, request=request)
+            messages.success(request, f"{row.name} is open again.")
+    else:
+        row = Term.objects.filter(pk=pk).first()
+        if row is None:
+            messages.error(request, "That term was not found.")
+            return redirect("academic_years")
+        if action == "close_term":
+            close_term(row, user=request.user, request=request)
+            messages.success(request, f"{row.name} is closed.")
+        else:
+            reopen_term(row, user=request.user, request=request)
+            messages.success(request, f"{row.name} is open again.")
+    return redirect("academic_years")
+
+
+@role_required("registrar")
+def grade_levels(request):
+    """The steps of the school, and the classes that sit on them."""
+    form = GradeLevelForm(request.POST or None)
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "new_level":
+            if form.is_valid():
+                level = form.save()
+                messages.success(request, f"Level {level.name} added.")
+                return redirect("grade_levels")
+            messages.error(request, f"Could not add the level. {_err(form)}")
+        elif action == "link":
+            school_class = SchoolClass.objects.filter(pk=request.POST.get("class")).first()
+            level = GradeLevel.objects.filter(pk=request.POST.get("level")).first()
+            if school_class is None or level is None:
+                messages.error(request, "Choose a class and a level.")
+            else:
+                school_class.grade_level = level
+                school_class.save(update_fields=["grade_level"])
+                messages.success(request, f"{school_class.name} now sits on {level.name}.")
+            return redirect("grade_levels")
+        elif action == "unlink":
+            school_class = SchoolClass.objects.filter(pk=request.POST.get("class")).first()
+            if school_class is not None:
+                school_class.grade_level = None
+                school_class.save(update_fields=["grade_level"])
+                messages.success(request, f"{school_class.name} no longer sits on a level.")
+            return redirect("grade_levels")
+    levels = GradeLevel.objects.prefetch_related("classes")
+    classes = SchoolClass.objects.select_related("grade_level").order_by("name")
+    return render(request, "academics/grade_levels.html", {
+        "levels": levels, "classes": classes, "form": form})
+
+
+@role_required("registrar")
+def promotion(request):
+    """Move students up a level when the year ends."""
+    institution = request.institution
+    if request.method == "POST":
+        wanted = request.POST.getlist("students")
+        moved = promote_students(institution, request.user, student_ids=wanted, request=request)
+        if moved:
+            messages.success(request, f"{len(moved)} students moved up.")
+        else:
+            messages.warning(request, "Nobody was moved. Tick the students you want to move.")
+        return redirect("promotion")
+    return render(request, "academics/promotion.html", {
+        "plan": promotion_plan(institution)})
 
 
 @role_required("registrar")
@@ -399,11 +486,36 @@ def class_detail(request, pk):
                     messages.success(request, "Class teacher saved.")
                 else:
                     messages.error(request, f"Could not save the class teacher. {_err(f)}")
+        elif action == "allocate":
+            if not year:
+                messages.error(request, "Add an academic year and set it as current first.")
+            else:
+                f = ClassSubjectAllocationForm(request.POST)
+                if f.is_valid():
+                    subject = f.cleaned_data["subject"]
+                    if c.allocations.filter(academic_year=year, subject=subject).exists():
+                        messages.error(request, f"{c.name} already takes {subject.name} this year.")
+                    else:
+                        allocation = f.save(commit=False)
+                        allocation.school_class = c
+                        allocation.academic_year = year
+                        allocation.save()
+                        messages.success(request, f"{subject.name} added to {c.name}.")
+                else:
+                    messages.error(request, f"Could not add the subject. {_err(f)}")
+        elif action == "unallocate":
+            allocation = c.allocations.filter(pk=request.POST.get("pk")).first()
+            if allocation is not None:
+                allocation.delete()
+                messages.success(request, "Subject removed from the class.")
         return redirect("class_detail", pk=pk)
     ct = None
     if year:
         ct = ClassTeacher.objects.filter(school_class=c, academic_year=year) \
                                  .select_related("teacher").first()
+    allocations = c.allocations.select_related("subject", "lecturer")
+    if year:
+        allocations = allocations.filter(academic_year=year)
     entries = TimetableEntry.objects.filter(school_class=c).select_related(
         "subject", "lecturer", "stream", "term")
     term = _current_term()
@@ -413,7 +525,9 @@ def class_detail(request, pk):
         "c": c, "can_edit": can_edit, "year": year, "class_teacher": ct,
         "students": c.students.select_related("user", "stream").order_by("user__first_name"),
         "groups": _by_day(entries), "term": term,
-        "stream_form": StreamForm(), "teacher_form": ClassTeacherForm()})
+        "allocations": allocations,
+        "stream_form": StreamForm(), "teacher_form": ClassTeacherForm(),
+        "allocation_form": ClassSubjectAllocationForm()})
 
 
 @role_required("registrar", "lecturer")

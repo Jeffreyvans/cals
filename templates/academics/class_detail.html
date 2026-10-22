@@ -2,7 +2,7 @@
 <div class="head">
   <div>
     <h1>{{ c.name }}</h1>
-    <p class="muted">Level: {{ c.get_level_display }} · Class teacher: {% if class_teacher and class_teacher.teacher %}{{ class_teacher.teacher.get_full_name|default:class_teacher.teacher.username }}{% else %}not set{% endif %}{% if year %} · Year {{ year.name }}{% endif %}</p>
+    <p class="muted">Level: {{ c.get_level_display }}{% if c.grade_level %} · Step: {{ c.grade_level.name }}{% endif %} · Class teacher: {% if class_teacher and class_teacher.teacher %}{{ class_teacher.teacher.get_full_name|default:class_teacher.teacher.username }}{% else %}not set{% endif %}{% if year %} · Year {{ year.name }}{% endif %}</p>
   </div>
   <p><a class="btn ghost" href="{% url 'class_list' %}">All classes</a></p>
 </div>
@@ -19,7 +19,28 @@
 {% endif %}
 
 <h2>Streams</h2>
-<p>{% for s in c.streams.all %}<span class="badge">{{ s.name }}</span> {% empty %}<span class="muted">No streams yet. Streams let you split a class into groups.</span>{% endfor %}</p>
+<p>{% for s in c.streams.all %}<span class="badge">{{ s.name }}</span> {% empty %}<span class="muted">No streams yet. Streams let you split a class into groups.</span>{% endfor %}
+
+<h2>Subjects{% if year %} ({{ year.name }}){% endif %}</h2>
+<table class="tbl">
+  <tr><th>Subject</th><th>Teacher</th><th>Lessons a week</th>{% if can_edit %}<th></th>{% endif %}</tr>
+  {% for a in allocations %}<tr>
+    <td>{{ a.subject.code }} – {{ a.subject.name }}</td>
+    <td>{% if a.lecturer %}{{ a.lecturer.get_full_name|default:a.lecturer.username }}{% else %}<span class="muted">Not set</span>{% endif %}</td>
+    <td>{{ a.lessons_per_week|default:"—" }}</td>
+    {% if can_edit %}<td>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="unallocate">
+        <input type="hidden" name="pk" value="{{ a.pk }}">
+        <button class="link">Remove</button></form>
+    </td>{% endif %}
+  </tr>{% empty %}<tr><td colspan="4" class="muted">No subjects allocated to this class yet.</td></tr>{% endfor %}
+</table>
+{% if can_edit and year %}
+<form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="allocate">
+  <h2>Add a subject to the class</h2>
+  {{ allocation_form.as_p }}<button class="btn ghost">Add subject</button></form>
+{% endif %}
+</p>
 
 <h2>Students ({{ students|length }})</h2>
 <table class="tbl">
