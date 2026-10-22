@@ -14,15 +14,18 @@ Read `PROGRESS.md` for the dated log, decisions and known gaps.
 
 ## PHASE 1 - Foundation (tenancy, roles, workflow, notifications, audit)
 - [x] Multi-tenancy: `Institution`, `TenantModel`/`TenantManager`, middleware, per-institution uniqueness, isolation tests (models, views, search, exports)
-- [~] Institution types + `Terminology` labels per type
+- [x] Institution types + `Terminology` labels per type (type presets + per-institution override on the institution screen)
 - [x] Feature flags (`InstitutionModule`) hiding disabled modules from menus, URLs and views
 - [x] Roles and permissions as data: `Role`, `Permission`, `RolePermission`, `permission_required_code` decorator, `perms_code` template tag, permission-matrix admin screen, seeded default role matrix
-- [~] Departments: `Department`, `StaffProfile`
-- [~] Approval workflow engine: templates, requests, actions; submit/approve/reject/return services; notifications at each step
+- [x] Departments: `Department`, `StaffProfile` (screens for both, hierarchical departments)
+- [x] Approval workflow engine: templates, requests, actions; submit/approve/reject/return services; notifications at each step
 - [x] Notification system: `Notification`, `MessageTemplate`, `OutboundMessage`, provider interface (console/email/SMS stubs), Celery tasks with eager fallback, bell + notifications page
 - [x] Audit log: `AuditEntry` (finance, results, users, roles) + `SensitiveViewLog`; read-only screen with filters and CSV export
 - [ ] Setup wizard: details, branding, year/term, modules, grading template, currency, first admin, optional demo data
 - [ ] Bulk import (CSV/Excel): upload, column mapping, validation preview, confirm, error report
+
+Phase 1 status (2026-10-22): everything above is finished except the setup
+wizard and the bulk import. Both are the next two pieces of work.
 
 ## PHASE 2 - Academics
 - [ ] AcademicYear/Term hardening (only one active per institution), GradeLevel, SchoolClass/Stream, Subject, ClassSubjectAllocation, class teacher, promotion tool
