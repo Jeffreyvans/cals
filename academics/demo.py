@@ -37,12 +37,20 @@ from finance.models import Invoice, Payment, Waiver
 
 DEMO_PASSWORD = "demo1234"
 
+DEMO_LOGINS = ("admin", "registrar", "bursar", "lecturer", "parent",
+               "student1", "student2", "student3", "student4", "student5")
 
-def seed_demo(institution, prefix="", mode=None):
+
+def seed_demo(institution, prefix="", mode=None, set_password=True):
     """Create demo users, academic structure, students, fees and timetables.
 
     `prefix` is put in front of every username, so a second institution can
-    have its own ``admin`` without colliding with the first one.
+    have its own ``admin`` without colliding with the first one. When a name
+    is already taken by another institution the demo falls back to a name of
+    its own, so no account of another institution is ever touched.
+
+    `set_password` is False when the caller manages the accounts itself
+    (the setup wizard), so an existing password is never reset.
     """
     with use_institution(institution):
         settings_row = SchoolSettings.get(institution)
@@ -50,22 +58,32 @@ def seed_demo(institution, prefix="", mode=None):
             settings_row.mode = mode
             settings_row.save(update_fields=["mode"])
 
-        def mk(username, first, last, role, **extra):
-            user, _ = User.objects.get_or_create(
-                username=prefix + username,
-                defaults=dict(
-                    first_name=first, last_name=last, role=role,
-                    institution=institution, **extra),
-            )
-            return user
+        usernames = {}
 
-        admin = mk("admin", "System", "Admin", "admin", is_staff=True, is_superuser=True)
-        reg, bur, lec = mk("registrar", "Rudo", "Moyo", "registrar"), \
-            mk("bursar", "Tendai", "Chuma", "bursar"), \
-            mk("lecturer", "Dr. Farai", "Ncube", "lecturer")
-        for u in (admin, reg, bur, lec):
-            u.set_password(DEMO_PASSWORD)
-            u.save()
+        def mk(username, first, last, role, **extra):
+            """Find or make one demo account. Returns (user, username, created)."""
+            wanted = prefix + username
+            user = User.objects.filter(username=wanted).first()
+            if user is not None and user.institution_id != institution.pk:
+                wanted = f"{wanted}-{institution.slug}"
+                user = User.objects.filter(username=wanted).first()
+            created = False
+            if user is None:
+                user = User.objects.create_user(
+                    wanted, password=DEMO_PASSWORD, first_name=first,
+                    last_name=last, role=role, institution=institution, **extra)
+                created = True
+            elif set_password and user.institution_id == institution.pk:
+                user.set_password(DEMO_PASSWORD)
+                user.save()
+            usernames[username] = wanted
+            return user, wanted, created
+
+        mk("admin", "System", "Admin", "admin",
+                         is_staff=True, is_superuser=True)
+        reg, _, _ = mk("registrar", "Rudo", "Moyo", "registrar")
+        bur, _, _ = mk("bursar", "Tendai", "Chuma", "bursar")
+        lec, _, _ = mk("lecturer", "Dr. Farai", "Ncube", "lecturer")
 
         def programme(code, name, level, fee, months):
             return Programme.objects.get_or_create(
@@ -158,12 +176,10 @@ def seed_demo(institution, prefix="", mode=None):
         college_students = [("student1", "Tariro", "Dube", dip, 900),
                             ("student2", "Blessing", "Sibanda", dip, 400),
                             ("student3", "Chipo", "Mutasa", dip, 0)]
-        for i, (username, first, last, prog, paid) in enumerate(college_students, 1):
-            if User.objects.filter(username=prefix + username).exists():
+        for i, (name, first, last, prog, paid) in enumerate(college_students, 1):
+            user, _username, created = mk(name, first, last, "student")
+            if not created:
                 continue
-            user = User.objects.create_user(
-                prefix + username, password=DEMO_PASSWORD, first_name=first,
-                last_name=last, role="student", institution=institution)
             student = Student.objects.create(
                 user=user, programme=prog,
                 guardian_name="Parent " + last, guardian_phone=f"+263 77 000 000{i}")
@@ -181,15 +197,13 @@ def seed_demo(institution, prefix="", mode=None):
 
         school_students = [("student4", "Rutendo", "Chikowore", pri, "Grade 3", "A", mth1, eng1),
                            ("student5", "Tafadzwa", "Mhlanga", sec, "Form 2", "B", mth2, eng2)]
-        for i, (username, first, last, prog, class_name, stream_name, *subjects) in \
+        for i, (name, first, last, prog, class_name, stream_name, *subjects) in \
                 enumerate(school_students, 4):
-            if User.objects.filter(username=prefix + username).exists():
+            user, _username, created = mk(name, first, last, "student")
+            if not created:
                 continue
             school_class = classes[class_name]
             stream = Stream.objects.get(school_class=school_class, name=stream_name)
-            user = User.objects.create_user(
-                prefix + username, password=DEMO_PASSWORD, first_name=first,
-                last_name=last, role="student", institution=institution)
             student = Student.objects.create(
                 user=user, programme=prog, school_class=school_class, stream=stream,
                 guardian_name="Parent " + last, guardian_phone=f"+263 77 000 000{i}")
@@ -198,12 +212,13 @@ def seed_demo(institution, prefix="", mode=None):
                 amount=prog.tuition_fee,
                 due_date=date.today() + timedelta(days=30),
                 created_by=bur)
-            if username == "student4":
+            if name == "student4":
                 Payment.objects.create(invoice=invoice, amount=50, received_by=bur)
             for subject_row in subjects:
                 Enrollment.objects.create(student=student, subject=subject_row, term=term1.name)
 
-        inv5 = Invoice.objects.filter(student__user__username=prefix + "student5").first()
+        inv5 = Invoice.objects.filter(
+            student__user__username=usernames.get("student5")).first()
         if inv5 and not inv5.waivers.exists():
             Waiver.objects.create(invoice=inv5, amount=Decimal("100.00"),
                                   reason="Bursary contribution still pending",
@@ -222,27 +237,28 @@ def seed_demo(institution, prefix="", mode=None):
             defaults=dict(body="Please settle term fees before the 30th.",
                           audience="parent", posted_by=reg))
 
-        parent = mk("parent", "Perpetua", "Chikowore", "parent")
-        parent.set_password(DEMO_PASSWORD)
-        parent.save()
+        parent, _, _ = mk("parent", "Perpetua", "Chikowore", "parent")
         for student in Student.objects.filter(
-                user__username__in=(prefix + "student4", prefix + "student5")):
-            Guardian.objects.get_or_create(parent=parent, student=student)
+                user__username__in=(usernames.get("student4"), usernames.get("student5"))):
+            if student.user_id and student.user.username:
+                Guardian.objects.get_or_create(parent=parent, student=student)
 
-        demo_marks = [(prefix + "student1", "IT101", "72"), (prefix + "student1", "IT102", "58"),
-                      (prefix + "student2", "IT101", "45"), (prefix + "student4", "MTH1", "81"),
-                      (prefix + "student4", "ENG1", "66"), (prefix + "student5", "MTH2", "54")]
-        for username, code, mark in demo_marks:
-            enrollment = Enrollment.objects.filter(student__user__username=username).filter(
+        demo_marks = [("student1", "IT101", "72"), ("student1", "IT102", "58"),
+                      ("student2", "IT101", "45"), ("student4", "MTH1", "81"),
+                      ("student4", "ENG1", "66"), ("student5", "MTH2", "54")]
+        for name, code, mark in demo_marks:
+            enrollment = Enrollment.objects.filter(
+                student__user__username=usernames.get(name)).filter(
                 Q(course__code=code) | Q(subject__code=code)).first()
             if enrollment and enrollment.mark is None:
                 enrollment.mark = Decimal(mark)
                 enrollment.save(update_fields=["mark"])
 
-        demo_attendance = [(prefix + "student1", "IT101", [True, True, False]),
-                           (prefix + "student4", "MTH1", [True, True, True])]
-        for username, code, pattern in demo_attendance:
-            enrollment = Enrollment.objects.filter(student__user__username=username).filter(
+        demo_attendance = [("student1", "IT101", [True, True, False]),
+                           ("student4", "MTH1", [True, True, True])]
+        for name, code, pattern in demo_attendance:
+            enrollment = Enrollment.objects.filter(
+                student__user__username=usernames.get(name)).filter(
                 Q(course__code=code) | Q(subject__code=code)).first()
             if enrollment:
                 for i, present in enumerate(pattern):
@@ -253,7 +269,7 @@ def seed_demo(institution, prefix="", mode=None):
         ExamSitting.enter(term1, Student.objects.filter(status="active"))
         ExamSitting.objects.filter(term=term1).update(venue="Hall A")
         blocked = ExamSitting.objects.filter(
-            term=term1, student__user__username=prefix + "student2").first()
+            term=term1, student__user__username=usernames.get("student2")).first()
         if blocked:
             blocked.cleared = False
             blocked.note = "Fee balance outstanding"
@@ -261,7 +277,5 @@ def seed_demo(institution, prefix="", mode=None):
 
     return {
         "institution": institution,
-        "users": [prefix + name for name in
-                  ("admin", "registrar", "bursar", "lecturer", "parent",
-                   "student1", "student2", "student3", "student4", "student5")],
+        "users": [usernames.get(name, prefix + name) for name in DEMO_LOGINS],
     }
