@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Bulk import{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Bulk import</h1>
+    <p class="muted">Upload a spreadsheet, check the columns, then write the rows into {{ inst.name }}.</p>
+  </div>
+  <a class="btn" href="{% url 'import_start' %}">Start an import</a>
+</div>
+
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>File</th><th>What</th><th>When</th><th>Who</th><th>Imported</th><th>Problems</th><th></th></tr></thead>
+  <tbody>
+  {% for b in batches %}
+    <tr>
+      <td>{{ b.filename }}</td>
+      <td>{{ b.get_kind_display }}</td>
+      <td>{{ b.created|date:"j M Y H:i" }}</td>
+      <td class="muted">{{ b.created_by.username|default:"—" }}</td>
+      <td>{{ b.imported_count }}</td>
+      <td>{% if b.error_count %}<span class="badge">{{ b.error_count }}</span>{% else %}—{% endif %}</td>
+      <td>
+        <a href="{% url 'import_result' b.pk %}">Result</a>
+        {% if b.error_count %} &middot; <a href="{% url 'import_errors' b.pk %}">Error report</a>{% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No imports yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% if kinds %}
+<p class="muted">You may import: {% for key, spec in kinds %}{{ spec.label }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+{% else %}
+<p class="muted">Your role does not allow any import.</p>
+{% endif %}
+{% endblock %}

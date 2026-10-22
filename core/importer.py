@@ -1,0 +1,704 @@
+"""Bulk import: read a spreadsheet, check it, then write it.
+
+An import always happens in the same four steps:
+
+1. the file is uploaded and read into rows,
+2. the user says which column is which field,
+3. every row is checked and the problems are shown,
+4. the good rows are written and the bad ones can be downloaded as a report.
+
+Nothing is written before step four, so a file with mistakes never half
+arrives in the database. Every row belongs to the institution that uploaded
+the file, and the rows of another institution are never touched.
+"""
+
+import csv
+import io
+import re
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+
+MAX_ROWS = 5000
+MAX_BYTES = 5 * 1024 * 1024
+
+TEXT = "text"
+NUMBER = "number"
+DECIMAL = "decimal"
+DATE = "date"
+CHOICE = "choice"
+
+
+class ImportError(Exception):
+    """Raised when a file cannot be read at all."""
+
+
+def _field(key, label, required=False, kind=TEXT, aliases=(), help_text="", choices=()):
+    return {
+        "key": key,
+        "label": label,
+        "required": required,
+        "kind": kind,
+        "aliases": tuple(aliases),
+        "help": help_text,
+        "choices": tuple(choices),
+    }
+
+
+STUDENT_FIELDS = [
+    _field("student_no", "Student number", aliases=("student no", "student number", "admission number", "id")),
+    _field("first_name", "First name", required=True, aliases=("first name", "given name", "firstname")),
+    _field("last_name", "Last name", required=True, aliases=("last name", "surname", "family name")),
+    _field("username", "Login username", aliases=("username", "login", "user name")),
+    _field("programme", "Programme or level", aliases=("programme", "level", "course of study", "program")),
+    _field("school_class", "Class", aliases=("class", "form", "grade", "class name")),
+    _field("stream", "Stream", aliases=("stream",)),
+    _field("year_or_grade", "Year or grade", aliases=("year", "year/grade", "year or grade")),
+    _field("date_of_birth", "Date of birth", kind=DATE, aliases=("dob", "date of birth", "birth date")),
+    _field("guardian_name", "Guardian name", aliases=("guardian", "guardian name", "parent", "parent name")),
+    _field("guardian_phone", "Guardian phone", aliases=("guardian phone", "parent phone", "contact", "phone")),
+    _field("status", "Status", kind=CHOICE, aliases=("status", "student status"),
+           choices=("active", "deferred", "graduated", "withdrawn")),
+]
+
+STAFF_FIELDS = [
+    _field("username", "Login username", required=True, aliases=("username", "login", "user name")),
+    _field("first_name", "First name", required=True, aliases=("first name", "given name", "firstname")),
+    _field("last_name", "Last name", required=True, aliases=("last name", "surname", "family name")),
+    _field("email", "Email", aliases=("email", "email address")),
+    _field("phone", "Phone", aliases=("phone", "contact", "mobile")),
+    _field("employee_no", "Employee number", aliases=("employee no", "employee number", "staff number", "staff no")),
+    _field("job_title", "Job title", aliases=("job title", "title", "position")),
+    _field("department", "Department", aliases=("department", "dept")),
+    _field("date_joined", "Date joined", kind=DATE, aliases=("date joined", "joined", "start date")),
+    _field("role", "Role", kind=CHOICE, aliases=("role", "user role"),
+           choices=("admin", "registrar", "bursar", "lecturer", "student", "parent")),
+]
+
+COURSE_FIELDS = [
+    _field("code", "Course code", required=True, aliases=("code", "course code", "course code/name")),
+    _field("title", "Course title", required=True, aliases=("title", "course title", "name", "course name")),
+    _field("programme", "Programme code", required=True, aliases=("programme", "programme code", "level")),
+    _field("credits", "Credits", kind=NUMBER, aliases=("credits", "credit")),
+    _field("lecturer", "Lecturer username", aliases=("lecturer", "teacher", "lecturer username")),
+]
+
+SUBJECT_FIELDS = [
+    _field("code", "Subject code", required=True, aliases=("code", "subject code")),
+    _field("name", "Subject name", required=True, aliases=("name", "subject name", "title")),
+    _field("level", "Level", kind=CHOICE, aliases=("level",),
+           choices=("primary", "secondary", "college")),
+    _field("lecturer", "Lecturer username", aliases=("lecturer", "teacher", "lecturer username")),
+]
+
+FEE_STRUCTURE_FIELDS = [
+    _field("structure_code", "Fee structure code", required=True,
+           aliases=("structure code", "fee structure code", "code")),
+    _field("structure_name", "Fee structure name", required=True,
+           aliases=("structure name", "fee structure name", "name")),
+    _field("item_name", "Fee item", required=True,
+           aliases=("item", "item name", "fee item", "description", "line")),
+    _field("amount", "Amount", required=True, kind=DECIMAL,
+           aliases=("amount", "price", "fee", "value")),
+    _field("mandatory", "Mandatory", kind=CHOICE, aliases=("mandatory", "compulsory"),
+           choices=("yes", "no")),
+    _field("academic_year", "Academic year", aliases=("academic year", "year")),
+]
+
+
+KINDS = {
+    "students": {
+        "label": "Students",
+        "permission": "students.create",
+        "fields": STUDENT_FIELDS,
+        "help": "One row per student. First name and last name are needed.",
+    },
+    "staff": {
+        "label": "Staff",
+        "permission": "admin.manage_users",
+        "fields": STAFF_FIELDS,
+        "help": "One row per staff member. A login is created with a password that must be reset.",
+    },
+    "courses": {
+        "label": "Courses",
+        "permission": "academics.manage_courses",
+        "fields": COURSE_FIELDS,
+        "help": "One row per course. The programme must already exist.",
+    },
+    "subjects": {
+        "label": "Subjects",
+        "permission": "academics.manage_courses",
+        "fields": SUBJECT_FIELDS,
+        "help": "One row per subject.",
+    },
+    "fee_structures": {
+        "label": "Fee structures",
+        "permission": "finance.manage_fee_structures",
+        "fields": FEE_STRUCTURE_FIELDS,
+        "help": "One row per fee item. Rows with the same structure code belong to one structure.",
+    },
+}
+
+
+def kind_fields(kind):
+    """The fields of one import kind."""
+    return KINDS[kind]["fields"]
+
+
+FIELDS_BY_KIND = {key: spec["fields"] for key, spec in KINDS.items()}
+
+
+def kind_label(kind):
+    return KINDS[kind]["label"]
+
+
+# ---------- reading the file ----------
+def read_rows(uploaded_file, filename):
+    """Read an uploaded file into a list of rows.
+
+    The first row is the header. Every row is a dictionary of column name to
+    value, so the rest of the import never has to think about columns again.
+    """
+    name = (filename or "").lower()
+    if name.endswith((".xlsx", ".xlsm")):
+        raw = _read_xlsx(uploaded_file)
+    elif name.endswith(".csv"):
+        raw = _read_csv(uploaded_file)
+    else:
+        raise ImportError("Upload a CSV file or an Excel workbook (.xlsx).")
+    if not raw:
+        raise ImportError("The file is empty.")
+    headers = []
+    for cell in raw[0]:
+        header = str(cell or "").strip()
+        if header and header not in headers:
+            headers.append(header)
+    if not headers:
+        raise ImportError("The first row of the file must hold the column names.")
+    rows = []
+    for raw_row in raw[1:]:
+        if not any(str(cell or "").strip() for cell in raw_row):
+            continue
+        row = {}
+        for index, header in enumerate(headers):
+            cell = raw_row[index] if index < len(raw_row) else ""
+            row[header] = "" if cell is None else str(cell).strip()
+        rows.append(row)
+        if len(rows) > MAX_ROWS:
+            raise ImportError(f"The file has more than {MAX_ROWS} rows. Split it into smaller files.")
+    return [{header: header for header in headers}] + rows
+
+
+def _read_csv(uploaded_file):
+    uploaded_file.seek(0)
+    raw = uploaded_file.read()
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8-sig", errors="replace")
+    sample = raw[:4096]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+    except csv.Error:
+        dialect = csv.excel
+    reader = csv.reader(io.StringIO(raw), dialect)
+    return [list(row) for row in reader]
+
+
+def _read_xlsx(uploaded_file):
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:  # pragma: no cover - depends on the install
+        raise ImportError("Excel files need the openpyxl library. Install it or upload a CSV.") from exc
+    uploaded_file.seek(0)
+    try:
+        book = load_workbook(uploaded_file, read_only=True, data_only=True)
+    except Exception as exc:
+        raise ImportError("That Excel file could not be opened.") from exc
+    sheet = book[book.sheetnames[0]]
+    rows = []
+    for row in sheet.iter_rows(values_only=True):
+        rows.append(["" if cell is None else cell for cell in row])
+    book.close()
+    return rows
+
+
+# ---------- mapping the columns ----------
+def guess_mapping(headers, fields):
+    """Guess which column belongs to which field."""
+    mapping = {}
+    taken = set()
+    for field in fields:
+        wanted = [field["label"].lower(), field["key"].replace("_", " ")] + list(field["aliases"])
+        for header in headers:
+            if header in taken:
+                continue
+            lowered = header.lower().strip()
+            if lowered in wanted:
+                mapping[field["key"]] = header
+                taken.add(header)
+                break
+    return mapping
+
+
+# ---------- reading the values ----------
+def _clean(value):
+    return (value or "").strip() if isinstance(value, str) else ("" if value is None else str(value).strip())
+
+
+def parse_date(value, label, errors):
+    """Accept 2026-01-13, 13/01/2026 and 13-01-2026."""
+    text = _clean(value)
+    if not text:
+        return None
+    for pattern in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(text, pattern).date()
+        except ValueError:
+            continue
+    errors.append(f"{label} is not a date ({text}).")
+    return None
+
+
+def parse_number(value, label, errors, whole=True):
+    text = _clean(value)
+    if not text:
+        return None
+    try:
+        if whole:
+            return int(text)
+        return Decimal(text)
+    except (ValueError, InvalidOperation):
+        errors.append(f"{label} is not a number ({text}).")
+        return None
+
+
+def parse_money(value, label, errors):
+    text = _clean(value)
+    if not text:
+        return None
+    text = re.sub(r"[^\d.,\-]", "", text)
+    if re.fullmatch(r"-?\d{1,3}(,\d{3})+(\.\d+)?", text):
+        text = text.replace(",", "")
+    elif "," in text:
+        text = text.replace(",", ".")
+    try:
+        return Decimal(text).quantize(Decimal("0.01"))
+    except (ValueError, InvalidOperation):
+        errors.append(f"{label} is not an amount ({value}).")
+        return None
+
+
+def parse_choice(value, label, choices, errors, default=""):
+    text = _clean(value).lower()
+    if not text:
+        return default
+    if text not in choices:
+        errors.append(f"{label} must be one of: {', '.join(choices)}.")
+        return ""
+    return text
+
+
+def parse_yes_no(value, label, errors, default=True):
+    text = _clean(value).lower()
+    if not text:
+        return default
+    if text in ("yes", "y", "true", "1", "required", "compulsory"):
+        return True
+    if text in ("no", "n", "false", "0", "optional"):
+        return False
+    errors.append(f"{label} must be yes or no.")
+    return default
+
+
+# ---------- checking the rows ----------
+class Context:
+    """Everything the checkers need to look up, fetched once per import."""
+
+    def __init__(self, institution):
+        self.institution = institution
+        self.programmes = {}
+        self.classes = {}
+        self.streams = {}
+        self.users = {}
+        self.years = {}
+        self._loaded = False
+
+    def load(self):
+        if self._loaded:
+            return
+        from academics.models import AcademicYear, Programme, SchoolClass, Stream
+
+        for row in Programme.all_objects.filter(institution=self.institution):
+            self.programmes[row.code.strip().lower()] = row
+            self.programmes[row.name.strip().lower()] = row
+        for row in SchoolClass.all_objects.filter(institution=self.institution):
+            self.classes[row.name.strip().lower()] = row
+        for row in Stream.all_objects.filter(institution=self.institution):
+            self.streams[(row.school_class_id, row.name.strip().lower())] = row
+        for row in AcademicYear.all_objects.filter(institution=self.institution):
+            self.years[row.name.strip().lower()] = row
+        self._loaded = True
+
+    def programme(self, name):
+        self.load()
+        return self.programmes.get((name or "").strip().lower())
+
+    def school_class(self, name):
+        self.load()
+        return self.classes.get((name or "").strip().lower())
+
+    def stream(self, school_class, name):
+        self.load()
+        key = (school_class.pk if school_class else None, (name or "").strip().lower())
+        return self.streams.get(key)
+
+    def academic_year(self, name):
+        self.load()
+        return self.years.get((name or "").strip().lower())
+
+    def taken_username(self, username):
+        from accounts.models import User
+
+        return User.objects.filter(username=username).exists()
+
+
+def validate(kind, rows, mapping, institution):
+    """Check every row of the file.
+
+    Returns one result per data row: the values that were read, the problems
+    found and the row number the user sees in the spreadsheet.
+    """
+    fields = FIELDS_BY_KIND[kind]
+    context = Context(institution)
+    context.load()
+    seen_numbers = {}
+    seen_usernames = {}
+    results = []
+    for index, row in enumerate(rows, start=2):
+        errors = []
+        values = {}
+        for field in fields:
+            column = mapping.get(field["key"])
+            if not column:
+                if field["required"]:
+                    errors.append(f"{field['label']} is missing.")
+                continue
+            raw = _clean(row.get(column, ""))
+            if not raw:
+                if field["required"]:
+                    errors.append(f"{field['label']} is needed.")
+                continue
+            values[field["key"]] = raw
+        checker = CHECKERS[kind]
+        values, errors = checker(values, errors, context, seen_numbers, seen_usernames)
+        results.append({
+            "row": index,
+            "values": values,
+            "errors": errors,
+            "raw": row,
+        })
+    return results
+
+
+def _check_students(values, errors, context, seen_numbers, seen_usernames):
+    from academics.models import Student
+    from accounts.models import User
+
+    student_no = values.get("student_no", "")
+    username = values.get("username", "")
+    if student_no:
+        if student_no in seen_numbers:
+            errors.append(f"Student number '{student_no}' is used twice in this file.")
+        seen_numbers[student_no] = True
+        if Student.all_objects.filter(student_no=student_no).exists():
+            errors.append(f"Student number '{student_no}' is already used by another student.")
+    if not username:
+        username = re.sub(r"[^a-zA-Z0-9._-]", "", student_no) or f"student{len(seen_usernames) + 1}"
+        values["username"] = username
+    if username:
+        if username in seen_usernames:
+            errors.append(f"Username '{username}' is used twice in this file.")
+        elif User.objects.filter(username=username).exists():
+            errors.append(f"Username '{username}' is already taken.")
+        seen_usernames[username] = True
+    if values.get("programme"):
+        if context.programme(values["programme"]) is None:
+            errors.append(f"Unknown programme '{values['programme']}'.")
+    school_class = None
+    if values.get("school_class"):
+        school_class = context.school_class(values["school_class"])
+        if school_class is None:
+            errors.append(f"Unknown class '{values['school_class']}'.")
+    if values.get("stream"):
+        if context.stream(school_class, values["stream"]) is None:
+            errors.append(f"Unknown stream '{values['stream']}'.")
+    if values.get("date_of_birth"):
+        values["date_of_birth"] = parse_date(
+            values["date_of_birth"], "Date of birth", errors)
+    if values.get("status"):
+        values["status"] = parse_choice(
+            values["status"], "Status", Student.Status.values, errors,
+            default=Student.Status.ACTIVE)
+    return values, errors
+
+
+def _check_staff(values, errors, context, seen_numbers, seen_usernames):
+    from accounts.models import User
+
+    username = values.get("username", "")
+    if username:
+        if username in seen_usernames:
+            errors.append(f"Username '{username}' is used twice in this file.")
+        elif User.objects.filter(username=username).exists():
+            errors.append(f"Username '{username}' is already taken.")
+        seen_usernames[username] = True
+    if values.get("email") and "@" not in values["email"]:
+        errors.append(f"'{values['email']}' is not an email address.")
+    if values.get("date_joined"):
+        values["date_joined"] = parse_date(values["date_joined"], "Date joined", errors)
+    if values.get("role"):
+        values["role"] = parse_choice(
+            values["role"], "Role", User.Role.values, errors, default=User.Role.LECTURER)
+    return values, errors
+
+
+def _check_courses(values, errors, context, seen_numbers, seen_usernames):
+    from academics.models import Course
+
+    code = values.get("code", "")
+    if code:
+        if code in seen_numbers:
+            errors.append(f"Course code '{code}' is used twice in this file.")
+        seen_numbers[code] = True
+        if Course.all_objects.filter(code=code).exists():
+            errors.append(f"Course code '{code}' is already used.")
+    if values.get("programme"):
+        if context.programme(values["programme"]) is None:
+            errors.append(f"Unknown programme '{values['programme']}'.")
+    if values.get("credits"):
+        values["credits"] = parse_number(values["credits"], "Credits", errors)
+    if values.get("lecturer"):
+        from accounts.models import User
+
+        if not User.objects.filter(username=values["lecturer"]).exists():
+            errors.append(f"There is no user called '{values['lecturer']}'.")
+    return values, errors
+
+
+def _check_subjects(values, errors, context, seen_numbers, seen_usernames):
+    from academics.models import Subject
+
+    code = values.get("code", "")
+    if code:
+        if code in seen_numbers:
+            errors.append(f"Subject code '{code}' is used twice in this file.")
+        seen_numbers[code] = True
+        if Subject.all_objects.filter(code=code).exists():
+            errors.append(f"Subject code '{code}' is already used.")
+    if values.get("level"):
+        values["level"] = parse_choice(
+            values["level"], "Level", Subject.Level.values, errors,
+            default=Subject.Level.SECONDARY)
+    if values.get("lecturer"):
+        from accounts.models import User
+
+        if not User.objects.filter(username=values["lecturer"]).exists():
+            errors.append(f"There is no user called '{values['lecturer']}'.")
+    return values, errors
+
+
+def _check_fee_structures(values, errors, context, seen_numbers, seen_usernames):
+    from finance.models import FeeStructure
+
+    code = values.get("structure_code", "")
+    if code and FeeStructure.all_objects.filter(code=code).exists():
+        errors.append(f"Fee structure code '{code}' is already used.")
+    if values.get("amount"):
+        values["amount"] = parse_money(values["amount"], "Amount", errors)
+    if values.get("mandatory"):
+        values["mandatory"] = parse_yes_no(
+            values["mandatory"], "Mandatory", errors, default=True)
+    if values.get("academic_year"):
+        if context.academic_year(values["academic_year"]) is None:
+            errors.append(f"Unknown academic year '{values['academic_year']}'.")
+    return values, errors
+
+
+CHECKERS = {
+    "students": _check_students,
+    "staff": _check_staff,
+    "courses": _check_courses,
+    "subjects": _check_subjects,
+    "fee_structures": _check_fee_structures,
+}
+
+
+# ---------- writing the rows ----------
+def run_import(kind, results, institution, user):
+    """Write the rows that passed the check.
+
+    Returns (imported, errors). A row that fails while being written is
+    reported like any other problem, so the user gets one list of errors.
+    """
+    from core.tenancy import use_institution
+
+    imported = 0
+    errors = []
+    with use_institution(institution):
+        for result in results:
+            if result["errors"]:
+                errors.append({"row": result["row"], "messages": result["errors"]})
+                continue
+            try:
+                _write_row(kind, result["values"], institution, user)
+                imported += 1
+            except Exception as exc:  # a row that breaks must not stop the file
+                errors.append({"row": result["row"], "messages": [str(exc)]})
+    return imported, errors
+
+
+def _write_row(kind, values, institution, user):
+    writer = WRITERS[kind]
+    writer(values, institution, user)
+
+
+def _write_student(values, institution, user):
+    from academics.models import Student
+    from accounts.models import User
+
+    context = Context(institution)
+    account = User.objects.create_user(
+        username=values["username"],
+        password=None,
+        first_name=values.get("first_name", "")[:60],
+        last_name=values.get("last_name", "")[:60],
+        email=values.get("email", ""),
+        role=User.Role.STUDENT,
+        institution=institution,
+    )
+    account.set_unusable_password()
+    account.save(update_fields=["password"])
+    programme = context.programme(values.get("programme", ""))
+    school_class = context.school_class(values.get("school_class", "")) if values.get("school_class") else None
+    stream = context.stream(school_class, values.get("stream", "")) if values.get("stream") else None
+    student = Student(
+        user=account,
+        student_no=values.get("student_no", "")[:20],
+        programme=programme,
+        school_class=school_class,
+        stream=stream,
+        year_or_grade=values.get("year_or_grade", "")[:20] or "1",
+        date_of_birth=values.get("date_of_birth"),
+        guardian_name=values.get("guardian_name", "")[:120],
+        guardian_phone=values.get("guardian_phone", "")[:30],
+        status=values.get("status") or Student.Status.ACTIVE,
+        institution=institution,
+    )
+    student.save()
+
+
+def _write_staff(values, institution, user):
+    from accounts.models import User
+    from core.models import StaffProfile
+
+    account = User.objects.create_user(
+        username=values["username"],
+        password=None,
+        first_name=values.get("first_name", "")[:150],
+        last_name=values.get("last_name", "")[:150],
+        email=values.get("email", ""),
+        phone=values.get("phone", "")[:30],
+        role=values.get("role") or User.Role.LECTURER,
+        institution=institution,
+    )
+    account.set_unusable_password()
+    account.save(update_fields=["password"])
+    profile = StaffProfile(
+        institution=institution,
+        user=account,
+        employee_no=values.get("employee_no", "")[:30],
+        job_title=values.get("job_title", "")[:120],
+        phone=values.get("phone", "")[:30],
+        date_joined=values.get("date_joined"),
+    )
+    profile.save()
+    if values.get("department"):
+        from core.models import Department
+
+        department = Department.objects.filter(
+            name__iexact=values["department"]).first()
+        if department is not None:
+            profile.departments.add(department)
+
+
+def _write_course(values, institution, user):
+    from academics.models import Course
+    from accounts.models import User
+
+    context = Context(institution)
+    programme = context.programme(values.get("programme", ""))
+    if programme is None:
+        raise ValueError(f"Unknown programme '{values.get('programme', '')}'.")
+    lecturer = None
+    if values.get("lecturer"):
+        lecturer = User.objects.filter(username=values["lecturer"]).first()
+    course = Course(
+        institution=institution,
+        code=values.get("code", "")[:20],
+        title=values.get("title", "")[:150],
+        programme=programme,
+        credits=int(values.get("credits") or 3),
+        lecturer=lecturer,
+    )
+    course.save()
+
+
+def _write_subject(values, institution, user):
+    from academics.models import Subject
+    from accounts.models import User
+
+    lecturer = None
+    if values.get("lecturer"):
+        lecturer = User.objects.filter(username=values["lecturer"]).first()
+    subject = Subject(
+        institution=institution,
+        code=values.get("code", "")[:20],
+        name=values.get("name", "")[:150],
+        level=values.get("level") or Subject.Level.SECONDARY,
+        lecturer=lecturer,
+    )
+    subject.save()
+
+
+def _write_fee_structure(values, institution, user):
+    from finance.models import FeeItem, FeeStructure
+
+    context = Context(institution)
+    structure, _created = FeeStructure.objects.get_or_create(
+        institution=institution,
+        code=values.get("structure_code", "")[:30],
+        defaults={
+            "name": values.get("structure_name", "")[:120],
+            "academic_year": context.academic_year(values.get("academic_year", "")),
+        },
+    )
+    item, created = FeeItem.objects.get_or_create(
+        institution=institution,
+        structure=structure,
+        name=values.get("item_name", "")[:120],
+        defaults={
+            "amount": values.get("amount") or Decimal("0.00"),
+            "is_mandatory": values.get("mandatory", True),
+        },
+    )
+    if not created:
+        item.amount = values.get("amount") or item.amount
+        item.is_mandatory = values.get("mandatory", item.is_mandatory)
+        item.save(update_fields=["amount", "is_mandatory"])
+
+
+WRITERS = {
+    "students": _write_student,
+    "staff": _write_staff,
+    "courses": _write_course,
+    "subjects": _write_subject,
+    "fee_structures": _write_fee_structure,
+}

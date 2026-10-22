@@ -8,6 +8,52 @@ from django.db.models import Sum
 from core.models import TenantModel
 
 
+class FeeStructure(TenantModel):
+    """A price list: what a student is charged and how much for each item.
+
+    One structure per programme, class or year. The items are the lines of
+    the bill, so a school can split tuition into tuition, books and a levy.
+    """
+
+    code = models.CharField(max_length=30)
+    name = models.CharField(max_length=120)
+    academic_year = models.ForeignKey(
+        "academics.AcademicYear", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="fee_structures")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "code"], name="uniq_fee_structure_code")
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    @property
+    def total(self):
+        return sum((item.amount for item in self.items.all()), Decimal("0"))
+
+
+class FeeItem(TenantModel):
+    """One line of a fee structure, for example 'Tuition' at 900.00."""
+
+    structure = models.ForeignKey(FeeStructure, on_delete=models.CASCADE, related_name="items")
+    name = models.CharField(max_length=120)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    is_mandatory = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["structure", "name"], name="uniq_fee_item_name")
+        ]
+
+    def __str__(self):
+        return f"{self.name} {self.amount}"
+
+
 class Invoice(TenantModel):
     student = models.ForeignKey("academics.Student", on_delete=models.CASCADE, related_name="invoices")
     description = models.CharField(max_length=200)

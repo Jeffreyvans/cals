@@ -21,11 +21,11 @@ Read `PROGRESS.md` for the dated log, decisions and known gaps.
 - [x] Approval workflow engine: templates, requests, actions; submit/approve/reject/return services; notifications at each step
 - [x] Notification system: `Notification`, `MessageTemplate`, `OutboundMessage`, provider interface (console/email/SMS stubs), Celery tasks with eager fallback, bell + notifications page
 - [x] Audit log: `AuditEntry` (finance, results, users, roles) + `SensitiveViewLog`; read-only screen with filters and CSV export
-- [ ] Setup wizard: details, branding, year/term, modules, grading template, currency, first admin, optional demo data
-- [ ] Bulk import (CSV/Excel): upload, column mapping, validation preview, confirm, error report
+- [x] Setup wizard: details, branding, year/term, modules, grading template, currency, first admin, optional demo data
+- [x] Bulk import (CSV/Excel): upload, column mapping, validation preview, confirm, error report
 
-Phase 1 status (2026-10-22): everything above is finished except the setup
-wizard and the bulk import. Both are the next two pieces of work.
+Phase 1 status (2026-10-22): complete. Tenancy, roles, workflow, notifications, audit,
+the setup wizard and the bulk import are all in place, with 440 tests passing.
 
 ## PHASE 2 - Academics
 - [ ] AcademicYear/Term hardening (only one active per institution), GradeLevel, SchoolClass/Stream, Subject, ClassSubjectAllocation, class teacher, promotion tool

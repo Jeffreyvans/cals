@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Start an import{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Start an import</h1>
+    <p class="muted">A CSV file or an Excel workbook. Nothing is written until you confirm on the next screen.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'import_list' %}">All imports</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="inline wide">
+  {% csrf_token %}
+  <p><label>What are you importing
+    <select name="kind" required>
+      {% for key, spec in kinds %}
+        <option value="{{ key }}">{{ spec.label }}</option>
+      {% endfor %}
+    </select></label></p>
+  <p><label>File
+    <input type="file" name="file" accept=".csv,.xlsx,.xlsm" required>
+    <span class="helptext">5 MB at the most. The first row holds the column names.</span></label></p>
+  <div class="row"><button class="btn">Upload and check the columns</button></div>
+</form>
+
+<h3>How an import works</h3>
+<ol class="steps">
+  <li class="done">Upload the file</li>
+  <li class="done">Match the columns</li>
+  <li class="done">Check the rows</li>
+  <li class="done">Confirm and write</li>
+</ol>
+<p class="muted">Rows with a problem are never written. You can download a report of those rows and fix the file.</p>
+
+<h3>What you can import</h3>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Import</th><th>What the file holds</th><th>Columns</th></tr></thead>
+  <tbody>
+  {% for key, spec in kinds %}
+    <tr>
+      <td>{{ spec.label }}</td>
+      <td>{{ spec.help }}</td>
+      <td class="muted">
+        {% for field in spec.fields %}{{ field.label }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted">The column names do not have to match exactly. You match them on the next screen.</p>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Import finished{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Import finished</h1>
+    <p class="muted">{{ batch.filename }} &middot; {{ batch.get_kind_display }}.</p>
+  </div>
+</div>
+
+{% if batch.imported_count %}
+<div class="msg success">{{ batch.imported_count }} rows were written into {{ batch.institution.name }}.</div>
+{% else %}
+<div class="msg error">Nothing was written. Every row had a problem.</div>
+{% endif %}
+
+{% if errors %}
+<div class="msg error">
+  <strong>{{ errors|length }} rows were left out.</strong>
+  <a href="{% url 'import_errors' batch.pk %}">Download the error report</a> and fix the file.
+</div>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Row</th><th>Problems</th></tr></thead>
+  <tbody>
+  {% for error in errors %}
+    <tr>
+      <td>{{ error.row }}</td>
+      <td>{% for problem in error.messages %}<span class="badge">{{ problem }}</span>{% endfor %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="row">
+  <a class="btn ghost" href="{% url 'import_list' %}">All imports</a>
+  <a class="btn ghost" href="{% url 'import_map' batch.pk %}">Try the file again</a>
+</div>
+{% endblock %}

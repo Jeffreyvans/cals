@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Match the columns{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Match the columns</h1>
+    <p class="muted">{{ batch.filename }} &middot; {{ batch.get_kind_display }}. Say which column is which field.</p>
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="tbl-wrap">
+  <table class="tbl">
+    <thead><tr><th>Field</th><th>Column in your file</th><th>Needed</th><th>First value</th></tr></thead>
+    <tbody>
+    {% for field in field_rows %}
+      <tr>
+        <td>{{ field.label }}</td>
+        <td>
+          <select name="col_{{ field.key }}" aria-label="Column for {{ field.label }}">
+            <option value="">— not in this file —</option>
+            {% for header in headers %}
+              <option value="{{ header }}" {% if field.column == header %}selected{% endif %}>{{ header }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>{% if field.required %}<span class="badge">needed</span>{% else %}<span class="muted">optional</span>{% endif %}</td>
+        <td class="muted">{{ field.sample }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="row">
+    <button class="btn">Check the rows</button>
+    <a class="btn ghost" href="{% url 'import_start' %}">Start again</a>
+  </div>
+</form>
+{% endblock %}

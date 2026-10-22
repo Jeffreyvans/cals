@@ -43,6 +43,10 @@
             <a href="{% url 'programme_list' %}">Programmes</a>
           {% endif %}
         {% endif %}
+        {% perms request as my_perms %}
+        {% if "students.create" in my_perms or "admin.manage_users" in my_perms or "academics.manage_courses" in my_perms or "finance.manage_fee_structures" in my_perms %}
+          <a href="{% url 'import_start' %}">Bulk import</a>
+        {% endif %}
         {% if user.role == 'admin' %}
           <a href="{% url 'school_settings' %}">School settings</a>
           <a href="{% url 'grade_bands' %}">Grade scale</a>

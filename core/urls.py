@@ -1,10 +1,17 @@
 from django.urls import path
 
-from . import approvals, org, views, wizard_views
+from . import approvals, import_views, org, views, wizard_views
 
 urlpatterns = [
     path("setup/", wizard_views.setup_wizard, name="setup_wizard"),
     path("setup/done/", wizard_views.setup_done, name="setup_done"),
+    path("imports/", import_views.import_list, name="import_list"),
+    path("imports/new/", import_views.import_start, name="import_start"),
+    path("imports/<int:pk>/map/", import_views.import_map, name="import_map"),
+    path("imports/<int:pk>/preview/", import_views.import_preview, name="import_preview"),
+    path("imports/<int:pk>/run/", import_views.import_run, name="import_run"),
+    path("imports/<int:pk>/result/", import_views.import_result, name="import_result"),
+    path("imports/<int:pk>/errors.csv", import_views.import_errors, name="import_errors"),
     path("settings/institution/", views.settings_view, name="institution_settings"),
     path("settings/roles/", views.role_list, name="role_list"),
     path("settings/roles/matrix/", views.role_matrix, name="role_matrix"),

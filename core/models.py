@@ -221,6 +221,64 @@ class StaffProfile(TenantModel):
         return f"{self.user.get_full_name() or self.user.username} - {self.job_title}"
 
 
+# ---------- bulk import ----------
+
+class ImportBatch(TenantModel):
+    """One uploaded spreadsheet and what happened to it.
+
+    The file is read into rows and kept on the batch, so the user can map the
+    columns, look at the problems and come back to the same file later. The
+    rows never leave the institution that uploaded them.
+    """
+
+    class Kind(models.TextChoices):
+        STUDENTS = "students", "Students"
+        STAFF = "staff", "Staff"
+        COURSES = "courses", "Courses"
+        SUBJECTS = "subjects", "Subjects"
+        FEE_STRUCTURES = "fee_structures", "Fee structures"
+
+    class Status(models.TextChoices):
+        UPLOADED = "uploaded", "Uploaded"
+        MAPPED = "mapped", "Columns mapped"
+        IMPORTED = "imported", "Imported"
+        FAILED = "failed", "Nothing imported"
+
+    institution = models.ForeignKey(
+        Institution, on_delete=models.CASCADE, related_name="import_batches")
+    kind = models.CharField(max_length=30, choices=Kind.choices)
+    filename = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.UPLOADED)
+    mapping = models.JSONField(default=dict, blank=True)
+    rows = models.JSONField(default=list, blank=True)
+    imported_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+    errors = models.JSONField(default=list, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="import_batches")
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+    finished = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+        verbose_name_plural = "import batches"
+
+    def __str__(self):
+        return f"{self.get_kind_display()} from {self.filename}"
+
+    @property
+    def headers(self):
+        """The column names of the uploaded file."""
+        rows = self.rows or []
+        return list(rows[0].keys()) if rows else []
+
+    @property
+    def data_rows(self):
+        """The rows without the header row."""
+        return list((self.rows or [])[1:])
+
+
 # ---------- workflow ----------
 
 class WorkflowTemplate(TenantModel):
