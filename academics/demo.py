@@ -18,13 +18,16 @@ from academics.models import (
     Attendance,
     ClassSubjectAllocation,
     ClassTeacher,
+    Cohort,
     Course,
+    CourseOffering,
     Enrollment,
     ExamSitting,
     GradeBand,
     GradeLevel,
     Guardian,
     Programme,
+    ProgrammeYear,
     SchoolClass,
     SchoolSettings,
     Stream,
@@ -110,8 +113,8 @@ def seed_demo(institution, prefix="", mode=None, set_password=True,
         programme("MSC", "MSc Data Science", "masters", 3800, 24)
         c1 = Course.objects.get_or_create(code="IT101", defaults=dict(
             title="Programming Fundamentals", programme=dip, lecturer=lec))[0]
-        Course.objects.get_or_create(code="IT102", defaults=dict(
-            title="Networking Basics", programme=dip, lecturer=lec))
+        c2 = Course.objects.get_or_create(code="IT102", defaults=dict(
+            title="Networking Basics", programme=dip, lecturer=lec))[0]
 
         for letter, mark, pts in [("A", 75, 4), ("B", 65, 3), ("C", 50, 2),
                                   ("D", 40, 1), ("F", 0, 0)]:
@@ -143,6 +146,17 @@ def seed_demo(institution, prefix="", mode=None, set_password=True,
                                   is_current=(i == 0 and not Term.objects.filter(is_current=True).exists())))
                 terms[name] = term_row
         term1 = terms.get("Term 1") or next(iter(terms.values()))
+
+        dit_year, _ = ProgrammeYear.objects.get_or_create(
+            programme=dip, academic_year=year,
+            defaults=dict(number=1, capacity=40, credit_limit=18))
+        cohort, _ = Cohort.objects.get_or_create(
+            programme_year=dit_year, name=f"DIT {year.name} A", defaults=dict(lecturer=lec))
+        offerings = {}
+        for course in (c1, c2):
+            offerings[course.pk] = CourseOffering.objects.get_or_create(
+                course=course, term=term1,
+                defaults=dict(lecturer=lec, capacity=30))[0]
 
         classes = {}
         for name, level in [("Grade 1", "primary"), ("Grade 3", "primary"),
@@ -215,7 +229,7 @@ def seed_demo(institution, prefix="", mode=None, set_password=True,
             if not created:
                 continue
             student = Student.objects.create(
-                user=user, programme=prog,
+                user=user, programme=prog, programme_year=dit_year, cohort=cohort,
                 guardian_name="Parent " + last, guardian_phone=f"+263 77 000 000{i}")
             invoice = Invoice.objects.create(
                 student=student, description=f"Tuition – {prog.name}",
@@ -225,7 +239,9 @@ def seed_demo(institution, prefix="", mode=None, set_password=True,
             if paid:
                 Payment.objects.create(invoice=invoice, amount=paid, received_by=bur)
             for course in Course.objects.filter(programme=prog):
-                Enrollment.objects.create(student=student, course=course, term=term1)
+                Enrollment.objects.create(
+                    student=student, course=course, term=term1,
+                    offering=offerings.get(course.pk))
             Activity.objects.create(student=student, kind="club", title="Robotics Club",
                                     date=date.today())
 

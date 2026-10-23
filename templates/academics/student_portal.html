@@ -8,7 +8,7 @@
 
 <h2>My courses and results</h2><table class="tbl"><tr><th>Course or subject</th><th>Term</th><th>Mark</th><th>Grade</th></tr>
 {% for e in enrollments %}<tr><td>{{ e.label }}</td><td>{{ e.term }}</td><td>{{ e.mark|default_if_none:"—" }}</td><td>{{ e.grade }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No courses yet. Ask your lecturer or the registrar to enrol you.</td></tr>{% endfor %}</table>
-<p><a class="btn ghost" href="{% url 'my_report' %}">Open my report card</a> <a class="btn ghost" href="{% url 'my_exam_card' %}">My exam card</a></p>
+<p><a class="btn ghost" href="{% url 'my_registration' %}">Register for courses</a> <a class="btn ghost" href="{% url 'my_report' %}">Open my report card</a> <a class="btn ghost" href="{% url 'my_exam_card' %}">My exam card</a></p>
 
 <h2>My attendance</h2><table class="tbl"><tr><th>Term</th><th class="r">Sessions</th><th class="r">Present</th><th class="r">Rate</th></tr>
 {% for term, sessions, present, pct in attendance %}<tr><td>{{ term }}</td><td class="r">{{ sessions }}</td><td class="r">{{ present }}</td><td class="r">{% if pct %}{{ pct }}%{% else %}—{% endif %}</td></tr>

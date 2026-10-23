@@ -481,8 +481,8 @@ class CourseOffering(TenantModel):
 
     @property
     def registered_count(self):
-        return Enrollment.objects.filter(offering=self).exclude(
-            status=Enrollment.Status.DROPPED).count()
+        return Enrollment.objects.filter(
+            offering=self, status=Enrollment.Status.REGISTERED).count()
 
     @property
     def places_left(self):

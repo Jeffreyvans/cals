@@ -13,6 +13,7 @@
       {% modules request as on %}
       {% if user.role == 'student' %}
         <a href="{% url 'student_portal' %}">My account</a>
+        <a href="{% url 'my_registration' %}">Course registration</a>
       {% elif user.role == 'parent' %}
         <a href="{% url 'parent_portal' %}">My children</a>
       {% elif user.role == 'lecturer' %}

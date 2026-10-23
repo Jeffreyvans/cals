@@ -42,6 +42,7 @@ from .models import (
     Attendance,
     ClassTeacher,
     Course,
+    CourseOffering,
     Enrollment,
     ExamSitting,
     GradeBand,
@@ -56,7 +57,14 @@ from .models import (
     TimetableEntry,
     balances_by_student,
 )
-from .services import promote_students, promotion_plan
+from .services import (
+    RegistrationError,
+    drop_enrollment,
+    promote_students,
+    promotion_plan,
+    register_student,
+    registration_catalogue,
+)
 
 MONEY_ROLES = ("admin", "registrar", "bursar")
 
@@ -288,6 +296,88 @@ def enroll(request, pk):
         else:
             messages.error(request, f"Could not enroll. {_err(f)}")
     return redirect("student_detail", pk=pk)
+
+
+@role_required("registrar", "student")
+def course_registration(request, pk=None):
+    """Register a student for this term's course offerings."""
+    if request.user.role == "student":
+        student = get_object_or_404(Student, user=request.user)
+        if pk is not None and int(pk) != student.pk:
+            raise PermissionDenied
+    else:
+        if pk is None:
+            raise PermissionDenied
+        student = get_object_or_404(
+            Student.objects.select_related("programme", "programme_year"), pk=pk)
+
+    terms = Term.objects.select_related("academic_year").order_by(
+        "-academic_year__start_date", "start_date")
+    term_id = request.POST.get("term") or request.GET.get("term")
+    term = None
+    if term_id:
+        try:
+            term = terms.filter(pk=int(term_id)).first()
+        except (TypeError, ValueError):
+            term = None
+    if term is None:
+        term = _current_term()
+    if term is None:
+        term = terms.first()
+
+    if request.method == "POST" and term is not None:
+        action = request.POST.get("action", "register")
+        if action == "drop":
+            enrollment = get_object_or_404(
+                Enrollment.objects.select_related("offering"), pk=request.POST.get("enrollment"))
+            if enrollment.student_id != student.pk:
+                raise PermissionDenied
+            drop_enrollment(
+                enrollment,
+                user=request.user,
+                reason=request.POST.get("reason", ""),
+                request=request,
+            )
+            messages.success(request, f"Dropped {enrollment.label}.")
+        else:
+            offering = get_object_or_404(
+                CourseOffering.objects.select_related("course", "term"),
+                pk=request.POST.get("offering"),
+            )
+            if offering.term_id != term.pk:
+                messages.error(request, "That course is not offered in the selected term.")
+            else:
+                override = request.POST.get("override") == "1"
+                try:
+                    enrollment = register_student(
+                        student,
+                        offering,
+                        user=request.user,
+                        override=override,
+                        reason=request.POST.get("reason", ""),
+                        request=request,
+                    )
+                except RegistrationError as err:
+                    messages.error(request, " ".join(err.messages))
+                else:
+                    if enrollment.status == Enrollment.Status.WAITLISTED:
+                        messages.success(
+                            request,
+                            f"{offering.course.code} is full. "
+                            f"{student.name} is on the waiting list.",
+                        )
+                    else:
+                        messages.success(request, f"Registered for {offering.course.code}.")
+        return redirect(f"{reverse('course_registration', args=[student.pk])}?term={term.pk}")
+
+    return render(request, "academics/course_registration.html", {
+        "student": student,
+        "term": term,
+        "terms": terms,
+        "rows": registration_catalogue(student, term) if term else [],
+        "can_override": request.user.role in ("registrar", "admin"),
+        "is_self": request.user.role == "student",
+    })
 
 
 @role_required("registrar", "lecturer")

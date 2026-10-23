@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-10-23 (session 4, Phase 2 in progress).
+Started: 2026-10-21. Session 1. Last updated: 2026-10-23 (session 5, Phase 2 in progress).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -27,6 +27,10 @@ Started: 2026-10-21. Session 1. Last updated: 2026-10-23 (session 4, Phase 2 in 
 - Decision: The import writes through `use_institution(institution)` and reads through `all_objects`, so an import always writes into the institution that started it, whatever the ambient current institution is.
 - Decision: `Enrollment.term` is a `Term` foreign key, not the name of a term. New enrolments must choose a real term; the column stays nullable so old rows that could not be matched are never silently deleted. `repair_enrollment_terms` fills those rows with the current term (or the earliest term) of their institution.
 - Decision: The existing `Programme`/`Course` tables stay; Phase 2 adds `ProgrammeYear`, `Cohort`, `CourseOffering` and `CoursePrerequisite` alongside them rather than renaming the working tables.
+- Decision: Registration rules live in `academics/services.py` (`registration_issues`, `register_student`, `drop_enrollment`, `promote_next_waiting`, `registration_catalogue`) so the views stay thin and the rules are tested without HTTP.
+- Decision: A full offering puts a student on the waiting list instead of refusing them. Only `registered` rows consume a place; dropping a registration promotes the longest-waiting student.
+- Decision: A registrar or administrator may override any registration rule, but only with a written reason, and the override is written to the audit trail. A duplicate active registration is never overridden.
+- Decision: Registration stays available until the term is closed when no registration dates or enrolment deadline are set, so demo and small institutions can use it without extra setup.
 
 ## Bugs found
 - None blocking baseline; tests pass. `makemigrations --check` clean. Lint has 194 issues (mostly import/style) but tests unrelated to style pass.
@@ -51,6 +55,7 @@ Started: 2026-10-21. Session 1. Last updated: 2026-10-23 (session 4, Phase 2 in 
 - `_enrolled_this_term()` still filtered `term=term.name`, so the exam page found nobody after the conversion. It filters on the term itself now.
 - The report card grouped enrolments by `Term` objects while `Attendance.rates_by_term()` returned label strings, so every report showed zero attendance. Both sides use the label now; a null term is shown as "No term" instead of crashing.
 - An enrolment could keep a null term when its institution had no term at migration time. `repair_enrollment_terms` repairs those rows (with `--dry-run`); a test covers both a repaired row and an institution with no term at all.
+- `CourseOffering.registered_count` counted waitlisted students as if they held a place, so dropping a registered student did not free the seat. It now counts only `registered` rows.
 
 ## What's done
 - [x] Read all files; ran `manage.py check` (ok), `makemigrations --check` (ok), `manage.py test` (276 passed), installed test/dev tools.
@@ -92,13 +97,15 @@ Phase 1 is complete. The whole suite is 440 tests, all passing.
 - [x] `Enrollment.term` is a real `Term` foreign key (migrations 0011-0013); demo data, the setup wizard, forms, views and tests all use a real term.
 - [x] `ProgrammeYear`, `Cohort`, `CourseOffering` and `CoursePrerequisite` models, plus `Student.programme_year`/`cohort` and `Enrollment.offering`/`status`.
 - [x] `repair_enrollment_terms` management command for legacy rows with no term (`--dry-run` supported); dev database currently has 0 such rows.
-- [ ] Course registration service and screen (windows, capacity, prerequisites, credit limits, registrar override).
+- [x] Course registration service and screen: registration windows, term closure, prerequisites, credit limits, capacity waiting list, duplicate guard, registrar override with a required reason, audited drop and waitlist promotion, self-service and staff screens, 12 tests.
+- [x] Demo data now creates a DIT programme year, cohort and course offerings, and links the demo college students and enrolments to them.
+- [ ] Management screens for programme years, cohorts, offerings and prerequisites (currently available through Django admin/demo data).
 - [ ] Timetable clash detection, assessment components, GPA and class positions, marks workflow, report cards and transcripts.
 
-The whole suite is now 469 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+The whole suite is now 481 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
 
 ## Next up
-- Continue Phase 2 in order: course registration (windows, capacity, prerequisites, credit limits, registrar override with reason) and its screen; then timetable clash detection, assessment components and weighting, GPA and class positions, the marks workflow, report cards and transcripts.
+- Continue Phase 2: management screens for programme years, cohorts, course offerings and prerequisites; then timetable clash detection, assessment components and weighting, GPA and class positions, the marks workflow, report cards and transcripts.
 - Phase 3 starts with the chart of accounts and the double-entry ledger; the `FeeStructure`/`FeeItem` models added for the import will be completed there.
 
 ## Open questions

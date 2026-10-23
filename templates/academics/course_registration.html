@@ -1,0 +1,84 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div>
+    <h1>Course registration</h1>
+    <p class="muted">{{ student.name }} &middot; {{ student.student_no }} &middot; {{ student.programme.name }}</p>
+  </div>
+  <div>
+    {% if is_self %}<a class="btn ghost" href="{% url 'student_portal' %}">Back to my portal</a>
+    {% else %}<a class="btn ghost" href="{% url 'student_detail' student.pk %}">Back to student</a>{% endif %}
+  </div>
+</div>
+
+<form method="get" class="inline">
+  <label for="term">Term</label>
+  <select name="term" id="term" onchange="this.form.submit()">
+    {% for t in terms %}<option value="{{ t.pk }}" {% if term and t.pk == term.pk %}selected{% endif %}>{{ t }}</option>{% endfor %}
+  </select>
+</form>
+
+{% if not term %}
+  <p class="muted">There are no terms yet. Ask the registrar to create an academic year and term first.</p>
+{% else %}
+<table class="tbl">
+  <tr><th>Course</th><th class="r">Credits</th><th>Lecturer</th><th>Prerequisites</th><th>Places</th><th>Status</th><th></th></tr>
+  {% for row in rows %}
+  <tr>
+    <td><b>{{ row.offering.course.code }}</b> {{ row.offering.course.title }}</td>
+    <td class="r">{{ row.offering.credit_points }}</td>
+    <td>{% if row.offering.lecturer %}{{ row.offering.lecturer.get_full_name|default:row.offering.lecturer.username }}{% else %}<span class="muted">Not set</span>{% endif %}</td>
+    <td>{% for rule in row.prerequisites %}{{ rule.required.code }}{% if rule.min_mark %} ({{ rule.min_mark|floatformat:"-2" }}%){% endif %}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">None</span>{% endfor %}</td>
+    <td>{% if row.places_left is None %}<span class="muted">No limit</span>{% elif row.full %}<span class="badge">Full</span>{% else %}{{ row.places_left }} left{% endif %}</td>
+    <td>
+      {% if row.enrollment and row.enrollment.status == "registered" %}<span class="badge">Registered</span>
+      {% elif row.enrollment and row.enrollment.status == "waitlisted" %}<span class="badge">On waiting list</span>
+      {% elif row.enrollment and row.enrollment.status == "dropped" %}<span class="muted">Dropped</span>
+      {% elif row.issues %}<span class="muted">{{ row.issues|join:" " }}</span>
+      {% elif row.full %}<span class="muted">Full</span>
+      {% else %}<span class="muted">Open</span>{% endif %}
+    </td>
+    <td>
+      {% if row.enrollment and row.enrollment.status != "dropped" %}
+      <form method="post" class="inline">{% csrf_token %}
+        <input type="hidden" name="term" value="{{ term.pk }}">
+        <input type="hidden" name="action" value="drop">
+        <input type="hidden" name="enrollment" value="{{ row.enrollment.pk }}">
+        <input type="hidden" name="reason" value="Dropped by student or registrar">
+        <button class="btn ghost">Drop</button>
+      </form>
+      {% elif not row.issues %}
+      <form method="post" class="inline">{% csrf_token %}
+        <input type="hidden" name="term" value="{{ term.pk }}">
+        <input type="hidden" name="offering" value="{{ row.offering.pk }}">
+        <button class="btn">{% if row.full %}Join waiting list{% else %}Register{% endif %}</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="7" class="muted">No courses are offered to this programme in {{ term }} yet.</td></tr>
+  {% endfor %}
+</table>
+
+{% if can_override and rows %}
+<div class="card">
+  <h2>Registrar override</h2>
+  <p class="muted">Use this only when the rules block a registration that should be allowed. The reason is written to the audit log.</p>
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="term" value="{{ term.pk }}">
+    <input type="hidden" name="override" value="1">
+    <p><label for="override-offering">Course</label>
+      <select name="offering" id="override-offering" required>
+        <option value="">Choose a course</option>
+        {% for row in rows %}<option value="{{ row.offering.pk }}">{{ row.offering.course.code }} &ndash; {{ row.offering.course.title }}</option>{% endfor %}
+      </select>
+    </p>
+    <p><label for="override-reason">Reason</label>
+      <textarea name="reason" id="override-reason" rows="3" required></textarea>
+    </p>
+    <button class="btn">Override and register</button>
+  </form>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
