@@ -29,7 +29,7 @@ the setup wizard and the bulk import are all in place, with 440 tests passing.
 
 ## PHASE 2 - Academics
 - [~] AcademicYear/Term hardening (only one active per institution), GradeLevel, SchoolClass/Stream, Subject, ClassSubjectAllocation, class teacher, promotion tool
-- [~] College mode: ProgrammeYear, CourseOffering, Cohort, prerequisites, credit limits, capacity - models, registration service/screen and demo offerings are in place; management screens for programme years, cohorts, offerings and prerequisites still to come
+- [x] College mode: ProgrammeYear, CourseOffering, Cohort, prerequisites, credit limits, capacity - models, management screens, registration service/screen and demo offerings are in place
 - [ ] Timetable: Room, PeriodDefinition, TimetableSlot clash rules, views by class/teacher/room, printable PDF
 - [x] Course registration with open/close dates, credit limits, prerequisite + capacity checks, waiting list, registrar override with a reason, audited drop/promotion
 - [ ] Assessment: AssessmentComponent weights, per-level GradingScale/GradeBand, AssessmentResult, final mark calculation

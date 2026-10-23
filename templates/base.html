@@ -43,6 +43,7 @@
             <a href="{% url 'subject_list' %}">Subjects</a>
           {% else %}
             <a href="{% url 'programme_list' %}">Programmes</a>
+            <a href="{% url 'college_structure' %}">College structure</a>
           {% endif %}
         {% endif %}
         {% perms request as my_perms %}

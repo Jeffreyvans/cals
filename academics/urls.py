@@ -20,6 +20,7 @@ urlpatterns = [
     path("classes/<int:pk>/", v.class_detail, name="class_detail"),
     path("subjects/", v.subject_list, name="subject_list"),
     path("programmes/", v.programme_list, name="programme_list"),
+    path("programmes/structure/", v.college_structure, name="college_structure"),
     path("timetable/", v.timetable, name="timetable"),
     path("my-timetable/", v.my_timetable, name="my_timetable"),
     path("settings/school/", v.school_settings, name="school_settings"),

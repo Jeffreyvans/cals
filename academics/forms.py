@@ -8,12 +8,16 @@ from .models import (
     Announcement,
     ClassSubjectAllocation,
     ClassTeacher,
+    Cohort,
     Course,
+    CourseOffering,
+    CoursePrerequisite,
     Enrollment,
     GradeBand,
     GradeLevel,
     Guardian,
     Programme,
+    ProgrammeYear,
     SchoolClass,
     SchoolSettings,
     Stream,
@@ -34,13 +38,16 @@ class StudentRegistrationForm(forms.ModelForm):
 
     class Meta:
         model = Student
-        fields = ["programme", "year_or_grade", "school_class", "stream",
-                  "date_of_birth", "guardian_name", "guardian_phone"]
+        fields = ["programme", "programme_year", "cohort", "year_or_grade",
+                  "school_class", "stream", "date_of_birth", "guardian_name",
+                  "guardian_phone"]
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.fields["stream"].required = False
         if SchoolSettings.get().is_school:
+            self.fields.pop("programme_year")
+            self.fields.pop("cohort")
             self.fields.pop("year_or_grade")
             self.fields["programme"].label = "Level"
             self.fields["school_class"].required = True
@@ -49,6 +56,14 @@ class StudentRegistrationForm(forms.ModelForm):
         else:
             self.fields.pop("school_class")
             self.fields.pop("stream")
+            self.fields["programme_year"].queryset = ProgrammeYear.objects.select_related(
+                "programme", "academic_year")
+            self.fields["programme_year"].empty_label = "Choose a programme year"
+            self.fields["programme_year"].required = False
+            self.fields["cohort"].queryset = Cohort.objects.select_related(
+                "programme_year__programme")
+            self.fields["cohort"].empty_label = "No cohort yet"
+            self.fields["cohort"].required = False
 
     def clean_username(self):
         u = self.cleaned_data["username"]
@@ -64,6 +79,12 @@ class StudentRegistrationForm(forms.ModelForm):
         if c.get("stream") and c.get("school_class"):
             if c["stream"].school_class_id != c["school_class"].pk:
                 raise forms.ValidationError("That stream belongs to another class.")
+        programme, programme_year = c.get("programme"), c.get("programme_year")
+        if programme and programme_year and programme_year.programme_id != programme.pk:
+            raise forms.ValidationError("That programme year belongs to another programme.")
+        cohort = c.get("cohort")
+        if cohort and cohort.programme_year_id != getattr(programme_year, "pk", None):
+            raise forms.ValidationError("That cohort belongs to another programme year.")
         return c
 
 
@@ -210,6 +231,93 @@ class CourseForm(forms.ModelForm):
         self.fields["lecturer"].queryset = User.tenant_objects.filter(
             role="lecturer", is_active=True).order_by("first_name", "username")
         self.fields["lecturer"].required = False
+
+
+class ProgrammeYearForm(forms.ModelForm):
+    class Meta:
+        model = ProgrammeYear
+        fields = ["programme", "academic_year", "name", "number", "capacity",
+                  "credit_limit", "registration_opens", "registration_closes"]
+        widgets = {
+            "registration_opens": forms.DateInput(attrs={"type": "date"}),
+            "registration_closes": forms.DateInput(attrs={"type": "date"}),
+        }
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["programme"].empty_label = "Choose a programme"
+        self.fields["academic_year"].empty_label = "Choose an academic year"
+        self.fields["academic_year"].queryset = AcademicYear.objects.order_by("-name")
+        self.fields["name"].help_text = "For example Year 1 or Part 2. Leave empty to use the number."
+        self.fields["capacity"].help_text = "How many students this year can take. 0 means no limit."
+        self.fields["credit_limit"].help_text = "The most credits one student may carry. 0 means no limit."
+
+    def clean(self):
+        c = super().clean()
+        opens, closes = c.get("registration_opens"), c.get("registration_closes")
+        if opens and closes and closes < opens:
+            self.add_error("registration_closes",
+                           "Registration must close after it opens.")
+        return c
+
+
+class CohortForm(forms.ModelForm):
+    class Meta:
+        model = Cohort
+        fields = ["programme_year", "name", "lecturer"]
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["programme_year"].queryset = ProgrammeYear.objects.select_related(
+            "programme", "academic_year")
+        self.fields["programme_year"].empty_label = "Choose a programme year"
+        self.fields["lecturer"].queryset = User.tenant_objects.filter(
+            role__in=("lecturer", "admin"), is_active=True).order_by("first_name", "username")
+        self.fields["lecturer"].empty_label = "Choose a lecturer"
+        self.fields["lecturer"].required = False
+
+
+class CourseOfferingForm(forms.ModelForm):
+    class Meta:
+        model = CourseOffering
+        fields = ["course", "term", "lecturer", "capacity", "credits",
+                  "enrolment_deadline"]
+        widgets = {"enrolment_deadline": forms.DateInput(attrs={"type": "date"})}
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["course"].queryset = Course.objects.select_related("programme")
+        self.fields["course"].empty_label = "Choose a course"
+        self.fields["term"].queryset = Term.objects.select_related("academic_year")
+        self.fields["term"].empty_label = "Choose a term"
+        self.fields["lecturer"].queryset = User.tenant_objects.filter(
+            role__in=("lecturer", "admin"), is_active=True).order_by("first_name", "username")
+        self.fields["lecturer"].empty_label = "Use the course lecturer"
+        self.fields["lecturer"].required = False
+        self.fields["credits"].help_text = "Leave empty to use the course credits."
+        self.fields["capacity"].help_text = "0 means no limit."
+
+
+class CoursePrerequisiteForm(forms.ModelForm):
+    class Meta:
+        model = CoursePrerequisite
+        fields = ["course", "required", "min_mark"]
+        widgets = {"min_mark": forms.NumberInput(attrs={"min": 0, "max": 100, "step": 0.01})}
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        courses = Course.objects.select_related("programme").order_by("code")
+        self.fields["course"].queryset = courses
+        self.fields["required"].queryset = courses
+        self.fields["course"].empty_label = "Choose the later course"
+        self.fields["required"].empty_label = "Choose the course it needs"
+        self.fields["min_mark"].help_text = "Leave empty to accept any pass."
+
+    def clean(self):
+        c = super().clean()
+        if c.get("course") and c.get("course") == c.get("required"):
+            raise forms.ValidationError("A course cannot be its own prerequisite.")
+        return c
 
 
 class TimetableEntryForm(forms.ModelForm):

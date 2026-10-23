@@ -31,6 +31,8 @@ Started: 2026-10-21. Session 1. Last updated: 2026-10-23 (session 5, Phase 2 in 
 - Decision: A full offering puts a student on the waiting list instead of refusing them. Only `registered` rows consume a place; dropping a registration promotes the longest-waiting student.
 - Decision: A registrar or administrator may override any registration rule, but only with a written reason, and the override is written to the audit trail. A duplicate active registration is never overridden.
 - Decision: Registration stays available until the term is closed when no registration dates or enrolment deadline are set, so demo and small institutions can use it without extra setup.
+- Decision: College setup lives on one screen (`/programmes/structure/`) with programme years, cohorts, offerings and prerequisites together, so the registrar does not have to jump between four pages while setting up registration.
+- Decision: New college students may be given a programme year and cohort when their account is created; those fields are hidden in school mode. A programme year or cohort from another programme is rejected.
 
 ## Bugs found
 - None blocking baseline; tests pass. `makemigrations --check` clean. Lint has 194 issues (mostly import/style) but tests unrelated to style pass.
@@ -99,13 +101,14 @@ Phase 1 is complete. The whole suite is 440 tests, all passing.
 - [x] `repair_enrollment_terms` management command for legacy rows with no term (`--dry-run` supported); dev database currently has 0 such rows.
 - [x] Course registration service and screen: registration windows, term closure, prerequisites, credit limits, capacity waiting list, duplicate guard, registrar override with a required reason, audited drop and waitlist promotion, self-service and staff screens, 12 tests.
 - [x] Demo data now creates a DIT programme year, cohort and course offerings, and links the demo college students and enrolments to them.
-- [ ] Management screens for programme years, cohorts, offerings and prerequisites (currently available through Django admin/demo data).
+- [x] Management screen for programme years, cohorts, course offerings and prerequisites (`college_structure`), with form validation and 10 tests.
+- [x] The student registration form now offers a programme year and cohort in college mode and rejects mismatches.
 - [ ] Timetable clash detection, assessment components, GPA and class positions, marks workflow, report cards and transcripts.
 
-The whole suite is now 481 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+The whole suite is now 491 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
 
 ## Next up
-- Continue Phase 2: management screens for programme years, cohorts, course offerings and prerequisites; then timetable clash detection, assessment components and weighting, GPA and class positions, the marks workflow, report cards and transcripts.
+- Continue Phase 2: timetable clash detection, assessment components and weighting, GPA and class positions, the marks workflow, report cards and transcripts.
 - Phase 3 starts with the chart of accounts and the double-entry ledger; the `FeeStructure`/`FeeItem` models added for the import will be completed there.
 
 ## Open questions

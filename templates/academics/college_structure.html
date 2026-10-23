@@ -1,0 +1,75 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div>
+    <h1>College structure</h1>
+    <p class="muted">Programme years, cohorts, the courses offered each term and their prerequisites.</p>
+  </div>
+  <div><a class="btn ghost" href="{% url 'programme_list' %}">Programmes and courses</a></div>
+</div>
+
+<h2>Programme years</h2>
+<table class="tbl">
+  <tr><th>Programme</th><th>Year</th><th>Academic year</th><th class="r">Capacity</th><th class="r">Credit limit</th><th>Registration</th><th>Cohorts</th></tr>
+  {% for py in programme_years %}
+  <tr>
+    <td>{{ py.programme.name }}</td>
+    <td>{{ py.label }}</td>
+    <td>{{ py.academic_year.name }}</td>
+    <td class="r">{% if py.capacity %}{{ py.capacity }}{% else %}<span class="muted">No limit</span>{% endif %}</td>
+    <td class="r">{% if py.credit_limit %}{{ py.credit_limit }}{% else %}<span class="muted">No limit</span>{% endif %}</td>
+    <td>
+      {% if py.registration_opens or py.registration_closes %}
+        {% if py.registration_opens %}From {{ py.registration_opens|date:"d M Y" }}{% else %}Open from the start{% endif %}
+        {% if py.registration_closes %} to {{ py.registration_closes|date:"d M Y" }}{% else %} until the term closes{% endif %}
+      {% else %}<span class="muted">Always open until the term closes</span>{% endif %}
+    </td>
+    <td>{% for c in py.cohorts.all %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">None</span>{% endfor %}</td>
+  </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No programme years yet. Add one below.</td></tr>{% endfor %}
+</table>
+
+<h2>Cohorts</h2>
+<table class="tbl">
+  <tr><th>Name</th><th>Programme year</th><th>Lecturer</th></tr>
+  {% for c in cohorts %}
+  <tr><td>{{ c.name }}</td><td>{{ c.programme_year }}</td><td>{% if c.lecturer %}{{ c.lecturer.get_full_name|default:c.lecturer.username }}{% else %}-{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="3" class="muted">No cohorts yet.</td></tr>{% endfor %}
+</table>
+
+<h2>Course offerings</h2>
+<table class="tbl">
+  <tr><th>Course</th><th>Term</th><th>Lecturer</th><th class="r">Credits</th><th class="r">Capacity</th><th class="r">Registered</th><th>Enrolment deadline</th></tr>
+  {% for o in offerings %}
+  <tr>
+    <td>{{ o.course.code }} &ndash; {{ o.course.title }}</td>
+    <td>{{ o.term }}</td>
+    <td>{% if o.lecturer %}{{ o.lecturer.get_full_name|default:o.lecturer.username }}{% else %}-{% endif %}</td>
+    <td class="r">{{ o.credit_points }}</td>
+    <td class="r">{% if o.capacity %}{{ o.capacity }}{% else %}<span class="muted">No limit</span>{% endif %}</td>
+    <td class="r">{{ o.registered_count }}</td>
+    <td>{{ o.enrolment_deadline|date:"d M Y"|default:"-" }}</td>
+  </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No courses offered yet. Registration will have nothing to show until you add one.</td></tr>{% endfor %}
+</table>
+
+<h2>Prerequisites</h2>
+<table class="tbl">
+  <tr><th>Course</th><th>Needs</th><th class="r">Minimum mark</th></tr>
+  {% for p in prerequisites %}
+  <tr><td>{{ p.course.code }} &ndash; {{ p.course.title }}</td><td>{{ p.required.code }} &ndash; {{ p.required.title }}</td><td class="r">{% if p.min_mark %}{{ p.min_mark|floatformat:"-2" }}%{% else %}<span class="muted">Any pass</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="3" class="muted">No prerequisites yet.</td></tr>{% endfor %}
+</table>
+
+<div class="cols">
+  <form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="new_programme_year">
+    <h2>Add a programme year</h2>{{ programme_year_form.as_p }}<button class="btn">Save programme year</button></form>
+  <form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="new_cohort">
+    <h2>Add a cohort</h2>{{ cohort_form.as_p }}<button class="btn">Save cohort</button></form>
+</div>
+<div class="cols">
+  <form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="new_offering">
+    <h2>Offer a course</h2>{{ offering_form.as_p }}<button class="btn">Save offering</button></form>
+  <form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="new_prerequisite">
+    <h2>Add a prerequisite</h2>{{ prerequisite_form.as_p }}<button class="btn">Save prerequisite</button></form>
+</div>
+{% endblock %}

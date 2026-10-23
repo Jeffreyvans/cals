@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% block content %}
 <h1>Programmes</h1>
 <p class="muted">Programmes and courses are used in college mode. Schools use <a href="{% url 'class_list' %}">classes and subjects</a> instead.</p>
+<p><a class="btn ghost" href="{% url 'college_structure' %}">Manage programme years, cohorts and offerings</a></p>
 
 {% for p in programmes %}
 <div class="card">

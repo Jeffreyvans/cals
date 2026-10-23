@@ -20,12 +20,16 @@ from .forms import (
     AnnouncementForm,
     ClassSubjectAllocationForm,
     ClassTeacherForm,
+    CohortForm,
     CourseForm,
+    CourseOfferingForm,
+    CoursePrerequisiteForm,
     EnrollForm,
     GradeBandForm,
     GradeLevelForm,
     GuardianForm,
     ProgrammeForm,
+    ProgrammeYearForm,
     SchoolClassForm,
     SchoolSettingsForm,
     StreamForm,
@@ -41,14 +45,17 @@ from .models import (
     Announcement,
     Attendance,
     ClassTeacher,
+    Cohort,
     Course,
     CourseOffering,
+    CoursePrerequisite,
     Enrollment,
     ExamSitting,
     GradeBand,
     GradeLevel,
     Guardian,
     Programme,
+    ProgrammeYear,
     SchoolClass,
     SchoolSettings,
     Student,
@@ -658,6 +665,60 @@ def programme_list(request):
     return render(request, "academics/programme_list.html", {
         "programmes": Programme.objects.prefetch_related("courses__lecturer"),
         "programme_form": programme_form, "course_form": course_form})
+
+
+@role_required("registrar")
+def college_structure(request):
+    """Manage programme years, cohorts, course offerings and prerequisites."""
+    programme_year_form = ProgrammeYearForm()
+    cohort_form = CohortForm()
+    offering_form = CourseOfferingForm()
+    prerequisite_form = CoursePrerequisiteForm()
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "new_programme_year":
+            programme_year_form = ProgrammeYearForm(request.POST)
+            if programme_year_form.is_valid():
+                row = programme_year_form.save()
+                messages.success(request, f"{row} added.")
+                return redirect("college_structure")
+            messages.error(request, f"Could not add the programme year. {_err(programme_year_form)}")
+        elif action == "new_cohort":
+            cohort_form = CohortForm(request.POST)
+            if cohort_form.is_valid():
+                row = cohort_form.save()
+                messages.success(request, f"Cohort {row.name} added.")
+                return redirect("college_structure")
+            messages.error(request, f"Could not add the cohort. {_err(cohort_form)}")
+        elif action == "new_offering":
+            offering_form = CourseOfferingForm(request.POST)
+            if offering_form.is_valid():
+                row = offering_form.save()
+                messages.success(request, f"Offering {row} added.")
+                return redirect("college_structure")
+            messages.error(request, f"Could not add the offering. {_err(offering_form)}")
+        elif action == "new_prerequisite":
+            prerequisite_form = CoursePrerequisiteForm(request.POST)
+            if prerequisite_form.is_valid():
+                row = prerequisite_form.save()
+                messages.success(request, f"Prerequisite {row} added.")
+                return redirect("college_structure")
+            messages.error(request, f"Could not add the prerequisite. {_err(prerequisite_form)}")
+    return render(request, "academics/college_structure.html", {
+        "programme_years": ProgrammeYear.objects.select_related(
+            "programme", "academic_year").prefetch_related("cohorts"),
+        "cohorts": Cohort.objects.select_related(
+            "programme_year__programme", "lecturer").order_by(
+                "programme_year__programme__code", "name"),
+        "offerings": CourseOffering.objects.select_related(
+            "course", "course__programme", "term__academic_year", "lecturer"),
+        "prerequisites": CoursePrerequisite.objects.select_related(
+            "course", "required"),
+        "programme_year_form": programme_year_form,
+        "cohort_form": cohort_form,
+        "offering_form": offering_form,
+        "prerequisite_form": prerequisite_form,
+    })
 
 
 @role_required("registrar")
