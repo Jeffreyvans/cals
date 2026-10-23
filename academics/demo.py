@@ -225,7 +225,7 @@ def seed_demo(institution, prefix="", mode=None, set_password=True,
             if paid:
                 Payment.objects.create(invoice=invoice, amount=paid, received_by=bur)
             for course in Course.objects.filter(programme=prog):
-                Enrollment.objects.create(student=student, course=course)
+                Enrollment.objects.create(student=student, course=course, term=term1)
             Activity.objects.create(student=student, kind="club", title="Robotics Club",
                                     date=date.today())
 
@@ -249,7 +249,7 @@ def seed_demo(institution, prefix="", mode=None, set_password=True,
             if name == "student4":
                 Payment.objects.create(invoice=invoice, amount=50, received_by=bur)
             for subject_row in subjects:
-                Enrollment.objects.create(student=student, subject=subject_row, term=term1.name)
+                Enrollment.objects.create(student=student, subject=subject_row, term=term1)
 
         inv5 = Invoice.objects.filter(
             student__user__username=usernames.get("student5")).first()

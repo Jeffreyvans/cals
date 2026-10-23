@@ -1,7 +1,17 @@
+from datetime import date
+
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import Course, Enrollment, Guardian, Programme, Student
+from academics.models import (
+    AcademicYear,
+    Course,
+    Enrollment,
+    Guardian,
+    Programme,
+    Student,
+    Term,
+)
 from accounts.models import User
 
 
@@ -29,7 +39,12 @@ class BaseParents(TestCase):
         cls.course = Course.objects.create(code="PS101", title="Reading",
                                            programme=cls.programme,
                                            lecturer=cls.lecturer)
-        e = Enrollment.objects.create(student=cls.a, course=cls.course, term="Term 1")
+        year = AcademicYear.objects.create(
+            name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+        cls.term = Term.objects.create(
+            academic_year=year, name="Term 1", start_date=date(2026, 1, 12),
+            end_date=date(2026, 4, 10))
+        e = Enrollment.objects.create(student=cls.a, course=cls.course, term=cls.term)
         e.mark = 66
         e.save()
 

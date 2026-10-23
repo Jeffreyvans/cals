@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from django.core.management import call_command
@@ -10,6 +11,7 @@ from academics.models import (
     Attendance,
     ClassTeacher,
     Course,
+    Enrollment,
     ExamSitting,
     GradeBand,
     Programme,
@@ -179,4 +181,43 @@ class SeedDemoReuseTests(TestCase):
 
         with self.assertRaises(CommandError):
             call_command("seed", institution="nowhere")
+
+
+class RepairEnrollmentTermsTests(TestCase):
+    def test_a_missing_term_is_filled_from_the_current_term(self):
+        year = AcademicYear.objects.create(
+            name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+        term = Term.objects.create(
+            academic_year=year, name="Term 1", start_date=date(2026, 1, 12),
+            end_date=date(2026, 4, 10), is_current=True)
+        programme = Programme.objects.create(name="Diploma in IT", code="DIT",
+                                             level="diploma")
+        course = Course.objects.create(code="IT101", title="Programming",
+                                       programme=programme)
+        student = Student.objects.create(
+            user=User.objects.create_user("lost", password="pw123456", role="student"),
+            programme=programme)
+        enrollment = Enrollment.objects.create(
+            student=student, course=course, term=None)
+
+        call_command("repair_enrollment_terms")
+
+        enrollment.refresh_from_db()
+        self.assertEqual(enrollment.term, term)
+
+    def test_an_institution_without_a_term_is_left_alone(self):
+        programme = Programme.objects.create(name="Diploma in IT", code="DIT",
+                                             level="diploma")
+        course = Course.objects.create(code="IT101", title="Programming",
+                                       programme=programme)
+        student = Student.objects.create(
+            user=User.objects.create_user("lost", password="pw123456", role="student"),
+            programme=programme)
+        enrollment = Enrollment.objects.create(
+            student=student, course=course, term=None)
+
+        call_command("repair_enrollment_terms")
+
+        enrollment.refresh_from_db()
+        self.assertIsNone(enrollment.term)
 

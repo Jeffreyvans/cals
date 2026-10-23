@@ -28,8 +28,8 @@ Phase 1 status (2026-10-22): complete. Tenancy, roles, workflow, notifications, 
 the setup wizard and the bulk import are all in place, with 440 tests passing.
 
 ## PHASE 2 - Academics
-- [ ] AcademicYear/Term hardening (only one active per institution), GradeLevel, SchoolClass/Stream, Subject, ClassSubjectAllocation, class teacher, promotion tool
-- [ ] College mode: ProgrammeYear, CourseOffering, Cohort, prerequisites, credit limits, capacity
+- [~] AcademicYear/Term hardening (only one active per institution), GradeLevel, SchoolClass/Stream, Subject, ClassSubjectAllocation, class teacher, promotion tool
+- [~] College mode: ProgrammeYear, CourseOffering, Cohort, prerequisites, credit limits, capacity - models and enrolment-to-term foreign key are in place; registration service and screen come next
 - [ ] Timetable: Room, PeriodDefinition, TimetableSlot clash rules, views by class/teacher/room, printable PDF
 - [ ] Course registration with open/close dates, credit limits, prerequisite + capacity checks, registrar override
 - [ ] Assessment: AssessmentComponent weights, per-level GradingScale/GradeBand, AssessmentResult, final mark calculation

@@ -5,7 +5,16 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import Activity, Attendance, Course, Enrollment, Programme, Student
+from academics.models import (
+    AcademicYear,
+    Activity,
+    Attendance,
+    Course,
+    Enrollment,
+    Programme,
+    Student,
+    Term,
+)
 
 User = get_user_model()
 
@@ -24,8 +33,15 @@ class MarksAndAttendanceTests(TestCase):
                                             programme=programme, lecturer=self.lecturer)
         self.other_course = Course.objects.create(code="IT102", title="Networking",
                                                   programme=programme, lecturer=self.lecturer2)
-        self.e1 = Enrollment.objects.create(student=self.s1, course=self.course, term="Term 1")
-        self.e2 = Enrollment.objects.create(student=self.s2, course=self.course, term="Term 1")
+        year = AcademicYear.objects.create(
+            name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+        self.term = Term.objects.create(
+            academic_year=year, name="Term 1", start_date=date(2026, 1, 12),
+            end_date=date(2026, 4, 10))
+        self.e1 = Enrollment.objects.create(student=self.s1, course=self.course,
+                                            term=self.term)
+        self.e2 = Enrollment.objects.create(student=self.s2, course=self.course,
+                                            term=self.term)
 
     def test_lecturer_saves_marks_on_own_course(self):
         self.client.force_login(self.lecturer)
@@ -52,7 +68,8 @@ class MarksAndAttendanceTests(TestCase):
         self.assertIsNone(self.e2.mark)
 
     def test_lecturer_cannot_change_marks_on_another_course(self):
-        Enrollment.objects.create(student=self.s1, course=self.other_course, term="Term 1")
+        Enrollment.objects.create(student=self.s1, course=self.other_course,
+                                  term=self.term)
         self.client.force_login(self.lecturer)
         resp = self.client.post(reverse("course_roster", args=[self.other_course.pk]), {"mark_1": "99"})
         self.assertEqual(resp.status_code, 403)
@@ -73,7 +90,12 @@ class StudentPortalScopeTests(TestCase):
         Student.objects.create(user=u1, programme=programme, student_no="S0301")
         s2 = Student.objects.create(user=u2, programme=programme, student_no="S0302")
         course = Course.objects.create(code="ENG101", title="English", programme=programme)
-        Enrollment.objects.create(student=s2, course=course, term="Term 1")
+        year = AcademicYear.objects.create(
+            name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+        term = Term.objects.create(
+            academic_year=year, name="Term 1", start_date=date(2026, 1, 12),
+            end_date=date(2026, 4, 10))
+        Enrollment.objects.create(student=s2, course=course, term=term)
         Activity.objects.create(student=s2, kind="sport", title="Athletics day",
                                 date=date.today())
         self.client.force_login(u1)

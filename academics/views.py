@@ -151,7 +151,7 @@ def _report_context(s, user):
     _annotate_positions(rows)
     by_term = {}
     for e in rows:
-        by_term.setdefault(e.term, []).append(e)
+        by_term.setdefault(e.term.name if e.term else "No term", []).append(e)
     marks = [e.mark for e in rows if e.mark is not None]
     average = (sum(marks) / len(marks)).quantize(Decimal("0.1")) if marks else None
     rates = Attendance.rates_by_term(rows)
@@ -747,7 +747,7 @@ def my_report(request):
 
 # ---------- exam sittings ----------
 def _enrolled_this_term(term):
-    ids = Enrollment.objects.filter(term=term.name).values_list("student_id", flat=True)
+    ids = Enrollment.objects.filter(term=term).values_list("student_id", flat=True)
     return Student.objects.filter(pk__in=ids, status="active")
 
 
@@ -826,7 +826,7 @@ def my_exam_card(request):
                                                          "school_class", "stream"),
                           user=request.user)
     sitting = _sitting_for(s)
-    rows = (s.enrollments.filter(term=sitting.term.name)
+    rows = (s.enrollments.filter(term=sitting.term)
             .select_related("course", "subject")
             .order_by("course__code", "subject__code")
             if sitting else Enrollment.objects.none())
@@ -872,7 +872,7 @@ def child_detail(request, pk):
         Student.objects.select_related("user", "programme", "school_class", "stream"),
         pk=pk, guardian_links__parent=request.user)
     sitting = _sitting_for(s)
-    exam_rows = (s.enrollments.filter(term=sitting.term.name)
+    exam_rows = (s.enrollments.filter(term=sitting.term)
                  .select_related("course", "subject")
                  .order_by("course__code", "subject__code")
                  if sitting else Enrollment.objects.none())

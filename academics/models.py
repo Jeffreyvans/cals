@@ -405,6 +405,112 @@ class Course(TenantModel):
     def __str__(self): return f"{self.code} – {self.title}"
 
 
+class ProgrammeYear(TenantModel):
+    """One year of a programme: Diploma in IT, Year 1, 2026.
+
+    A programme year carries the rules that only apply to that year: how many
+    students it takes, how many credits a student may carry and when the
+    students may register.
+    """
+
+    programme = models.ForeignKey(Programme, on_delete=models.CASCADE, related_name="years")
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE,
+        related_name="programme_years")
+    name = models.CharField(max_length=60, blank=True)
+    number = models.PositiveSmallIntegerField(default=1)
+    capacity = models.PositiveIntegerField(default=0, help_text="0 means no limit.")
+    credit_limit = models.PositiveSmallIntegerField(default=0, help_text="0 means no limit.")
+    registration_opens = models.DateField(null=True, blank=True)
+    registration_closes = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-academic_year__name", "number"]
+        constraints = [
+            models.UniqueConstraint(fields=["programme", "academic_year"], name="uniq_programme_year")
+        ]
+
+    @property
+    def label(self):
+        return self.name or f"Year {self.number}"
+
+    def __str__(self):
+        return f"{self.programme.code} {self.label}"
+
+
+class Cohort(TenantModel):
+    """A group of students that goes through the programme year together."""
+
+    programme_year = models.ForeignKey(ProgrammeYear, on_delete=models.CASCADE, related_name="cohorts")
+    name = models.CharField(max_length=60)
+    lecturer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, limit_choices_to={"role": "lecturer"},
+        related_name="cohorts")
+
+    class Meta:
+        ordering = ["programme_year__programme__code", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["programme_year", "name"], name="uniq_cohort_name")
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class CourseOffering(TenantModel):
+    """A course as it is taught in one term: IT101 in Term 1 of 2026."""
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="offerings")
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name="offerings")
+    lecturer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, limit_choices_to={"role": "lecturer"},
+        related_name="offerings")
+    capacity = models.PositiveIntegerField(default=0, help_text="0 means no limit.")
+    credits = models.PositiveSmallIntegerField(null=True, blank=True,
+        help_text="Leave empty to use the credits of the course.")
+    enrolment_deadline = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["term__start_date", "course__code"]
+        constraints = [
+            models.UniqueConstraint(fields=["course", "term"], name="uniq_offering_course_term")
+        ]
+
+    @property
+    def credit_points(self):
+        return self.course.credits if self.credits is None else self.credits
+
+    @property
+    def registered_count(self):
+        return Enrollment.objects.filter(offering=self).exclude(
+            status=Enrollment.Status.DROPPED).count()
+
+    @property
+    def places_left(self):
+        if not self.capacity:
+            return None
+        return max(self.capacity - self.registered_count, 0)
+
+    def __str__(self):
+        return f"{self.course.code} – {self.term}"
+
+
+class CoursePrerequisite(TenantModel):
+    """A course a student must pass before taking another course."""
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="prerequisites")
+    required = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="required_by")
+    min_mark = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Leave empty to accept any pass.")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["course", "required"], name="uniq_prerequisite")
+        ]
+
+    def __str__(self):
+        return f"{self.course.code} needs {self.required.code}"
+
+
 class Student(TenantModel):
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
@@ -414,6 +520,11 @@ class Student(TenantModel):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="student")
     student_no = models.CharField(max_length=20, blank=True)
     programme = models.ForeignKey(Programme, on_delete=models.PROTECT, related_name="students")
+    programme_year = models.ForeignKey(ProgrammeYear, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="students",
+        help_text="The year of the programme the student is in.")
+    cohort = models.ForeignKey(Cohort, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="students")
     school_class = models.ForeignKey(SchoolClass, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="students")
     stream = models.ForeignKey(Stream, null=True, blank=True,
@@ -529,12 +640,21 @@ class GradeBand(TenantModel):
 
 
 class Enrollment(TenantModel):
+    class Status(models.TextChoices):
+        REGISTERED = "registered", "Registered"
+        WAITLISTED = "waitlisted", "On the waiting list"
+        DROPPED = "dropped", "Dropped"
+
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="enrollments")
     course = models.ForeignKey(Course, null=True, blank=True, on_delete=models.CASCADE,
         related_name="enrollments")
     subject = models.ForeignKey(Subject, null=True, blank=True, on_delete=models.CASCADE,
         related_name="enrollments")
-    term = models.CharField(max_length=30, default="Term 1")
+    term = models.ForeignKey(Term, null=True, blank=True, on_delete=models.PROTECT,
+        related_name="enrollments")
+    offering = models.ForeignKey(CourseOffering, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="enrollments", help_text="Set when the course is taken as an offering.")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REGISTERED)
     mark = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     class Meta:
@@ -549,6 +669,12 @@ class Enrollment(TenantModel):
         super().clean()
         if bool(self.course_id) == bool(self.subject_id):
             raise ValidationError("Choose either a course or a subject, not both and not neither.")
+        if self.offering_id:
+            if self.course_id and self.offering.course_id != self.course_id:
+                raise ValidationError({"offering": "The offering is for another course."})
+            if self.term_id and self.offering.term_id != self.term_id:
+                raise ValidationError({"offering": "The offering is taught in another term."})
+
 
     def save(self, *a, **kw):
         self.full_clean()
@@ -570,20 +696,20 @@ class Enrollment(TenantModel):
         """Return {enrollment_pk: (position, cohort_size)} for the given enrollments,
         comparing each row against everyone else with a mark on the same
         course or subject and term. Uses one extra query."""
-        keys = {(e.course_id, e.subject_id, e.term) for e in enrollments}
+        keys = {(e.course_id, e.subject_id, e.term_id) for e in enrollments}
         if not keys:
             return {}
         query = Q()
-        for course_id, subject_id, term in keys:
-            query |= Q(course_id=course_id, subject_id=subject_id, term=term)
+        for course_id, subject_id, term_id in keys:
+            query |= Q(course_id=course_id, subject_id=subject_id, term_id=term_id)
         rows = list(cls.objects.filter(mark__isnull=False).filter(query)
                     .select_related("student__user")
                     .order_by("-mark", "student__user__last_name",
                               "student__user__first_name", "pk"))
-        totals = Counter((r.course_id, r.subject_id, r.term) for r in rows)
+        totals = Counter((r.course_id, r.subject_id, r.term_id) for r in rows)
         seen, out = Counter(), {}
         for r in rows:
-            key = (r.course_id, r.subject_id, r.term)
+            key = (r.course_id, r.subject_id, r.term_id)
             seen[key] += 1
             out[r.pk] = (seen[key], totals[key])
         return out
@@ -618,7 +744,7 @@ class Attendance(TenantModel):
     @classmethod
     def rates_by_term(cls, enrollments):
         """Return {term_label: (sessions, present)} for the given enrollments."""
-        term_of = {e.pk: e.term for e in enrollments}
+        term_of = {e.pk: (e.term.name if e.term else "No term") for e in enrollments}
         out = {}
         for eid, present in cls.objects.filter(enrollment_id__in=term_of.keys()) \
                                        .values_list("enrollment_id", "present"):

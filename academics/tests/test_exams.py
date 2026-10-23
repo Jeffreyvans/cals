@@ -52,7 +52,7 @@ class BaseExams(TestCase):
                                                             programme=cls.programme)
         for username in ("alice", "bob", "carol"):
             Enrollment.objects.create(student=cls.students[username],
-                                      course=cls.course, term="Term 1")
+                                      course=cls.course, term=cls.term1)
         Invoice.objects.create(student=cls.students["bob"], description="Tuition",
                                amount=500, due_date=date(2026, 3, 1))
         parent = User.objects.create_user("mama", password="pw123456", role="parent")

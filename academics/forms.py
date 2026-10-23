@@ -24,10 +24,6 @@ from .models import (
 )
 
 
-def _terms():
-    return list(Term.objects.select_related("academic_year"))
-
-
 class StudentRegistrationForm(forms.ModelForm):
     first_name = forms.CharField(max_length=60)
     last_name = forms.CharField(max_length=60)
@@ -91,11 +87,14 @@ class EnrollForm(forms.ModelForm):
             if student and student.programme_id:
                 self.fields["course"].queryset = Course.objects.filter(programme=student.programme)
             self.fields["course"].empty_label = "Choose a course"
-        terms = _terms()
-        if terms:
-            self.fields["term"] = forms.ChoiceField(
-                choices=[(t.name, str(t)) for t in terms],
-                initial=next((t.name for t in terms if t.is_current), None))
+        terms = Term.objects.select_related("academic_year")
+        self.fields["term"].queryset = terms
+        self.fields["term"].empty_label = "Choose a term"
+        self.fields["term"].required = True
+        if not self.is_bound:
+            current = terms.filter(is_current=True).first()
+            if current:
+                self.initial["term"] = current
 
 
 class ActivityForm(forms.ModelForm):

@@ -258,7 +258,7 @@ class TimetableForStudentTests(TimetableBase):
         enrolled_user = User.objects.create_user("col1", password="pw123456",
                                                  role="student")
         enrolled = Student.objects.create(user=enrolled_user, programme=self.programme)
-        Enrollment.objects.create(student=enrolled, course=self.course)
+        Enrollment.objects.create(student=enrolled, course=self.course, term=self.term)
         other_user = User.objects.create_user("col2", password="pw123456",
                                               role="student")
         other = Student.objects.create(user=other_user, programme=self.programme)

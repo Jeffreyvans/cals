@@ -4,7 +4,16 @@ from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import Attendance, Course, Enrollment, Programme, Student, Subject
+from academics.models import (
+    AcademicYear,
+    Attendance,
+    Course,
+    Enrollment,
+    Programme,
+    Student,
+    Subject,
+    Term,
+)
 from accounts.models import User
 
 
@@ -26,8 +35,15 @@ class BaseAttendance(TestCase):
                                       last_name="Banda", role="student")
         cls.a = Student.objects.create(user=ua, programme=cls.programme)
         cls.b = Student.objects.create(user=ub, programme=cls.programme)
-        cls.ea = Enrollment.objects.create(student=cls.a, subject=cls.subject, term="Term 1")
-        cls.eb = Enrollment.objects.create(student=cls.b, subject=cls.subject, term="Term 1")
+        cls.year = AcademicYear.objects.create(
+            name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+        cls.term = Term.objects.create(
+            academic_year=cls.year, name="Term 1", start_date=date(2026, 1, 12),
+            end_date=date(2026, 4, 10))
+        cls.ea = Enrollment.objects.create(student=cls.a, subject=cls.subject,
+                                           term=cls.term)
+        cls.eb = Enrollment.objects.create(student=cls.b, subject=cls.subject,
+                                           term=cls.term)
         cls.today = date(2026, 3, 3)
 
 
@@ -70,7 +86,7 @@ class RegisterTests(BaseAttendance):
         return reverse("attendance_register", args=["subject", self.subject.pk])
 
     def test_register_shows_cells_and_totals(self):
-        cea = Enrollment.objects.create(student=self.a, course=self.course, term="Term 1")
+        cea = Enrollment.objects.create(student=self.a, course=self.course, term=self.term)
         for i, present in enumerate([True, False, True]):
             Attendance.objects.create(enrollment=cea,
                                       date=self.today - timedelta(days=i), present=present)
@@ -97,7 +113,10 @@ class RegisterTests(BaseAttendance):
 
 class RatesByTermTests(BaseAttendance):
     def test_counts_are_grouped_by_term(self):
-        eb2 = Enrollment.objects.create(student=self.b, course=self.course, term="Term 2")
+        term2 = Term.objects.create(
+            academic_year=self.year, name="Term 2", start_date=date(2026, 5, 4),
+            end_date=date(2026, 8, 28))
+        eb2 = Enrollment.objects.create(student=self.b, course=self.course, term=term2)
         for present in (True, True, False):
             Attendance.objects.create(enrollment=self.ea, date=self.today, present=present)
             self.today += timedelta(days=1)

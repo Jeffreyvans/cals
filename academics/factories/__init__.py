@@ -126,7 +126,7 @@ class EnrollmentFactory(factory.django.DjangoModelFactory):
 
     student = factory.SubFactory(StudentFactory)
     course = factory.SubFactory(CourseFactory)
-    term = "Term 1"
+    term = factory.SubFactory(TermFactory)
 
 
 class ActivityFactory(factory.django.DjangoModelFactory):

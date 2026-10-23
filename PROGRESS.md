@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-10-22 (session 3, Phase 1 closed).
+Started: 2026-10-21. Session 1. Last updated: 2026-10-23 (session 4, Phase 2 in progress).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -25,6 +25,8 @@ Started: 2026-10-21. Session 1. Last updated: 2026-10-22 (session 3, Phase 1 clo
 - Decision: The bulk import accepts both CSV and `.xlsx` (the prompt says "Excel or CSV"), with `openpyxl` added to `requirements.txt`. A file is read into rows, the user maps columns to fields, the rows are checked and shown, and only the confirmed run writes anything.
 - Decision: An import keeps its rows, mapping and error list on `ImportBatch` (JSON columns) instead of a file on disk, so the preview can be revisited and the error report can be downloaded later. A file is capped at 5 MB and 5000 rows.
 - Decision: The import writes through `use_institution(institution)` and reads through `all_objects`, so an import always writes into the institution that started it, whatever the ambient current institution is.
+- Decision: `Enrollment.term` is a `Term` foreign key, not the name of a term. New enrolments must choose a real term; the column stays nullable so old rows that could not be matched are never silently deleted. `repair_enrollment_terms` fills those rows with the current term (or the earliest term) of their institution.
+- Decision: The existing `Programme`/`Course` tables stay; Phase 2 adds `ProgrammeYear`, `Cohort`, `CourseOffering` and `CoursePrerequisite` alongside them rather than renaming the working tables.
 
 ## Bugs found
 - None blocking baseline; tests pass. `makemigrations --check` clean. Lint has 194 issues (mostly import/style) but tests unrelated to style pass.
@@ -45,6 +47,10 @@ Started: 2026-10-21. Session 1. Last updated: 2026-10-22 (session 3, Phase 1 clo
 - The bulk import views read the batch id from the query string, but the URLs pass it as a `pk` argument. The views now take `pk` from the URL, and the forms post to the batch URL.
 - The bulk import wrote fee structures through the tenant-scoped manager, so the second row of a structure could not find the structure the first row had just created. The import now runs inside `use_institution(institution)`.
 - The import tests read the batch through `ImportBatch.objects`, which outside a request resolves to the default institution. They read it through `all_objects` now, like the other cross-tenant tests.
+- Converting `Enrollment.term` from text to a `Term` foreign key broke the demo seed, the setup wizard, the enrolment form, the exam candidate list and the test fixtures that still passed `"Term 1"`. They now create or reuse a real `Term` and pass the object.
+- `_enrolled_this_term()` still filtered `term=term.name`, so the exam page found nobody after the conversion. It filters on the term itself now.
+- The report card grouped enrolments by `Term` objects while `Attendance.rates_by_term()` returned label strings, so every report showed zero attendance. Both sides use the label now; a null term is shown as "No term" instead of crashing.
+- An enrolment could keep a null term when its institution had no term at migration time. `repair_enrollment_terms` repairs those rows (with `--dry-run`); a test covers both a repaired row and an institution with no term at all.
 
 ## What's done
 - [x] Read all files; ran `manage.py check` (ok), `makemigrations --check` (ok), `manage.py test` (276 passed), installed test/dev tools.
@@ -82,8 +88,17 @@ Started: 2026-10-21. Session 1. Last updated: 2026-10-22 (session 3, Phase 1 clo
 
 Phase 1 is complete. The whole suite is 440 tests, all passing.
 
+## Phase 2 progress
+- [x] `Enrollment.term` is a real `Term` foreign key (migrations 0011-0013); demo data, the setup wizard, forms, views and tests all use a real term.
+- [x] `ProgrammeYear`, `Cohort`, `CourseOffering` and `CoursePrerequisite` models, plus `Student.programme_year`/`cohort` and `Enrollment.offering`/`status`.
+- [x] `repair_enrollment_terms` management command for legacy rows with no term (`--dry-run` supported); dev database currently has 0 such rows.
+- [ ] Course registration service and screen (windows, capacity, prerequisites, credit limits, registrar override).
+- [ ] Timetable clash detection, assessment components, GPA and class positions, marks workflow, report cards and transcripts.
+
+The whole suite is now 469 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+
 ## Next up
-- Phase 2 (academics): year/term hardening, grade levels and classes, college mode, timetable, course registration, assessment and results, the marks workflow, report cards, attendance and the academic calendar.
+- Continue Phase 2 in order: course registration (windows, capacity, prerequisites, credit limits, registrar override with reason) and its screen; then timetable clash detection, assessment components and weighting, GPA and class positions, the marks workflow, report cards and transcripts.
 - Phase 3 starts with the chart of accounts and the double-entry ledger; the `FeeStructure`/`FeeItem` models added for the import will be completed there.
 
 ## Open questions

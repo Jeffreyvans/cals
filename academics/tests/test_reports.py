@@ -1,10 +1,20 @@
+from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import Course, Enrollment, GradeBand, Programme, Student, Subject
+from academics.models import (
+    AcademicYear,
+    Course,
+    Enrollment,
+    GradeBand,
+    Programme,
+    Student,
+    Subject,
+    Term,
+)
 from accounts.models import User
 
 
@@ -60,12 +70,19 @@ class BaseAssessment(TestCase):
                                       last_name="Banda", role="student")
         cls.a = Student.objects.create(user=ua, programme=cls.programme)
         cls.b = Student.objects.create(user=ub, programme=cls.programme)
-        cls.e_a = Enrollment.objects.create(student=cls.a, course=cls.course, term="Term 1")
-        cls.e_b = Enrollment.objects.create(student=cls.b, course=cls.course, term="Term 1")
+        year = AcademicYear.objects.create(
+            name="2026", start_date=date(2026, 1, 1), end_date=date(2026, 12, 31))
+        cls.term = Term.objects.create(
+            academic_year=year, name="Term 1", start_date=date(2026, 1, 12),
+            end_date=date(2026, 4, 10))
+        cls.e_a = Enrollment.objects.create(student=cls.a, course=cls.course,
+                                            term=cls.term)
+        cls.e_b = Enrollment.objects.create(student=cls.b, course=cls.course,
+                                            term=cls.term)
         cls.subject = Subject.objects.create(code="MTH", name="Mathematics",
                                              level="secondary", lecturer=cls.lecturer)
         cls.sa = Enrollment.objects.create(student=cls.a, subject=cls.subject,
-                                           term="Term 1")
+                                           term=cls.term)
 
 
 class GradeUsesBandsTests(BaseAssessment):
@@ -165,7 +182,8 @@ class CohortTableTests(BaseAssessment):
         self.e_b.save()
         self.sa.mark = Decimal("70")
         self.sa.save()
-        sb = Enrollment.objects.create(student=self.b, subject=self.subject, term="Term 1")
+        sb = Enrollment.objects.create(student=self.b, subject=self.subject,
+                                       term=self.term)
         sb.mark = Decimal("50")
         sb.save()
         table = Enrollment.cohort_table([self.e_a, self.e_b, self.sa, sb])
@@ -206,7 +224,7 @@ class StudentReportTests(BaseAssessment):
                                              programme=self.programme,
                                              lecturer=self.other)
         e_other = Enrollment.objects.create(student=self.a, course=other_course,
-                                            term="Term 1")
+                                            term=self.term)
         e_other.mark = Decimal("88")
         e_other.save()
         self.e_a.mark = Decimal("77")
