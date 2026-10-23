@@ -103,12 +103,13 @@ Phase 1 is complete. The whole suite is 440 tests, all passing.
 - [x] Demo data now creates a DIT programme year, cohort and course offerings, and links the demo college students and enrolments to them.
 - [x] Management screen for programme years, cohorts, course offerings and prerequisites (`college_structure`), with form validation and 10 tests.
 - [x] The student registration form now offers a programme year and cohort in college mode and rejects mismatches.
-- [ ] Timetable clash detection, assessment components, GPA and class positions, marks workflow, report cards and transcripts.
+- [x] Timetable clash detection verified and extended with tests: lecturer, class/stream, course, venue and overlapping times; back-to-back lessons are allowed. Existing views cover class, teacher and student timetables.
+- [ ] Assessment components, GPA and class positions, marks workflow, report cards and transcripts.
 
-The whole suite is now 491 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+The whole suite is now 493 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
 
 ## Next up
-- Continue Phase 2: timetable clash detection, assessment components and weighting, GPA and class positions, the marks workflow, report cards and transcripts.
+- Continue Phase 2: assessment components and weighting, GPA and class positions, the marks workflow, report cards and transcripts.
 - Phase 3 starts with the chart of accounts and the double-entry ledger; the `FeeStructure`/`FeeItem` models added for the import will be completed there.
 
 ## Open questions

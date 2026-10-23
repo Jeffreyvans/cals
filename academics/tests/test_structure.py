@@ -225,6 +225,20 @@ class TimetableClashTests(TimetableBase):
         entry.refresh_from_db()
         self.assertEqual(entry.subject, self.eng)
 
+    def test_course_cannot_be_scheduled_twice_at_once(self):
+        self.make(subject=None, course=self.course, school_class=None).save()
+        with self.assertRaises(ValidationError) as cm:
+            self.make(subject=None, course=self.course, school_class=None,
+                      lecturer=self.lecturer2, start_time=time(8, 30),
+                      end_time=time(9, 15)).save()
+        self.assertIn("already scheduled", str(cm.exception))
+
+    def test_back_to_back_lessons_do_not_clash(self):
+        self.make(end_time=time(8, 45)).save()
+        self.make(start_time=time(8, 45), end_time=time(9, 30),
+                  subject=self.eng).save()
+        self.assertEqual(TimetableEntry.objects.count(), 2)
+
 
 class TimetableForStudentTests(TimetableBase):
     def student_in(self, username, stream=None, programme=None):
@@ -466,3 +480,4 @@ class ModeSwitchTests(TestCase):
         self.assertIn("course", form.fields)
         self.assertNotIn("subject", form.fields)
         self.assertEqual(list(form.fields["course"].queryset), [course])
+
