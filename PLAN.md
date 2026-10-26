@@ -33,7 +33,7 @@ the setup wizard and the bulk import are all in place, with 440 tests passing.
 - [x] Timetable clash detection: lecturer, class/stream, course and venue overlap; views by class, teacher and student
 - [ ] Optional timetable hardening: dedicated Room/PeriodDefinition models and a printable PDF
 - [x] Course registration with open/close dates, credit limits, prerequisite + capacity checks, waiting list, registrar override with a reason, audited drop/promotion
-- [ ] Assessment: AssessmentComponent weights, per-level GradingScale/GradeBand, AssessmentResult, final mark calculation
+- [~] Assessment: AssessmentComponent weights and weighted final mark done; per-level GradingScale/GradeBand, AssessmentResult and the full calculation remain
 - [ ] Results engine: term average, cumulative GPA, position with ties, award classification
 - [ ] Marks workflow: enter -> moderate -> approve -> release; results hidden until release; fee-balance withholding with bursar override (audited)
 - [ ] Report cards + transcripts (PDF, branding, QR verification page)

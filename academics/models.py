@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q, Sum
 
@@ -639,6 +639,60 @@ class GradeBand(TenantModel):
     def __str__(self): return f"{self.letter} from {self.min_mark:g}"
 
 
+class AssessmentComponent(TenantModel):
+    """One weighted part of a course or subject, such as CA or the final exam.
+
+    The weights are relative rather than required to add up to 100, so a
+    teacher can set up the components before deciding the final split. The
+    weighted mark is only awarded once every component has a mark.
+    """
+
+    course = models.ForeignKey(Course, null=True, blank=True, on_delete=models.CASCADE,
+        related_name="assessment_components")
+    subject = models.ForeignKey(Subject, null=True, blank=True, on_delete=models.CASCADE,
+        related_name="assessment_components")
+    name = models.CharField(max_length=60, help_text="For example CA or Final exam")
+    weight = models.DecimalField(max_digits=5, decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01")), MaxValueValidator(100)])
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["course", "name"],
+                condition=Q(course__isnull=False), name="uniq_course_component_name"),
+            models.UniqueConstraint(fields=["subject", "name"],
+                condition=Q(subject__isnull=False), name="uniq_subject_component_name"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if bool(self.course_id) == bool(self.subject_id):
+            raise ValidationError("Choose either a course or a subject for this component.")
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({"name": "Give the component a name, for example CA."})
+        field = "course" if self.course_id else "subject"
+        clash = AssessmentComponent.objects.filter(
+            **{field: getattr(self, f"{field}_id")}, name__iexact=self.name)
+        if self.pk:
+            clash = clash.exclude(pk=self.pk)
+        if clash.exists():
+            raise ValidationError({"name": f"{self.name} already exists here."})
+
+    def save(self, *a, **kw):
+        self.full_clean()
+        super().save(*a, **kw)
+
+    def belongs_to(self, enrollment):
+        if self.course_id:
+            return enrollment.course_id == self.course_id
+        return enrollment.subject_id == self.subject_id
+
+    def __str__(self):
+        return f"{self.name} ({self.weight:g}%)"
+
+
 class Enrollment(TenantModel):
     class Status(models.TextChoices):
         REGISTERED = "registered", "Registered"
@@ -715,6 +769,39 @@ class Enrollment(TenantModel):
         return out
 
     def __str__(self): return f"{self.student} – {self.label}"
+
+
+class AssessmentMark(TenantModel):
+    """A student's score for one assessment component."""
+
+    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE,
+        related_name="component_marks")
+    component = models.ForeignKey(AssessmentComponent, on_delete=models.CASCADE,
+        related_name="marks")
+    mark = models.DecimalField(max_digits=5, decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)])
+
+    class Meta:
+        ordering = ["component__order", "component__name"]
+        constraints = [
+            models.UniqueConstraint(fields=["enrollment", "component"],
+                name="uniq_enrollment_component_mark"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.component_id and self.enrollment_id \
+                and not self.component.belongs_to(self.enrollment):
+            raise ValidationError({"component": "That component belongs to another course or subject."})
+        if self.mark is not None and not 0 <= self.mark <= 100:
+            raise ValidationError({"mark": "The mark must be between 0 and 100."})
+
+    def save(self, *a, **kw):
+        self.full_clean()
+        super().save(*a, **kw)
+
+    def __str__(self):
+        return f"{self.enrollment} {self.component.name}: {self.mark}"
 
 
 class Activity(TenantModel):

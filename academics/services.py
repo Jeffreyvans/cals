@@ -64,6 +64,60 @@ def reopen_year(year, user=None, request=None):
     return year
 
 
+# ---------- assessment components ----------
+
+def weighted_mark(enrollment, components=None, marks=None):
+    """The weighted mark for an enrolment, or None until every component is marked."""
+    from academics.models import AssessmentComponent, AssessmentMark
+
+    if components is None:
+        lookup = {"course_id": enrollment.course_id} if enrollment.course_id \
+            else {"subject_id": enrollment.subject_id}
+        components = list(AssessmentComponent.objects.filter(**lookup))
+    if not components:
+        return enrollment.mark
+    if marks is None:
+        marks = dict(AssessmentMark.objects.filter(
+            enrollment=enrollment, component__in=components,
+        ).values_list("component_id", "mark"))
+    if any(c.pk not in marks for c in components):
+        return None
+    total_weight = sum((c.weight for c in components), Decimal("0"))
+    if total_weight <= 0:
+        return None
+    weighted = sum((marks[c.pk] * c.weight for c in components), Decimal("0"))
+    return (weighted / total_weight).quantize(Decimal("0.01"))
+
+
+def recalculate_enrollment_mark(enrollment):
+    """Store the weighted mark on the enrolment, or clear it while incomplete."""
+    from academics.models import AssessmentComponent, AssessmentMark
+
+    lookup = {"course_id": enrollment.course_id} if enrollment.course_id \
+        else {"subject_id": enrollment.subject_id}
+    components = list(AssessmentComponent.objects.filter(**lookup))
+    if not components:
+        return enrollment.mark
+    marks = dict(AssessmentMark.objects.filter(
+        enrollment=enrollment, component__in=components,
+    ).values_list("component_id", "mark"))
+    mark = weighted_mark(enrollment, components, marks)
+    if enrollment.mark != mark:
+        enrollment.mark = mark
+        enrollment.save(update_fields=["mark"])
+    return mark
+
+
+def recalculate_item_marks(course=None, subject=None):
+    """Recalculate every enrolment for a course or subject after setup changes."""
+    from academics.models import Enrollment
+
+    rows = Enrollment.objects.filter(
+        course=course) if course is not None else Enrollment.objects.filter(subject=subject)
+    for enrollment in rows:
+        recalculate_enrollment_mark(enrollment)
+
+
 # ---------- promotion ----------
 
 def promotion_plan(institution, students=None):

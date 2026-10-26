@@ -1,11 +1,12 @@
 {% extends "base.html" %}{% block content %}
-<div class="noprint"><button class="btn" onclick="window.print()">Print</button> <a class="btn ghost" href="{{ back }}">Back</a> <a class="btn ghost" href="{% url 'attendance_register' kind item.pk %}">Attendance register</a></div>
+<div class="noprint"><button class="btn" onclick="window.print()">Print</button> <a class="btn ghost" href="{{ back }}">Back</a> <a class="btn ghost" href="{% url 'attendance_register' kind item.pk %}">Attendance register</a>{% if can_configure %} <a class="btn ghost" href="{% url 'assessment_components' kind item.pk %}">Assessment setup</a>{% endif %}</div>
 <h1>Mark sheet</h1>
 <h2>{{ item }}</h2>
 <p class="muted">Students: {{ rows|length }} · Marked: {{ marked }} · Average: {{ average|default:"—" }}</p>
-<table class="tbl"><tr><th>#</th><th>Student</th><th class="r">Mark</th><th>Grade</th><th class="r">Position</th></tr>
+<table class="tbl"><tr><th>#</th><th>Student</th>
+{% if components %}{% for c in components %}<th class="r">{{ c.name }} <span class="muted">({{ c.weight }}%)</span></th>{% endfor %}<th class="r">Final</th>{% else %}<th class="r">Mark</th>{% endif %}<th>Grade</th><th class="r">Position</th></tr>
 {% for e in rows %}<tr><td>{{ forloop.counter }}</td><td>{{ e.student.name }} <span class="muted">{{ e.student.student_no }}</span></td>
-<td class="r">{{ e.mark|default_if_none:"—" }}</td><td><span class="grade">{{ e.grade }}</span></td>
+{% if components %}{% for c, m in e.component_cells %}<td class="r">{{ m|default_if_none:"—" }}</td>{% endfor %}<td class="r">{{ e.mark|default_if_none:"—" }}</td>{% else %}<td class="r">{{ e.mark|default_if_none:"—" }}</td>{% endif %}<td><span class="grade">{{ e.grade }}</span></td>
 <td class="r">{{ e.position|default:"—" }}{% if e.cohort_size %} of {{ e.cohort_size }}{% endif %}</td></tr>
-{% empty %}<tr><td colspan="5" class="muted">Nobody is enrolled yet.</td></tr>{% endfor %}</table>
+{% empty %}<tr><td colspan="8" class="muted">Nobody is enrolled yet.</td></tr>{% endfor %}</table>
 {% endblock %}

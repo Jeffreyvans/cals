@@ -1,11 +1,19 @@
 {% extends "base.html" %}{% block content %}<h1>{{ course.code }} · {{ course.title }}</h1>
 <form method="post">{% csrf_token %}
 <label class="inline-l">Attendance date <input type="date" name="attendance_date" value="{{ today|date:'Y-m-d' }}"></label>
-<table class="tbl"><tr><th>Student</th><th>Present today</th><th>Mark (0–100)</th><th>Grade</th></tr>
+<table class="tbl"><tr><th>Student</th><th>Present today</th>
+{% if components %}{% for c in components %}<th>{{ c.name }} <span class="muted">({{ c.weight }}%)</span></th>{% endfor %}<th class="r">Final</th><th>Grade</th></tr>
+{% for e in rows %}<tr><td><a href="{% url 'student_detail' e.student.pk %}">{{ e.student.name }}</a></td>
+<td><input type="checkbox" name="present_{{ e.pk }}" checked></td>
+{% for c, m in e.component_cells %}<td><input type="number" step="0.01" min="0" max="100" name="component_{{ c.pk }}_{{ e.pk }}" value="{{ m|default_if_none:'' }}"></td>{% endfor %}
+<td class="r">{{ e.mark|default_if_none:"—" }}</td><td>{{ e.grade }}</td></tr>
+{% empty %}<tr><td colspan="8" class="muted">Nobody is enrolled yet.</td></tr>{% endfor %}
+{% else %}<th>Mark (0–100)</th><th>Grade</th></tr>
 {% for e in rows %}<tr><td><a href="{% url 'student_detail' e.student.pk %}">{{ e.student.name }}</a></td>
 <td><input type="checkbox" name="present_{{ e.pk }}" checked></td>
 <td><input type="number" step="0.01" min="0" max="100" name="mark_{{ e.pk }}" value="{{ e.mark|default_if_none:'' }}"></td><td>{{ e.grade }}</td></tr>
-{% empty %}<tr><td colspan="4" class="muted">Nobody is enrolled yet.</td></tr>{% endfor %}</table>
+{% empty %}<tr><td colspan="4" class="muted">Nobody is enrolled yet.</td></tr>{% endfor %}{% endif %}</table>
 <button class="btn">Save marks and attendance</button></form>
 <p><a class="btn ghost" href="{% url 'marks_report' 'course' course.pk %}">Open the printable mark sheet</a>
-<a class="btn ghost" href="{% url 'attendance_register' 'course' course.pk %}">Attendance register</a></p>{% endblock %}
+<a class="btn ghost" href="{% url 'attendance_register' 'course' course.pk %}">Attendance register</a>
+{% if can_configure %}<a class="btn ghost" href="{% url 'assessment_components' 'course' course.pk %}">Assessment setup</a>{% endif %}</p>{% endblock %}

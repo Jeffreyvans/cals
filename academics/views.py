@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -18,6 +18,7 @@ from finance.models import Invoice
 from .forms import (
     ActivityForm,
     AnnouncementForm,
+    AssessmentComponentForm,
     ClassSubjectAllocationForm,
     ClassTeacherForm,
     CohortForm,
@@ -43,6 +44,8 @@ from .models import (
     DAY_CHOICES,
     AcademicYear,
     Announcement,
+    AssessmentComponent,
+    AssessmentMark,
     Attendance,
     ClassTeacher,
     Cohort,
@@ -69,6 +72,8 @@ from .services import (
     drop_enrollment,
     promote_students,
     promotion_plan,
+    recalculate_enrollment_mark,
+    recalculate_item_marks,
     register_student,
     registration_catalogue,
 )
@@ -102,10 +107,39 @@ def _sitting_for(student):
     return qs.filter(student=student).order_by("-term__start_date").first()
 
 
-def _save_marks(rows, post):
-    """Save posted mark_<pk> fields onto the given enrollments. Returns error strings."""
+def _save_marks(rows, post, components=None):
+    """Save posted marks onto the given enrollments. Returns error strings.
+
+    A course or subject with assessment components takes one field per
+    component; its final mark is the weighted average. Without components the
+    original single mark field is used.
+    """
     errors = []
+    components = list(components or [])
     for e in rows:
+        if components:
+            for component in components:
+                key = f"component_{component.pk}_{e.pk}"
+                if key not in post:
+                    continue
+                raw = post.get(key, "").strip()
+                if not raw:
+                    AssessmentMark.objects.filter(
+                        enrollment=e, component=component).delete()
+                    continue
+                try:
+                    m = Decimal(raw)
+                except InvalidOperation:
+                    errors.append(f"{e.student.name}: '{raw}' is not a number.")
+                    continue
+                if m < 0 or m > 100:
+                    errors.append(
+                        f"{e.student.name}: marks must be between 0 and 100.")
+                    continue
+                AssessmentMark.objects.update_or_create(
+                    enrollment=e, component=component, defaults={"mark": m})
+            recalculate_enrollment_mark(e)
+            continue
         raw = post.get(f"mark_{e.pk}", "").strip()
         if not raw:
             continue
@@ -153,6 +187,24 @@ def _annotate_positions(rows):
     table = Enrollment.cohort_table(rows)
     for e in rows:
         e.position, e.cohort_size = table.get(e.pk, (None, None))
+
+
+def _components_for(kind, item):
+    field = "course" if kind == "course" else "subject"
+    return list(AssessmentComponent.objects.filter(**{field: item}))
+
+
+def _annotate_components(rows, components):
+    """Attach .component_cells to each enrollment, using one extra query."""
+    if not components:
+        for e in rows:
+            e.component_cells = []
+        return
+    marks = {(e_id, c_id): mark for e_id, c_id, mark in AssessmentMark.objects.filter(
+        enrollment__in=rows, component__in=components,
+    ).values_list("enrollment_id", "component_id", "mark")}
+    for e in rows:
+        e.component_cells = [(c, marks.get((e.pk, c.pk))) for c in components]
 
 
 def _report_context(s, user):
@@ -789,10 +841,11 @@ def course_roster(request, pk):
     if not allowed:
         raise PermissionDenied("Only the course lecturer can open this roster.")
     rows = course.enrollments.select_related("student__user")
+    components = _components_for("course", course)
     if request.method == "POST":
         if not _roster_access(request.user, course):
             raise PermissionDenied("Only the course lecturer can save marks.")
-        errors = _save_marks(rows, request.POST)
+        errors = _save_marks(rows, request.POST, components)
         _save_attendance(rows, request.POST, errors)
         if errors:
             for msg in errors:
@@ -800,7 +853,12 @@ def course_roster(request, pk):
         else:
             messages.success(request, "Marks and attendance saved.")
         return redirect("course_roster", pk=pk)
-    return render(request, "academics/course_roster.html", {"course": course, "rows": rows, "today": date.today()})
+    _annotate_components(rows, components)
+    return render(request, "academics/course_roster.html", {
+        "course": course, "rows": rows, "components": components,
+        "can_configure": request.user.role in ("admin", "registrar")
+        or course.lecturer_id == request.user.pk,
+        "today": date.today()})
 
 
 # ---------- assessment and reports ----------
@@ -815,10 +873,11 @@ def subject_roster(request, pk):
         raise PermissionDenied("Only the subject teacher can open this roster.")
     rows = subject.enrollments.select_related("student__user") \
                              .order_by("student__user__last_name", "student__user__first_name")
+    components = _components_for("subject", subject)
     if request.method == "POST":
         if not owns(request.user):
             raise PermissionDenied("Only the subject teacher can save marks.")
-        errors = _save_marks(rows, request.POST)
+        errors = _save_marks(rows, request.POST, components)
         had_attendance = bool(request.POST.get("attendance_date", "").strip())
         _save_attendance(rows, request.POST, errors)
         if errors:
@@ -828,8 +887,12 @@ def subject_roster(request, pk):
             messages.success(request, "Marks and attendance saved." if had_attendance
                              else "Marks saved.")
         return redirect("subject_roster", pk=pk)
+    _annotate_components(rows, components)
     return render(request, "academics/subject_roster.html", {
-        "subject": subject, "rows": rows, "can_save": owns(request.user),
+        "subject": subject, "rows": rows, "components": components,
+        "can_save": owns(request.user),
+        "can_configure": request.user.role in ("admin", "registrar")
+        or subject.lecturer_id == request.user.pk,
         "today": date.today()})
 
 
@@ -846,14 +909,58 @@ def marks_report(request, kind, pk):
         raise PermissionDenied("Only the teacher in charge can open this mark sheet.")
     rows = list(item.enrollments.select_related("student__user")
                 .order_by("student__user__last_name", "student__user__first_name"))
+    components = _components_for(kind, item)
     _annotate_positions(rows)
+    _annotate_components(rows, components)
     marks = [e.mark for e in rows if e.mark is not None]
     average = (sum(marks) / len(marks)).quantize(Decimal("0.1")) if marks else None
     return render(request, "academics/marks_report.html", {
         "item": item, "kind": kind, "rows": rows, "marked": len(marks),
-        "average": average,
+        "average": average, "components": components,
+        "can_configure": request.user.role in ("admin", "registrar")
+        or owner_id == request.user.pk,
         "back": reverse("course_roster" if kind == "course" else "subject_roster",
                         args=[pk])})
+
+
+@role_required("registrar", "lecturer")
+def assessment_components(request, kind, pk):
+    if kind == "course":
+        item = get_object_or_404(Course.objects.select_related("programme", "lecturer"), pk=pk)
+    elif kind == "subject":
+        item = get_object_or_404(Subject.objects.select_related("lecturer"), pk=pk)
+    else:
+        raise PermissionDenied("Unknown mark sheet.")
+    owner_id = getattr(item, "lecturer_id", None)
+    if not (request.user.role in ("registrar", "admin") or owner_id == request.user.pk):
+        raise PermissionDenied("Only the teacher in charge can change the assessment setup.")
+    components = AssessmentComponent.objects.filter(
+        **{kind: item}).order_by("order", "name")
+    form = AssessmentComponentForm()
+    if request.method == "POST":
+        action = request.POST.get("action", "new")
+        if action == "delete":
+            raw_pk = request.POST.get("pk", "")
+            if not raw_pk.isdigit():
+                raise Http404("That assessment component does not exist.")
+            component = get_object_or_404(components, pk=raw_pk)
+            name = component.name
+            component.delete()
+            recalculate_item_marks(**{kind: item})
+            messages.success(request, f"{name} removed; final marks recalculated.")
+            return redirect("assessment_components", kind=kind, pk=pk)
+        form = AssessmentComponentForm(
+            request.POST, instance=AssessmentComponent(**{kind: item}))
+        if form.is_valid():
+            component = form.save()
+            recalculate_item_marks(**{kind: item})
+            messages.success(request, f"{component.name} added; enter its marks on the roster.")
+            return redirect("assessment_components", kind=kind, pk=pk)
+    return render(request, "academics/assessment_components.html", {
+        "item": item, "kind": kind, "components": components, "form": form,
+        "back": reverse("course_roster" if kind == "course" else "subject_roster",
+                        args=[pk]),
+        "report_url": reverse("marks_report", args=[kind, pk])})
 
 
 @role_required("registrar", "lecturer")

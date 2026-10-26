@@ -6,6 +6,7 @@ from .models import (
     AcademicYear,
     Activity,
     Announcement,
+    AssessmentComponent,
     ClassSubjectAllocation,
     ClassTeacher,
     Cohort,
@@ -391,6 +392,20 @@ class GradeBandForm(forms.ModelForm):
         self.fields["letter"].help_text = "The grade students see, for example A."
         self.fields["min_mark"].help_text = "Lowest mark that still earns this grade."
         self.fields["points"].help_text = "Points for reports, for example 4 for an A."
+
+
+class AssessmentComponentForm(forms.ModelForm):
+    class Meta:
+        model = AssessmentComponent
+        fields = ["name", "weight", "order"]
+        widgets = {"weight": forms.NumberInput(attrs={"min": 0.01, "max": 100,
+                                                       "step": 0.01})}
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["name"].help_text = "For example CA or Final exam."
+        self.fields["weight"].help_text = "How much this part counts towards the final mark."
+        self.fields["order"].help_text = "Lower numbers appear first."
 
 
 class AnnouncementForm(forms.ModelForm):

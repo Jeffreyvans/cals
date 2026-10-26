@@ -3,18 +3,24 @@
 {% if can_save %}
 <form method="post">{% csrf_token %}
 <label class="inline-l">Attendance date <input type="date" name="attendance_date" value="{{ today|date:'Y-m-d' }}"></label>
-<table class="tbl"><tr><th>Student</th><th>Present</th><th>Mark (0–100)</th><th>Grade</th></tr>
+<table class="tbl"><tr><th>Student</th><th>Present</th>
+{% if components %}{% for c in components %}<th>{{ c.name }} <span class="muted">({{ c.weight }}%)</span></th>{% endfor %}<th class="r">Final</th>{% else %}<th>Mark (0–100)</th>{% endif %}<th>Grade</th></tr>
 {% for e in rows %}<tr><td><a href="{% url 'student_detail' e.student.pk %}">{{ e.student.name }}</a></td>
 <td><input type="checkbox" name="present_{{ e.pk }}" checked></td>
-<td><input type="number" step="0.01" min="0" max="100" name="mark_{{ e.pk }}" value="{{ e.mark|default_if_none:'' }}"></td><td>{{ e.grade }}</td></tr>
-{% empty %}<tr><td colspan="4" class="muted">Nobody is enrolled in this subject yet. Ask the registrar to enrol students.</td></tr>{% endfor %}</table>
+{% if components %}{% for c, m in e.component_cells %}<td><input type="number" step="0.01" min="0" max="100" name="component_{{ c.pk }}_{{ e.pk }}" value="{{ m|default_if_none:'' }}"></td>{% endfor %}<td class="r">{{ e.mark|default_if_none:"—" }}</td>
+{% else %}<td><input type="number" step="0.01" min="0" max="100" name="mark_{{ e.pk }}" value="{{ e.mark|default_if_none:'' }}"></td>{% endif %}<td>{{ e.grade }}</td></tr>
+{% empty %}<tr><td colspan="8" class="muted">Nobody is enrolled in this subject yet. Ask the registrar to enrol students.</td></tr>{% endfor %}</table>
 {% if rows %}<button class="btn">Save marks and attendance</button>{% endif %}</form>
 {% else %}
-<table class="tbl"><tr><th>Student</th><th>Mark (0–100)</th><th>Grade</th></tr>
-{% for e in rows %}<tr><td><a href="{% url 'student_detail' e.student.pk %}">{{ e.student.name }}</a></td><td>{{ e.mark|default_if_none:"—" }}</td><td>{{ e.grade }}</td></tr>
-{% empty %}<tr><td colspan="3" class="muted">Nobody is enrolled in this subject yet.</td></tr>{% endfor %}</table>
+<table class="tbl"><tr><th>Student</th>
+{% if components %}{% for c in components %}<th>{{ c.name }} <span class="muted">({{ c.weight }}%)</span></th>{% endfor %}<th class="r">Final</th>{% else %}<th>Mark (0–100)</th>{% endif %}<th>Grade</th></tr>
+{% for e in rows %}<tr><td><a href="{% url 'student_detail' e.student.pk %}">{{ e.student.name }}</a></td>
+{% if components %}{% for c, m in e.component_cells %}<td>{{ m|default_if_none:"—" }}</td>{% endfor %}<td>{{ e.mark|default_if_none:"—" }}</td>
+{% else %}<td>{{ e.mark|default_if_none:"—" }}</td>{% endif %}<td>{{ e.grade }}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted">Nobody is enrolled in this subject yet.</td></tr>{% endfor %}</table>
 <p class="muted">Only the subject teacher can change these marks.</p>
 {% endif %}
 <p><a class="btn ghost" href="{% url 'marks_report' 'subject' subject.pk %}">Open the printable mark sheet</a>
-<a class="btn ghost" href="{% url 'attendance_register' 'subject' subject.pk %}">Attendance register</a></p>
+<a class="btn ghost" href="{% url 'attendance_register' 'subject' subject.pk %}">Attendance register</a>
+{% if can_configure %}<a class="btn ghost" href="{% url 'assessment_components' 'subject' subject.pk %}">Assessment setup</a>{% endif %}</p>
 {% endblock %}
