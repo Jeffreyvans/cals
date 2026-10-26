@@ -36,6 +36,9 @@ Started: 2026-10-21. Session 1. Last updated: 2026-10-26 (session 6, Phase 2 in 
 - Decision: assessment component weights are relative rather than required to total 100, so a teacher can set up the parts before fixing the split. A final mark is only written once every component has a mark, and it is recalculated whenever a component is added, changed or removed.
 - Decision: a course or subject with no components keeps the original single `Enrollment.mark` field, so existing rosters, marks and reports keep working unchanged.
 - Decision: component marks are stored per enrolment in `AssessmentMark`, not on the component, so the same course offering can be marked for each student and term.
+- Decision: results are credit-weighted. A course enrolment uses the offering's credits (falling back to the course's), and a subject counts as one credit, so school-mode averages are ordinary means.
+- Decision: GPA is the credit-weighted average of the points in the grade bands, not of the marks, so changing a band's points changes the GPA without touching the marks.
+- Decision: class position ranks credit-weighted term averages within the student's cohort, else their school class, else their programme year, else their whole programme. Equal averages share a place and the next place is skipped (1, 2, 2, 4).
 
 ## Bugs found
 - None blocking baseline; tests pass. `makemigrations --check` clean. Lint has 194 issues (mostly import/style) but tests unrelated to style pass.
@@ -111,9 +114,10 @@ Phase 1 is complete. The whole suite is 440 tests, all passing.
 - [x] The student registration form now offers a programme year and cohort in college mode and rejects mismatches.
 - [x] Timetable clash detection verified and extended with tests: lecturer, class/stream, course, venue and overlapping times; back-to-back lessons are allowed. Existing views cover class, teacher and student timetables.
 - [x] Assessment components: `AssessmentComponent`/`AssessmentMark`, relative weights, per-student component marks, weighted final mark recalculated when setup changes; setup screen, roster component fields and component columns on the mark sheet, with 8 tests.
-- [ ] GPA and class positions, marks workflow, report cards and transcripts.
+- [x] Results engine: credit-weighted term average and cumulative GPA, class positions with shared places, and term summaries on the report card, with 10 tests.
+- [ ] Award classification, marks workflow, report cards and transcripts.
 
-The whole suite is now 501 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+The whole suite is now 511 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
 
 ## Next up
 - Continue Phase 2: assessment components and weighting, GPA and class positions, the marks workflow, report cards and transcripts.

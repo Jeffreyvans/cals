@@ -7,13 +7,21 @@ from django.urls import reverse
 
 from academics.models import (
     AcademicYear,
+    Cohort,
     Course,
     Enrollment,
     GradeBand,
     Programme,
+    ProgrammeYear,
     Student,
     Subject,
     Term,
+)
+from academics.services import (
+    class_position,
+    grade_point_average,
+    result_summary,
+    weighted_average,
 )
 from accounts.models import User
 
@@ -246,6 +254,114 @@ class StudentReportTests(BaseAssessment):
         self.client.force_login(self.a.user)
         resp = self.client.get(reverse("student_report", args=[self.b.pk]))
         self.assertEqual(resp.status_code, 403)
+
+
+class ResultsEngineTests(BaseAssessment):
+    def add_course_result(self, student, code, credits, mark):
+        course = Course.objects.create(code=code, title=code, programme=self.programme,
+                                       credits=credits, lecturer=self.lecturer)
+        enrollment = Enrollment.objects.create(student=student, course=course,
+                                               term=self.term)
+        enrollment.mark = Decimal(mark)
+        enrollment.save()
+        return enrollment
+
+    def test_weighted_average_uses_course_credits(self):
+        other = self.add_course_result(self.a, "IT102", 1, "80")
+        self.e_a.mark = Decimal("60")
+        self.e_a.save()
+        self.assertEqual(weighted_average([self.e_a, other]), Decimal("65.00"))
+
+    def test_subjects_count_as_one_credit(self):
+        self.e_a.mark = Decimal("60")
+        self.e_a.save()
+        self.sa.mark = Decimal("80")
+        self.sa.save()
+        self.assertEqual(weighted_average([self.e_a, self.sa]), Decimal("65.00"))
+
+    def test_gpa_uses_grade_points_and_credits(self):
+        for letter, mark, points in [("A", 75, 4), ("C", 50, 2), ("F", 0, 0)]:
+            GradeBand.objects.create(letter=letter, min_mark=mark, points=points)
+        other = self.add_course_result(self.a, "IT102", 1, "60")
+        self.e_a.mark = Decimal("80")
+        self.e_a.save()
+        self.assertEqual(grade_point_average([self.e_a, other]), Decimal("3.50"))
+
+    def test_gpa_falls_back_to_the_default_scale(self):
+        self.e_a.mark = Decimal("80")
+        self.e_a.save()
+        self.sa.mark = Decimal("70")
+        self.sa.save()
+        self.assertEqual(grade_point_average([self.e_a, self.sa]), Decimal("3.75"))
+
+    def test_class_position_shares_ties_and_skips_the_next_place(self):
+        u = User.objects.create_user("cara", password="pw123456", role="student")
+        cara = Student.objects.create(user=u, programme=self.programme, student_no="S900")
+        e_c = Enrollment.objects.create(student=cara, course=self.course, term=self.term)
+        for enrollment, mark in [(self.e_a, "90"), (self.e_b, "80"), (e_c, "80")]:
+            enrollment.mark = Decimal(mark)
+            enrollment.save()
+        self.assertEqual(class_position(self.a, self.term), (1, 3))
+        self.assertEqual(class_position(self.b, self.term), (2, 3))
+        self.assertEqual(class_position(cara, self.term), (2, 3))
+
+    def test_class_position_is_scoped_to_the_students_cohort(self):
+        year = self.term.academic_year
+        programme_year = ProgrammeYear.objects.create(programme=self.programme,
+                                                      academic_year=year)
+        first = Cohort.objects.create(programme_year=programme_year, name="A")
+        second = Cohort.objects.create(programme_year=programme_year, name="B")
+        self.a.cohort = first
+        self.a.save()
+        self.b.cohort = first
+        self.b.save()
+        u = User.objects.create_user("cara", password="pw123456", role="student")
+        cara = Student.objects.create(user=u, programme=self.programme,
+                                      student_no="S901", cohort=second)
+        e_c = Enrollment.objects.create(student=cara, course=self.course, term=self.term)
+        for enrollment, mark in [(self.e_a, "90"), (self.e_b, "70"), (e_c, "60")]:
+            enrollment.mark = Decimal(mark)
+            enrollment.save()
+        self.assertEqual(class_position(self.a, self.term), (1, 2))
+        self.assertEqual(class_position(self.b, self.term), (2, 2))
+        self.assertEqual(class_position(cara, self.term), (1, 1))
+
+    def test_unmarked_student_has_no_position_but_sees_the_class_size(self):
+        self.e_a.mark = Decimal("50")
+        self.e_a.save()
+        self.assertEqual(class_position(self.b, self.term), (None, 1))
+
+    def test_result_summary_reports_credits_average_and_gpa(self):
+        self.e_a.mark = Decimal("80")
+        self.e_a.save()
+        self.sa.mark = Decimal("70")
+        self.sa.save()
+        summary = result_summary([self.e_a, self.sa])
+        self.assertEqual(summary["marked"], 2)
+        self.assertEqual(summary["credits"], 4)
+        self.assertEqual(summary["average"], Decimal("77.50"))
+        self.assertEqual(summary["gpa"], Decimal("3.75"))
+
+
+class ReportCardResultsTests(BaseAssessment):
+    def test_report_shows_term_average_gpa_and_class_position(self):
+        self.e_a.mark = Decimal("80")
+        self.e_a.save()
+        self.sa.mark = Decimal("70")
+        self.sa.save()
+        self.client.force_login(self.a.user)
+        resp = self.client.get(reverse("my_report"))
+        self.assertContains(resp, "GPA: 3.75")
+        self.assertContains(resp, "Term average: 77.50")
+        self.assertContains(resp, "Class position: 1 of 1")
+
+    def test_registrar_sees_the_same_results_summary(self):
+        self.e_a.mark = Decimal("80")
+        self.e_a.save()
+        self.client.force_login(self.registrar)
+        resp = self.client.get(reverse("student_report", args=[self.a.pk]))
+        self.assertContains(resp, "GPA: 4.00")
+        self.assertContains(resp, "Term average: 80.00")
 
 
 class GradeScalePageTests(BaseAssessment):

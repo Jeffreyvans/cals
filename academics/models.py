@@ -623,11 +623,16 @@ class GradeBand(TenantModel):
         super().save(*a, **kw)
 
     @classmethod
-    def grade_for(cls, mark):
-        """Return (letter, points) for a mark. Falls back to the default A–F scale."""
+    def grade_for(cls, mark, bands=None):
+        """Return (letter, points) for a mark. Falls back to the default A–F scale.
+
+        Pass `bands` when grading several marks in a row so the scale is read
+        once instead of once per mark.
+        """
         if mark is None:
             return "—", None
-        bands = list(cls.objects.order_by("-min_mark"))
+        if bands is None:
+            bands = list(cls.objects.order_by("-min_mark"))
         if not bands:
             bands = [cls(letter=letter, min_mark=Decimal(mark_min), points=Decimal(pts))
                      for letter, mark_min, pts in DEFAULT_GRADE_BANDS]

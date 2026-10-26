@@ -118,6 +118,106 @@ def recalculate_item_marks(course=None, subject=None):
         recalculate_enrollment_mark(enrollment)
 
 
+# ---------- results, GPA and class positions ----------
+
+def enrollment_credits(enrollment):
+    """The credit weight of one result: the offering's, the course's, or 1.
+
+    Subjects carry no credit value in school mode, so every subject counts
+    equally and the average is the ordinary mean.
+    """
+    if enrollment.offering_id:
+        return enrollment.offering.credit_points
+    if enrollment.course_id:
+        return enrollment.course.credits
+    return 1
+
+
+def weighted_average(rows):
+    """The credit-weighted average mark of the marked rows, or None."""
+    total = Decimal("0")
+    credits_total = 0
+    for enrollment in rows:
+        if enrollment.mark is None:
+            continue
+        credits = enrollment_credits(enrollment)
+        total += enrollment.mark * credits
+        credits_total += credits
+    if not credits_total:
+        return None
+    return (total / credits_total).quantize(Decimal("0.01"))
+
+
+def grade_point_average(rows, bands=None):
+    """The credit-weighted grade point average of the marked rows, or None."""
+    from academics.models import GradeBand
+
+    if bands is None:
+        bands = list(GradeBand.objects.order_by("-min_mark"))
+    total = Decimal("0")
+    credits_total = 0
+    for enrollment in rows:
+        if enrollment.mark is None:
+            continue
+        _, points = GradeBand.grade_for(enrollment.mark, bands)
+        credits = enrollment_credits(enrollment)
+        total += points * credits
+        credits_total += credits
+    if not credits_total:
+        return None
+    return (total / credits_total).quantize(Decimal("0.01"))
+
+
+def result_summary(rows, bands=None):
+    """The marked count, credits, weighted average and GPA of a set of results."""
+    marked = [e for e in rows if e.mark is not None]
+    return {
+        "marked": len(marked),
+        "credits": sum(enrollment_credits(e) for e in marked),
+        "average": weighted_average(rows),
+        "gpa": grade_point_average(rows, bands),
+    }
+
+
+def _class_filter(student):
+    """The widest group that forms the student's class, from narrowest to widest."""
+    if student.cohort_id:
+        return {"cohort_id": student.cohort_id}
+    if student.school_class_id:
+        return {"school_class_id": student.school_class_id}
+    if student.programme_year_id:
+        return {"programme_year_id": student.programme_year_id}
+    return {"programme_id": student.programme_id}
+
+
+def class_position(student, term):
+    """The student's (position, class size) for a term by weighted average.
+
+    Students on the same average share a position and the next position is
+    skipped, so 90, 80, 80 and 70 rank 1, 2, 2 and 4. A student with no
+    marked results has no position but still sees how many were ranked.
+    """
+    from academics.models import Enrollment, Student
+
+    if term is None:
+        return None, 0
+    peers = Student.objects.filter(**_class_filter(student)).values_list("pk", flat=True)
+    rows = Enrollment.objects.filter(term=term, student_id__in=peers) \
+        .select_related("offering__course")
+    groups = {}
+    for enrollment in rows:
+        groups.setdefault(enrollment.student_id, []).append(enrollment)
+    averages = []
+    for group in groups.values():
+        average = weighted_average(group)
+        if average is not None:
+            averages.append(average)
+    mine = weighted_average(groups.get(student.pk, []))
+    if mine is None:
+        return None, len(averages)
+    return sorted(averages, reverse=True).index(mine) + 1, len(averages)
+
+
 # ---------- promotion ----------
 
 def promotion_plan(institution, students=None):

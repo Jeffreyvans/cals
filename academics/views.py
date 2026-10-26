@@ -69,6 +69,7 @@ from .models import (
 )
 from .services import (
     RegistrationError,
+    class_position,
     drop_enrollment,
     promote_students,
     promotion_plan,
@@ -76,6 +77,7 @@ from .services import (
     recalculate_item_marks,
     register_student,
     registration_catalogue,
+    result_summary,
 )
 
 MONEY_ROLES = ("admin", "registrar", "bursar")
@@ -209,28 +211,34 @@ def _annotate_components(rows, components):
 
 def _report_context(s, user):
     """Context for a student's report card. Lecturers only see their own rows."""
-    rows = list(s.enrollments.select_related("course", "subject")
+    rows = list(s.enrollments.select_related("course", "subject", "offering__course")
                 .order_by("term", "course__code", "subject__code"))
+    visible = rows
     if user.role == "lecturer":
-        rows = [e for e in rows
-                if (e.course_id and e.course.lecturer_id == user.pk)
-                or (e.subject_id and e.subject.lecturer_id == user.pk)]
-    _annotate_positions(rows)
+        visible = [e for e in rows
+                   if (e.course_id and e.course.lecturer_id == user.pk)
+                   or (e.subject_id and e.subject.lecturer_id == user.pk)]
+    _annotate_positions(visible)
+    bands = list(GradeBand.objects.order_by("-min_mark"))
+    summary = result_summary(visible, bands)
     by_term = {}
-    for e in rows:
+    for e in visible:
         by_term.setdefault(e.term.name if e.term else "No term", []).append(e)
-    marks = [e.mark for e in rows if e.mark is not None]
-    average = (sum(marks) / len(marks)).quantize(Decimal("0.1")) if marks else None
-    rates = Attendance.rates_by_term(rows)
+    rates = Attendance.rates_by_term(visible)
     term_rows = []
     for term, trows in sorted(by_term.items()):
         sessions, present = rates.get(term, (0, 0))
         pct = round(present * 100 / sessions) if sessions else None
-        term_rows.append((term, trows, sessions, present, pct))
+        term_summary = result_summary(trows, bands)
+        position, cohort_size = class_position(s, trows[0].term)
+        term_rows.append((term, trows, sessions, present, pct,
+                          term_summary["average"], term_summary["gpa"],
+                          position, cohort_size))
     total_sessions = sum(v[0] for v in rates.values())
     total_present = sum(v[1] for v in rates.values())
-    return {"s": s, "terms": term_rows, "marked": len(marks),
-            "total": len(rows), "average": average,
+    return {"s": s, "terms": term_rows, "marked": summary["marked"],
+            "total": len(visible), "average": summary["average"],
+            "gpa": summary["gpa"], "credits": summary["credits"],
             "attendance_sessions": total_sessions,
             "attendance_present": total_present,
             "attendance_pct": (round(total_present * 100 / total_sessions)
