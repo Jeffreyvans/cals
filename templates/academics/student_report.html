@@ -8,7 +8,7 @@
 <div class="head"><div><h2>{{ s.name }}</h2>
 <p class="muted">{{ s.student_no }} · {{ s.programme.name }} · {% if s.school_class %}Class {{ s.class_label }}{% else %}Year {{ s.year_or_grade }}{% endif %}</p>
 <p class="muted">Guardian: {{ s.guardian_name|default:"—" }} {{ s.guardian_phone }}</p></div>
-<div class="bal clear"><small>Average mark</small><b>{{ average|default:"—" }}</b><small>GPA: {{ gpa|default:"—" }}</small><small>{{ marked }} of {{ total }} results in</small>
+<div class="bal clear"><small>Average mark</small><b>{{ average|default:"—" }}</b><small>GPA: {{ gpa|default:"—" }}</small>{% if award %}<small>Projected award: {{ award }}</small>{% endif %}<small>{{ marked }} of {{ total }} results in</small>
 <small>Attendance: {{ attendance_present }} of {{ attendance_sessions }} sessions{% if attendance_pct %} ({{ attendance_pct }}%){% endif %}</small></div></div>
 {% if user.role == 'lecturer' %}<p class="muted">This report only shows the courses and subjects you teach.</p>{% endif %}
 {% if withheld %}<p class="card"><b>Results withheld.</b> {{ withheld }} result{{ withheld|pluralize }} cannot be shown because fees are outstanding. The bursar can release them for a term with a written reason.</p>{% endif %}

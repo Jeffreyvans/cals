@@ -19,6 +19,7 @@ from .forms import (
     ActivityForm,
     AnnouncementForm,
     AssessmentComponentForm,
+    AwardRuleForm,
     ClassSubjectAllocationForm,
     ClassTeacherForm,
     CohortForm,
@@ -47,6 +48,7 @@ from .models import (
     AssessmentComponent,
     AssessmentMark,
     Attendance,
+    AwardRule,
     ClassTeacher,
     Cohort,
     Course,
@@ -72,6 +74,7 @@ from .services import (
     RegistrationError,
     ResultsError,
     approve_results,
+    award_classification,
     class_position,
     clear_result_hold,
     drop_enrollment,
@@ -295,13 +298,14 @@ def _report_context(s, user):
                   if e.mark is not None and e.result_state == "pending")
     withheld = sum(1 for e in visible
                    if e.mark is not None and e.result_state == "withheld")
+    award = None if hidden else award_classification(s, shown, bands)
     can_clear = user.role in ("bursar", "admin") and s.balance > 0
     return {"s": s, "terms": term_rows,
             "marked": sum(1 for e in visible if e.mark is not None),
             "total": len(visible),
             "average": None if hidden else summary["average"],
             "gpa": None if hidden else summary["gpa"],
-            "credits": summary["credits"],
+            "credits": summary["credits"], "award": award,
             "pending": pending, "withheld": withheld,
             "fee_balance": s.balance if can_clear else None,
             "can_clear": can_clear,
@@ -1256,16 +1260,27 @@ def my_exam_card(request):
                   {"s": s, "sitting": sitting, "exam_rows": rows})
 
 
-# ---------- grade scale ----------
+# ---------- grade scale and awards ----------
 @role_required()
 def grade_bands(request):
-    form = GradeBandForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        b = form.save()
-        messages.success(request, f"Grade {b.letter} saved.")
-        return redirect("grade_bands")
-    return render(request, "academics/grade_bands.html",
-                  {"bands": GradeBand.objects.all(), "form": form})
+    form = GradeBandForm()
+    award_form = AwardRuleForm()
+    if request.method == "POST":
+        if request.POST.get("action") == "award":
+            award_form = AwardRuleForm(request.POST)
+            if award_form.is_valid():
+                rule = award_form.save()
+                messages.success(request, f"Award {rule.label} saved.")
+                return redirect("grade_bands")
+        else:
+            form = GradeBandForm(request.POST)
+            if form.is_valid():
+                b = form.save()
+                messages.success(request, f"Grade {b.letter} saved.")
+                return redirect("grade_bands")
+    return render(request, "academics/grade_bands.html", {
+        "bands": GradeBand.objects.all(), "form": form,
+        "awards": AwardRule.objects.all(), "award_form": award_form})
 
 
 @role_required()
@@ -1274,6 +1289,16 @@ def grade_band_delete(request, pk):
     if request.method == "POST":
         b.delete()
         messages.success(request, f"Grade {b.letter} removed.")
+    return redirect("grade_bands")
+
+
+@role_required()
+def award_rule_delete(request, pk):
+    rule = get_object_or_404(AwardRule, pk=pk)
+    if request.method == "POST":
+        label = rule.label
+        rule.delete()
+        messages.success(request, f"Award {label} removed.")
     return redirect("grade_bands")
 
 

@@ -28,6 +28,7 @@ urlpatterns = [
     path("exams/", v.exams, name="exams"),
     path("grades/", v.grade_bands, name="grade_bands"),
     path("grades/<int:pk>/delete/", v.grade_band_delete, name="grade_band_delete"),
+    path("awards/<int:pk>/delete/", v.award_rule_delete, name="award_rule_delete"),
     path("lecturer/", v.lecturer_portal, name="lecturer_portal"),
     path("lecturer/course/<int:pk>/", v.course_roster, name="course_roster"),
     path("lecturer/subject/<int:pk>/", v.subject_roster, name="subject_roster"),

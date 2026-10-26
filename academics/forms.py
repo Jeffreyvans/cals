@@ -7,6 +7,7 @@ from .models import (
     Activity,
     Announcement,
     AssessmentComponent,
+    AwardRule,
     ClassSubjectAllocation,
     ClassTeacher,
     Cohort,
@@ -392,6 +393,21 @@ class GradeBandForm(forms.ModelForm):
         self.fields["letter"].help_text = "The grade students see, for example A."
         self.fields["min_mark"].help_text = "Lowest mark that still earns this grade."
         self.fields["points"].help_text = "Points for reports, for example 4 for an A."
+
+
+class AwardRuleForm(forms.ModelForm):
+    class Meta:
+        model = AwardRule
+        fields = ["level", "label", "min_gpa"]
+        widgets = {"min_gpa": forms.NumberInput(attrs={"min": 0, "step": 0.01})}
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["level"].help_text = (
+            "Leave on all programmes unless this award only applies to one level.")
+        self.fields["label"].help_text = "What the student sees, for example Distinction."
+        self.fields["min_gpa"].help_text = (
+            "Lowest cumulative GPA that still earns this award.")
 
 
 class AssessmentComponentForm(forms.ModelForm):

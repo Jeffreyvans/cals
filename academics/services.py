@@ -184,6 +184,14 @@ def result_summary(rows, bands=None):
     }
 
 
+def award_classification(student, rows, bands=None, rules=None):
+    """The projected award for a student's marked results, or None."""
+    from academics.models import AwardRule
+
+    gpa = grade_point_average(rows, bands)
+    return AwardRule.award_for(gpa, student.programme.level, rules)
+
+
 def _class_filter(student):
     """The widest group that forms the student's class, from narrowest to widest."""
     if student.cohort_id:

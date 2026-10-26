@@ -116,12 +116,13 @@ Phase 1 is complete. The whole suite is 440 tests, all passing.
 - [x] Assessment components: `AssessmentComponent`/`AssessmentMark`, relative weights, per-student component marks, weighted final mark recalculated when setup changes; setup screen, roster component fields and component columns on the mark sheet, with 8 tests.
 - [x] Results engine: credit-weighted term average and cumulative GPA, class positions with shared places, and term summaries on the report card, with 10 tests.
 - [x] Marks workflow (migration `0015`): `ResultSheet` moves through submitted -> moderated -> approved -> released with an audit entry at every step; a workflow screen lets the registrar review, return or release a term; marks lock once moderated; students and parents see released results only; fee balances withhold results, and a bursar can release one term with a written reason through an audited `ResultClearance`; report cards and portals show pending or withheld notices, with 21 tests.
-- [ ] Award classification, report cards and transcripts.
+- [x] Award classification (migration `0016`): `AwardRule` bands by programme level or for all programmes, built-in degree and diploma scales, a projected award from cumulative GPA on the report card, and admin add/remove screens on the grade-scale page; hidden or withheld results never contribute, with 14 tests.
+- [ ] Report cards and transcripts.
 
-The whole suite is now 532 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+The whole suite is now 546 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
 
 ## Next up
-- Continue Phase 2: award classification, report cards and transcripts.
+- Continue Phase 2: report cards and transcripts (PDF, branding, QR verification page).
 - Phase 3 starts with the chart of accounts and the double-entry ledger; the `FeeStructure`/`FeeItem` models added for the import will be completed there.
 
 ## Open questions

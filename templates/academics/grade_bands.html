@@ -10,7 +10,24 @@
     </table>
   </div>
   <form method="post" class="inline wide">{% csrf_token %}
+    <input type="hidden" name="action" value="band">
     <h2>Add a band</h2>{{ form.as_p }}<button class="btn">Save band</button>
+  </form>
+</div>
+
+<h2>Award classification</h2>
+<p class="muted">Report cards show a projected award from the cumulative GPA. Rules saved for a programme level replace all-programme rules, which replace the built-in scale: Distinction 3.50, Merit 3.00, Pass 2.00 and Fail 0. Degrees start at First Class 3.60, Upper Second 3.00, Lower Second 2.50, Third 2.00 and Fail 0.</p>
+<div class="cols">
+  <div>
+    <table class="tbl"><tr><th>Level</th><th>Award</th><th class="r">From GPA</th><th></th></tr>
+    {% for a in awards %}<tr><td>{{ a.get_level_display }}</td><td>{{ a.label }}</td><td class="r">{{ a.min_gpa }}</td>
+      <td><form method="post" action="{% url 'award_rule_delete' a.pk %}">{% csrf_token %}<button class="link">Remove</button></form></td></tr>
+    {% empty %}<tr><td colspan="4" class="muted">No award rules yet, so the built-in scale is in use.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <form method="post" class="inline wide">{% csrf_token %}
+    <input type="hidden" name="action" value="award">
+    <h2>Add an award</h2>{{ award_form.as_p }}<button class="btn">Save award</button>
   </form>
 </div>
 {% endblock %}

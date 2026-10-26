@@ -15,6 +15,22 @@ DAY_CHOICES = [(1, "Monday"), (2, "Tuesday"), (3, "Wednesday"), (4, "Thursday"),
 DEFAULT_GRADE_BANDS = [("A", "75", "4"), ("B", "65", "3"), ("C", "50", "2"),
                        ("D", "40", "1"), ("F", "0", "0")]
 
+_STANDARD_AWARDS = [("Distinction", "3.50"), ("Merit", "3.00"),
+                    ("Pass", "2.00"), ("Fail", "0")]
+DEFAULT_AWARD_RULES = {
+    "degree": [("First Class", "3.60"), ("Upper Second Class", "3.00"),
+               ("Lower Second Class", "2.50"), ("Third Class", "2.00"),
+               ("Fail", "0")],
+    "masters": _STANDARD_AWARDS,
+    "phd": [("Pass", "2.00"), ("Fail", "0")],
+    "primary": _STANDARD_AWARDS,
+    "secondary": _STANDARD_AWARDS,
+    "short": _STANDARD_AWARDS,
+    "certificate": _STANDARD_AWARDS,
+    "diploma": _STANDARD_AWARDS,
+    "": _STANDARD_AWARDS,
+}
+
 
 def balances_by_student():
     """Return ({student_id: billed}, {student_id: paid}, {student_id: waived})
@@ -642,6 +658,86 @@ class GradeBand(TenantModel):
         return bands[-1].letter, bands[-1].points
 
     def __str__(self): return f"{self.letter} from {self.min_mark:g}"
+
+
+class AwardRule(TenantModel):
+    """One final award band: a cumulative GPA at or above min_gpa earns this label.
+
+    Rules can apply to one programme level or to every programme. A saved rule
+    set for the student's level replaces the all-programme set, which in turn
+    replaces the built-in defaults.
+    """
+
+    class Level(models.TextChoices):
+        ANY = "", "All programmes"
+        PRIMARY = "primary", "Primary school"
+        SECONDARY = "secondary", "Secondary school"
+        SHORT = "short", "Short course"
+        CERT = "certificate", "Certificate"
+        DIPLOMA = "diploma", "Diploma"
+        DEGREE = "degree", "Bachelor's degree"
+        MASTERS = "masters", "Master's degree"
+        PHD = "phd", "Doctorate"
+
+    level = models.CharField(max_length=20, choices=Level.choices,
+                             blank=True, default="")
+    label = models.CharField(max_length=60)
+    min_gpa = models.DecimalField(max_digits=5, decimal_places=2,
+                                  validators=[MinValueValidator(0)])
+
+    class Meta:
+        ordering = ["-min_gpa", "label"]
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "level", "label"],
+                                    name="uniq_award_rule_level_label"),
+        ]
+
+    def clean(self):
+        super().clean()
+        self.label = self.label.strip()
+        if not self.label:
+            raise ValidationError({"label": "Give the award a name."})
+        if self.min_gpa is not None and self.min_gpa < 0:
+            raise ValidationError({"min_gpa": "The minimum GPA cannot be negative."})
+        clash = AwardRule.objects.filter(level=self.level, label__iexact=self.label)
+        if self.pk:
+            clash = clash.exclude(pk=self.pk)
+        if clash.exists():
+            raise ValidationError(
+                {"label": f"{self.label} already exists for this level."})
+
+    def save(self, *a, **kw):
+        self.full_clean()
+        super().save(*a, **kw)
+
+    @classmethod
+    def for_level(cls, level):
+        """The rules to use for a programme level, preferring the most specific."""
+        specific = list(cls.objects.filter(level=level).order_by("-min_gpa", "label"))
+        if specific:
+            return specific
+        generic = list(cls.objects.filter(level="").order_by("-min_gpa", "label"))
+        if generic:
+            return generic
+        defaults = DEFAULT_AWARD_RULES.get(level, DEFAULT_AWARD_RULES[""])
+        return [cls(level=level, label=label, min_gpa=Decimal(min_gpa))
+                for label, min_gpa in defaults]
+
+    @classmethod
+    def award_for(cls, gpa, level, rules=None):
+        """The award label for a GPA at this programme level, or None."""
+        if gpa is None:
+            return None
+        if rules is None:
+            rules = cls.for_level(level)
+        for rule in sorted(rules, key=lambda r: r.min_gpa, reverse=True):
+            if gpa >= rule.min_gpa:
+                return rule.label
+        return None
+
+    def __str__(self):
+        level = self.get_level_display() if self.level else "All programmes"
+        return f"{self.label} from {self.min_gpa:g} ({level})"
 
 
 class AssessmentComponent(TenantModel):
