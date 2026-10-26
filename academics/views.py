@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -59,6 +59,7 @@ from .models import (
     Guardian,
     Programme,
     ProgrammeYear,
+    ResultSheet,
     SchoolClass,
     SchoolSettings,
     Student,
@@ -69,15 +70,24 @@ from .models import (
 )
 from .services import (
     RegistrationError,
+    ResultsError,
+    approve_results,
     class_position,
+    clear_result_hold,
     drop_enrollment,
+    moderate_results,
     promote_students,
     promotion_plan,
     recalculate_enrollment_mark,
     recalculate_item_marks,
     register_student,
     registration_catalogue,
+    release_results,
+    result_clearance_terms,
+    result_sheet_map,
     result_summary,
+    return_results,
+    submit_results,
 )
 
 MONEY_ROLES = ("admin", "registrar", "bursar")
@@ -118,7 +128,14 @@ def _save_marks(rows, post, components=None):
     """
     errors = []
     components = list(components or [])
+    sheets = result_sheet_map(rows)
     for e in rows:
+        sheet = sheets.get((e.course_id, e.subject_id, e.term_id))
+        if sheet is not None and sheet.status != ResultSheet.Status.SUBMITTED:
+            errors.append(
+                f"{e.student.name}: these results are "
+                f"{sheet.get_status_display().lower()}; return them before changing marks.")
+            continue
         if components:
             for component in components:
                 key = f"component_{component.pk}_{e.pk}"
@@ -209,6 +226,34 @@ def _annotate_components(rows, components):
         e.component_cells = [(c, marks.get((e.pk, c.pk))) for c in components]
 
 
+def _result_is_privileged(user):
+    return user.role in ("admin", "registrar", "bursar", "lecturer")
+
+
+def _annotate_result_state(rows, student, user):
+    """Attach .result_state and .result_note to each enrollment.
+
+    Students and parents only see marks from a released sheet when the student
+    has no outstanding fees, or a bursar has released that term's results. A
+    course or subject with no sheet predates the workflow and stays visible.
+    """
+    if _result_is_privileged(user):
+        for e in rows:
+            e.result_state, e.result_note = "shown", ""
+        return
+    sheets = result_sheet_map(rows)
+    owed = student.balance > 0
+    cleared = result_clearance_terms(student) if owed else set()
+    for e in rows:
+        sheet = sheets.get((e.course_id, e.subject_id, e.term_id))
+        if sheet is not None and sheet.status != ResultSheet.Status.RELEASED:
+            e.result_state, e.result_note = "pending", "Awaiting release"
+        elif owed and e.term_id and e.term_id not in cleared:
+            e.result_state, e.result_note = "withheld", "Fees outstanding"
+        else:
+            e.result_state, e.result_note = "shown", ""
+
+
 def _report_context(s, user):
     """Context for a student's report card. Lecturers only see their own rows."""
     rows = list(s.enrollments.select_related("course", "subject", "offering__course")
@@ -218,9 +263,13 @@ def _report_context(s, user):
         visible = [e for e in rows
                    if (e.course_id and e.course.lecturer_id == user.pk)
                    or (e.subject_id and e.subject.lecturer_id == user.pk)]
-    _annotate_positions(visible)
+    _annotate_result_state(visible, s, user)
+    shown = [e for e in visible if e.result_state == "shown"]
+    _annotate_positions(shown)
     bands = list(GradeBand.objects.order_by("-min_mark"))
-    summary = result_summary(visible, bands)
+    summary = result_summary(shown, bands)
+    hidden = [e for e in visible
+              if e.mark is not None and e.result_state != "shown"]
     by_term = {}
     for e in visible:
         by_term.setdefault(e.term.name if e.term else "No term", []).append(e)
@@ -229,16 +278,35 @@ def _report_context(s, user):
     for term, trows in sorted(by_term.items()):
         sessions, present = rates.get(term, (0, 0))
         pct = round(present * 100 / sessions) if sessions else None
-        term_summary = result_summary(trows, bands)
-        position, cohort_size = class_position(s, trows[0].term)
-        term_rows.append((term, trows, sessions, present, pct,
+        term_hidden = any(e.mark is not None and e.result_state != "shown"
+                          for e in trows)
+        term_shown = [e for e in trows if e.result_state == "shown"]
+        term_summary = result_summary(term_shown, bands)
+        if term_hidden:
+            position, cohort_size = None, None
+        else:
+            position, cohort_size = class_position(s, trows[0].term)
+        term_rows.append((term, trows[0].term, trows, sessions, present, pct,
                           term_summary["average"], term_summary["gpa"],
-                          position, cohort_size))
+                          position, cohort_size, term_hidden))
     total_sessions = sum(v[0] for v in rates.values())
     total_present = sum(v[1] for v in rates.values())
-    return {"s": s, "terms": term_rows, "marked": summary["marked"],
-            "total": len(visible), "average": summary["average"],
-            "gpa": summary["gpa"], "credits": summary["credits"],
+    pending = sum(1 for e in visible
+                  if e.mark is not None and e.result_state == "pending")
+    withheld = sum(1 for e in visible
+                   if e.mark is not None and e.result_state == "withheld")
+    can_clear = user.role in ("bursar", "admin") and s.balance > 0
+    return {"s": s, "terms": term_rows,
+            "marked": sum(1 for e in visible if e.mark is not None),
+            "total": len(visible),
+            "average": None if hidden else summary["average"],
+            "gpa": None if hidden else summary["gpa"],
+            "credits": summary["credits"],
+            "pending": pending, "withheld": withheld,
+            "fee_balance": s.balance if can_clear else None,
+            "can_clear": can_clear,
+            "cleared_term_ids": (list(result_clearance_terms(s))
+                                 if can_clear else []),
             "attendance_sessions": total_sessions,
             "attendance_present": total_present,
             "attendance_pct": (round(total_present * 100 / total_sessions)
@@ -932,6 +1000,76 @@ def marks_report(request, kind, pk):
 
 
 @role_required("registrar", "lecturer")
+def results_workflow(request, kind, pk):
+    if kind == "course":
+        item = get_object_or_404(Course.objects.select_related("programme", "lecturer"), pk=pk)
+    elif kind == "subject":
+        item = get_object_or_404(Subject.objects.select_related("lecturer"), pk=pk)
+    else:
+        raise PermissionDenied("Unknown mark sheet.")
+    owner_id = getattr(item, "lecturer_id", None)
+    can_review = request.user.role in ("registrar", "admin")
+    if not (can_review or owner_id == request.user.pk):
+        raise PermissionDenied("Only the teacher in charge can open the results workflow.")
+    lookup = {kind: item}
+    if request.method == "POST":
+        raw_term = request.POST.get("term", "")
+        if not raw_term.isdigit():
+            messages.error(request, "Choose a term first.")
+            return redirect("results_workflow", kind=kind, pk=pk)
+        term = get_object_or_404(Term, pk=raw_term)
+        sheet = ResultSheet.objects.filter(term=term, **lookup).first()
+        action = request.POST.get("action", "")
+        note = request.POST.get("note", "")
+        try:
+            if action == "submit":
+                submit_results(kind, item, term, request.user, request=request)
+                messages.success(request, f"Results for {term} submitted for moderation.")
+            elif action in ("moderate", "approve", "release", "return"):
+                if not can_review:
+                    raise PermissionDenied("Only the registrar can review results.")
+                if sheet is None:
+                    raise ResultsError("Submit the marks before reviewing them.")
+                if action == "moderate":
+                    moderate_results(sheet, request.user, note, request=request)
+                    messages.success(request, f"Results for {term} moderated.")
+                elif action == "approve":
+                    approve_results(sheet, request.user, note, request=request)
+                    messages.success(request, f"Results for {term} approved.")
+                elif action == "release":
+                    release_results(sheet, request.user, request=request)
+                    messages.success(request, f"Results for {term} released to students.")
+                else:
+                    return_results(sheet, request.user, note, request=request)
+                    messages.success(request, f"Results for {term} returned for changes.")
+            else:
+                messages.error(request, "Unknown workflow action.")
+        except ResultsError as exc:
+            messages.error(request, str(exc))
+        return redirect("results_workflow", kind=kind, pk=pk)
+    term_ids = (Enrollment.objects.filter(**lookup).exclude(term=None)
+                .values_list("term_id", flat=True).distinct())
+    terms = list(Term.objects.filter(pk__in=term_ids)
+                 .select_related("academic_year").order_by("-start_date"))
+    counts = {
+        row["term_id"]: (row["total"], row["marked"])
+        for row in Enrollment.objects.filter(**lookup).exclude(term=None)
+        .values("term_id").annotate(
+            total=Count("pk"), marked=Count("pk", filter=Q(mark__isnull=False)))
+    }
+    sheets = {s.term_id: s for s in ResultSheet.objects.filter(**lookup)}
+    rows = [(term, sheets.get(term.pk), *counts.get(term.pk, (0, 0)))
+            for term in terms]
+    return render(request, "academics/results_workflow.html", {
+        "item": item, "kind": kind, "rows": rows,
+        "can_review": can_review, "can_submit": can_review
+        or owner_id == request.user.pk,
+        "back": reverse("course_roster" if kind == "course" else "subject_roster",
+                        args=[pk]),
+        "report_url": reverse("marks_report", args=[kind, pk])})
+
+
+@role_required("registrar", "lecturer")
 def assessment_components(request, kind, pk):
     if kind == "course":
         item = get_object_or_404(Course.objects.select_related("programme", "lecturer"), pk=pk)
@@ -1000,6 +1138,24 @@ def attendance_register(request, kind, pk):
 def student_report(request, pk):
     s = get_object_or_404(Student.objects.select_related("user", "programme",
                                                         "school_class", "stream"), pk=pk)
+    if request.method == "POST":
+        if request.user.role not in ("bursar", "admin"):
+            raise PermissionDenied("Only the bursar can release withheld results.")
+        if request.POST.get("action") == "clear":
+            raw_term = request.POST.get("term", "")
+            if not raw_term.isdigit():
+                messages.error(request, "Choose a term first.")
+                return redirect("student_report", pk=pk)
+            term = get_object_or_404(Term, pk=raw_term)
+            try:
+                clear_result_hold(s, term, request.user,
+                                  request.POST.get("reason", ""), request=request)
+            except ResultsError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(
+                    request, f"Results for {term} released despite the fee balance.")
+        return redirect("student_report", pk=pk)
     return render(request, "academics/student_report.html", _report_context(s, request.user))
 
 
@@ -1142,8 +1298,10 @@ def child_detail(request, pk):
                  .select_related("course", "subject")
                  .order_by("course__code", "subject__code")
                  if sitting else Enrollment.objects.none())
+    enrollments = list(s.enrollments.select_related("course", "subject"))
+    _annotate_result_state(enrollments, s, request.user)
     return render(request, "academics/child_detail.html", {
-        "s": s, "enrollments": s.enrollments.select_related("course", "subject"),
+        "s": s, "enrollments": enrollments,
         "attendance": _attendance_rows(s.enrollments.all()),
         "timetable": TimetableEntry.for_student(s),
         "activities": s.activities.all()[:10], "invoices": s.invoices.all(),
@@ -1184,8 +1342,10 @@ def unlink_guardian(request, pk, link_pk):
 @role_required("student")
 def student_portal(request):
     s = get_object_or_404(Student.objects.select_related("school_class", "stream"), user=request.user)
+    enrollments = list(s.enrollments.select_related("course", "subject"))
+    _annotate_result_state(enrollments, s, request.user)
     return render(request, "academics/student_portal.html", {
-        "s": s, "enrollments": s.enrollments.select_related("course", "subject"),
+        "s": s, "enrollments": enrollments,
         "attendance": _attendance_rows(s.enrollments.all()),
         "activities": s.activities.all()[:10], "invoices": s.invoices.prefetch_related("payments"),
         "timetable": TimetableEntry.for_student(s),

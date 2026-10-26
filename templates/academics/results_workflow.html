@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block content %}
+<div class="noprint"><a class="btn ghost" href="{{ back }}">Back to roster</a> <a class="btn ghost" href="{{ report_url }}">Mark sheet</a></div>
+<h1>Results workflow</h1>
+<h2>{{ item }}</h2>
+<p class="muted">Enter marks on the roster, then submit them here. Students see results only after the registrar moderates, approves and releases them. Marks can still be corrected while a sheet is submitted; return a reviewed sheet to unlock it.</p>
+<table class="tbl"><tr><th>Term</th><th class="r">Marked</th><th>Status</th><th>Last submission</th><th>Actions</th></tr>
+{% for term, sheet, total, marked in rows %}<tr>
+<td>{{ term }}</td>
+<td class="r">{{ marked }} of {{ total }}</td>
+<td>{% if sheet %}{{ sheet.get_status_display }}{% if sheet.note %}<br><span class="muted">{{ sheet.note }}</span>{% endif %}{% else %}<span class="muted">Not submitted</span>{% endif %}</td>
+<td>{% if sheet %}{{ sheet.entered_by.get_full_name|default:sheet.entered_by.username|default:"—" }}<br><span class="muted">{{ sheet.submitted_at|date:"j M Y H:i" }}</span>{% else %}—{% endif %}</td>
+<td class="noprint">
+{% if can_submit %}{% if not sheet or sheet.status == 'submitted' %}
+<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="term" value="{{ term.pk }}"><input type="hidden" name="action" value="submit"><button class="btn">{% if sheet %}Resubmit{% else %}Submit for moderation{% endif %}</button></form>
+{% endif %}{% endif %}
+{% if can_review %}{% if sheet %}
+{% if sheet.status == 'submitted' %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="term" value="{{ term.pk }}"><input type="hidden" name="action" value="moderate"><button class="btn">Moderate</button></form>{% endif %}
+{% if sheet.status == 'moderated' %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="term" value="{{ term.pk }}"><input type="hidden" name="action" value="approve"><button class="btn">Approve</button></form>{% endif %}
+{% if sheet.status == 'approved' %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="term" value="{{ term.pk }}"><input type="hidden" name="action" value="release"><button class="btn">Release to students</button></form>{% endif %}
+{% if sheet.status != 'submitted' %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="term" value="{{ term.pk }}"><input type="hidden" name="action" value="return"><button class="btn ghost">Return for changes</button></form>{% endif %}
+{% else %}<span class="muted">Submit the marks first</span>{% endif %}{% endif %}
+</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">Nobody is enrolled yet, so there is nothing to submit.</td></tr>{% endfor %}</table>
+{% endblock %}

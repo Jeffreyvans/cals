@@ -35,7 +35,7 @@ the setup wizard and the bulk import are all in place, with 440 tests passing.
 - [x] Course registration with open/close dates, credit limits, prerequisite + capacity checks, waiting list, registrar override with a reason, audited drop/promotion
 - [~] Assessment: AssessmentComponent weights and weighted final mark done; per-level GradingScale/GradeBand, AssessmentResult and the full calculation remain
 - [~] Results engine: credit-weighted term average, cumulative GPA and class positions with ties done on the report card; award classification remains
-- [ ] Marks workflow: enter -> moderate -> approve -> release; results hidden until release; fee-balance withholding with bursar override (audited)
+- [x] Marks workflow: enter -> moderate -> approve -> release; mark sheets lock after moderation, students/parents see released results only, fee balances withhold results and an audited bursar clearance releases one term with a written reason
 - [ ] Report cards + transcripts (PDF, branding, QR verification page)
 - [ ] Attendance: register with statuses/absence reasons, summaries, parent absence notification (queued)
 - [ ] Academic calendar events on dashboards

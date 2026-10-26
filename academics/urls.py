@@ -32,6 +32,8 @@ urlpatterns = [
     path("lecturer/course/<int:pk>/", v.course_roster, name="course_roster"),
     path("lecturer/subject/<int:pk>/", v.subject_roster, name="subject_roster"),
     path("marks/<str:kind>/<int:pk>/", v.marks_report, name="marks_report"),
+    path("workflow/<str:kind>/<int:pk>/", v.results_workflow,
+         name="results_workflow"),
     path("assessment/<str:kind>/<int:pk>/", v.assessment_components,
          name="assessment_components"),
     path("attendance/<str:kind>/<int:pk>/", v.attendance_register, name="attendance_register"),

@@ -10,9 +10,14 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from core.audit import log_action
+
+
+class ResultsError(Exception):
+    """A mark sheet could not move to the next stage of the workflow."""
 
 # ---------- years and terms ----------
 
@@ -216,6 +221,150 @@ def class_position(student, term):
     if mine is None:
         return None, len(averages)
     return sorted(averages, reverse=True).index(mine) + 1, len(averages)
+
+
+# ---------- marks workflow ----------
+
+def result_sheet_map(rows):
+    """Return {(course_id, subject_id, term_id): ResultSheet} for the rows."""
+    from academics.models import ResultSheet
+
+    terms, courses, subjects = set(), set(), set()
+    for enrollment in rows:
+        terms.add(enrollment.term_id)
+        if enrollment.course_id:
+            courses.add(enrollment.course_id)
+        if enrollment.subject_id:
+            subjects.add(enrollment.subject_id)
+    terms.discard(None)
+    if not terms or not (courses or subjects):
+        return {}
+    query = Q()
+    if courses:
+        query |= Q(course_id__in=courses)
+    if subjects:
+        query |= Q(subject_id__in=subjects)
+    sheets = ResultSheet.objects.filter(term_id__in=terms).filter(query)
+    return {(s.course_id, s.subject_id, s.term_id): s for s in sheets}
+
+
+def submit_results(kind, item, term, user, request=None):
+    """Submit a course or subject's marks for moderation."""
+    from academics.models import Enrollment, ResultSheet
+
+    lookup = {kind: item, "term": term}
+    if not Enrollment.objects.filter(**lookup, mark__isnull=False).exists():
+        raise ResultsError("Enter at least one mark before submitting the results.")
+    sheet = ResultSheet.objects.filter(**lookup).first()
+    if sheet is not None and sheet.status != ResultSheet.Status.SUBMITTED:
+        raise ResultsError(
+            "The registrar must return these results before they can be resubmitted.")
+    before = None if sheet is None else {"status": sheet.status}
+    if sheet is None:
+        sheet = ResultSheet(**lookup)
+    sheet.status = ResultSheet.Status.SUBMITTED
+    sheet.entered_by = user
+    sheet.submitted_at = timezone.now()
+    sheet.moderated_by = sheet.moderated_at = None
+    sheet.approved_by = sheet.approved_at = None
+    sheet.released_by = sheet.released_at = None
+    sheet.note = ""
+    sheet.save()
+    log_action(user, "academics.results_submitted", sheet, before=before,
+               after={"status": sheet.status}, request=request)
+    return sheet
+
+
+def moderate_results(sheet, user, note="", request=None):
+    """Mark a submitted sheet as moderated."""
+    from academics.models import ResultSheet
+
+    if sheet.status != ResultSheet.Status.SUBMITTED:
+        raise ResultsError("Only a submitted mark sheet can be moderated.")
+    before = {"status": sheet.status}
+    sheet.status = ResultSheet.Status.MODERATED
+    sheet.moderated_by = user
+    sheet.moderated_at = timezone.now()
+    sheet.note = (note or "").strip()[:200]
+    sheet.save()
+    log_action(user, "academics.results_moderated", sheet, before=before,
+               after={"status": sheet.status}, request=request)
+    return sheet
+
+
+def approve_results(sheet, user, note="", request=None):
+    """Approve a moderated sheet."""
+    from academics.models import ResultSheet
+
+    if sheet.status != ResultSheet.Status.MODERATED:
+        raise ResultsError("Only a moderated mark sheet can be approved.")
+    before = {"status": sheet.status}
+    sheet.status = ResultSheet.Status.APPROVED
+    sheet.approved_by = user
+    sheet.approved_at = timezone.now()
+    if note:
+        sheet.note = note.strip()[:200]
+    sheet.save()
+    log_action(user, "academics.results_approved", sheet, before=before,
+               after={"status": sheet.status}, request=request)
+    return sheet
+
+
+def release_results(sheet, user, request=None):
+    """Release an approved sheet to students and parents."""
+    from academics.models import ResultSheet
+
+    if sheet.status != ResultSheet.Status.APPROVED:
+        raise ResultsError("Only an approved mark sheet can be released.")
+    before = {"status": sheet.status}
+    sheet.status = ResultSheet.Status.RELEASED
+    sheet.released_by = user
+    sheet.released_at = timezone.now()
+    sheet.save()
+    log_action(user, "academics.results_released", sheet, before=before,
+               after={"status": sheet.status}, request=request)
+    return sheet
+
+
+def return_results(sheet, user, note="", request=None):
+    """Send a moderated, approved or released sheet back for changes."""
+    from academics.models import ResultSheet
+
+    if sheet.status == ResultSheet.Status.SUBMITTED:
+        raise ResultsError("These results are already waiting for moderation.")
+    before = {"status": sheet.status}
+    sheet.status = ResultSheet.Status.SUBMITTED
+    sheet.moderated_by = sheet.moderated_at = None
+    sheet.approved_by = sheet.approved_at = None
+    sheet.released_by = sheet.released_at = None
+    sheet.note = (note or "").strip()[:200]
+    sheet.save()
+    log_action(user, "academics.results_returned", sheet, before=before,
+               after={"status": sheet.status}, request=request)
+    return sheet
+
+
+def result_clearance_terms(student):
+    """The term ids for which a bursar has released this student's results."""
+    from academics.models import ResultClearance
+
+    return set(ResultClearance.objects.filter(student=student)
+               .values_list("term_id", flat=True))
+
+
+def clear_result_hold(student, term, user, reason, request=None):
+    """Release a student's withheld results for one term, with a written reason."""
+    from academics.models import ResultClearance
+
+    reason = (reason or "").strip()
+    if not reason:
+        raise ResultsError("Give a reason for releasing the results.")
+    clearance, _ = ResultClearance.objects.update_or_create(
+        student=student, term=term,
+        defaults={"reason": reason, "granted_by": user})
+    log_action(user, "academics.results_cleared", clearance, request=request,
+               after={"student": student.pk, "term": term.pk, "reason": reason})
+    return clearance
 
 
 # ---------- promotion ----------

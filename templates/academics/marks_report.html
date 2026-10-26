@@ -1,5 +1,5 @@
 {% extends "base.html" %}{% block content %}
-<div class="noprint"><button class="btn" onclick="window.print()">Print</button> <a class="btn ghost" href="{{ back }}">Back</a> <a class="btn ghost" href="{% url 'attendance_register' kind item.pk %}">Attendance register</a>{% if can_configure %} <a class="btn ghost" href="{% url 'assessment_components' kind item.pk %}">Assessment setup</a>{% endif %}</div>
+<div class="noprint"><button class="btn" onclick="window.print()">Print</button> <a class="btn ghost" href="{{ back }}">Back</a> <a class="btn ghost" href="{% url 'attendance_register' kind item.pk %}">Attendance register</a> <a class="btn ghost" href="{% url 'results_workflow' kind item.pk %}">Results workflow</a>{% if can_configure %} <a class="btn ghost" href="{% url 'assessment_components' kind item.pk %}">Assessment setup</a>{% endif %}</div>
 <h1>Mark sheet</h1>
 <h2>{{ item }}</h2>
 <p class="muted">Students: {{ rows|length }} · Marked: {{ marked }} · Average: {{ average|default:"—" }}</p>

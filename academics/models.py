@@ -809,6 +809,101 @@ class AssessmentMark(TenantModel):
         return f"{self.enrollment} {self.component.name}: {self.mark}"
 
 
+class ResultSheet(TenantModel):
+    """The moderation and release state of one mark sheet for one term.
+
+    A sheet belongs to a course or a subject, never both. Marks are entered on
+    the roster; this row records who submitted them, who moderated and
+    approved them, and when they were released to students.
+    """
+
+    class Status(models.TextChoices):
+        SUBMITTED = "submitted", "Submitted for moderation"
+        MODERATED = "moderated", "Moderated"
+        APPROVED = "approved", "Approved"
+        RELEASED = "released", "Released to students"
+
+    course = models.ForeignKey(Course, null=True, blank=True, on_delete=models.CASCADE,
+        related_name="result_sheets")
+    subject = models.ForeignKey(Subject, null=True, blank=True, on_delete=models.CASCADE,
+        related_name="result_sheets")
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name="result_sheets")
+    status = models.CharField(max_length=20, choices=Status.choices,
+                              default=Status.SUBMITTED)
+    entered_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="result_sheets_entered")
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    moderated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="result_sheets_moderated")
+    moderated_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="result_sheets_approved")
+    approved_at = models.DateTimeField(null=True, blank=True)
+    released_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="result_sheets_released")
+    released_at = models.DateTimeField(null=True, blank=True)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["-term__start_date", "course__code", "subject__code"]
+        constraints = [
+            models.UniqueConstraint(fields=["course", "term"],
+                condition=Q(course__isnull=False), name="uniq_course_result_sheet"),
+            models.UniqueConstraint(fields=["subject", "term"],
+                condition=Q(subject__isnull=False), name="uniq_subject_result_sheet"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if bool(self.course_id) == bool(self.subject_id):
+            raise ValidationError("A result sheet belongs to either a course or a subject.")
+
+    def save(self, *a, **kw):
+        self.full_clean()
+        super().save(*a, **kw)
+
+    def belongs_to(self, enrollment):
+        if self.course_id:
+            return enrollment.course_id == self.course_id
+        return enrollment.subject_id == self.subject_id
+
+    def __str__(self):
+        return f"{self.course or self.subject} - {self.term}"
+
+
+class ResultClearance(TenantModel):
+    """A bursar's written decision to release withheld results despite fees."""
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE,
+                                related_name="result_clearances")
+    term = models.ForeignKey(Term, on_delete=models.CASCADE,
+                             related_name="result_clearances")
+    reason = models.TextField()
+    granted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="result_clearances")
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created"]
+        constraints = [
+            models.UniqueConstraint(fields=["student", "term"],
+                                    name="uniq_result_clearance_student_term"),
+        ]
+
+    def clean(self):
+        super().clean()
+        self.reason = self.reason.strip()
+        if not self.reason:
+            raise ValidationError({"reason": "Give a reason for releasing the results."})
+
+    def save(self, *a, **kw):
+        self.full_clean()
+        super().save(*a, **kw)
+
+    def __str__(self):
+        return f"{self.student} - {self.term}: {self.reason}"
+
+
 class Activity(TenantModel):
     class Kind(models.TextChoices):
         ASSIGN = "assignment", "Assignment"

@@ -12,7 +12,7 @@
 
 <h2>Results</h2>
 <table class="tbl"><tr><th>Course or subject</th><th>Term</th><th>Mark</th><th>Grade</th></tr>
-{% for e in enrollments %}<tr><td>{{ e.label }}</td><td>{{ e.term }}</td><td>{{ e.mark|default_if_none:"—" }}</td><td>{{ e.grade }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Nothing enrolled yet.</td></tr>{% endfor %}</table>
+{% for e in enrollments %}<tr><td>{{ e.label }}</td><td>{{ e.term }}</td><td>{% if e.result_state == 'shown' %}{{ e.mark|default_if_none:"—" }}{% else %}{{ e.result_note }}{% endif %}</td><td>{% if e.result_state == 'shown' %}{{ e.grade }}{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Nothing enrolled yet.</td></tr>{% endfor %}</table>
 
 <h2>Attendance</h2>
 <table class="tbl"><tr><th>Term</th><th class="r">Sessions</th><th class="r">Present</th><th class="r">Rate</th></tr>

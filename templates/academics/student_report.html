@@ -11,12 +11,21 @@
 <div class="bal clear"><small>Average mark</small><b>{{ average|default:"—" }}</b><small>GPA: {{ gpa|default:"—" }}</small><small>{{ marked }} of {{ total }} results in</small>
 <small>Attendance: {{ attendance_present }} of {{ attendance_sessions }} sessions{% if attendance_pct %} ({{ attendance_pct }}%){% endif %}</small></div></div>
 {% if user.role == 'lecturer' %}<p class="muted">This report only shows the courses and subjects you teach.</p>{% endif %}
-{% for term, rows, sessions, present, pct, term_average, term_gpa, position, cohort_size in terms %}<h2>{{ term }}</h2>
-<p class="muted">Term average: {{ term_average|default:"—" }} · GPA: {{ term_gpa|default:"—" }}{% if position %} · Class position: {{ position }} of {{ cohort_size }}{% endif %} · Attendance: {{ present }} of {{ sessions }} sessions{% if pct %} ({{ pct }}%){% endif %}</p>
+{% if withheld %}<p class="card"><b>Results withheld.</b> {{ withheld }} result{{ withheld|pluralize }} cannot be shown because fees are outstanding. The bursar can release them for a term with a written reason.</p>{% endif %}
+{% if pending %}<p class="muted">{{ pending }} result{{ pending|pluralize }} still awaiting moderation or release.</p>{% endif %}
+{% for term, term_obj, rows, sessions, present, pct, term_average, term_gpa, position, cohort_size, term_hidden in terms %}<h2>{{ term }}</h2>
+<p class="muted">{% if not term_hidden %}Term average: {{ term_average|default:"—" }} · GPA: {{ term_gpa|default:"—" }}{% if position %} · Class position: {{ position }} of {{ cohort_size }}{% endif %} · {% endif %}{% if term_hidden %}Results awaiting release or withheld · {% endif %}Attendance: {{ present }} of {{ sessions }} sessions{% if pct %} ({{ pct }}%){% endif %}</p>
+{% if term_obj and can_clear %}<div class="noprint">
+{% if term_obj.pk in cleared_term_ids %}<p class="muted">Fee override recorded for this term.</p>
+{% else %}<form method="post" action="{% url 'student_report' s.pk %}">{% csrf_token %}
+<input type="hidden" name="action" value="clear"><input type="hidden" name="term" value="{{ term_obj.pk }}">
+<input type="text" name="reason" placeholder="Reason for releasing these results" required>
+<button class="btn">Release {{ term }} results</button></form>{% endif %}
+</div>{% endif %}
 <table class="tbl"><tr><th>Course or subject</th><th class="r">Mark</th><th>Grade</th><th class="r">Position</th></tr>
-{% for e in rows %}<tr><td>{{ e.label }}</td><td class="r">{{ e.mark|default_if_none:"—" }}</td>
-<td><span class="grade">{{ e.grade }}</span></td>
-<td class="r">{{ e.position|default:"—" }}{% if e.cohort_size %} of {{ e.cohort_size }}{% endif %}</td></tr>
+{% for e in rows %}<tr><td>{{ e.label }}</td><td class="r">{% if e.result_state == 'shown' %}{{ e.mark|default_if_none:"—" }}{% else %}{{ e.result_note }}{% endif %}</td>
+<td><span class="grade">{% if e.result_state == 'shown' %}{{ e.grade }}{% else %}—{% endif %}</span></td>
+<td class="r">{% if e.result_state == 'shown' %}{{ e.position|default:"—" }}{% if e.cohort_size %} of {{ e.cohort_size }}{% endif %}{% else %}—{% endif %}</td></tr>
 {% empty %}<tr><td colspan="4" class="muted">No enrolments for this term.</td></tr>{% endfor %}</table>
 {% empty %}<p class="muted">No results yet. Marks appear here once a teacher enters them.</p>{% endfor %}
 <p class="muted">Position compares marks for the same course or subject in the same term. Class position compares term averages within the student's class or cohort.</p>
