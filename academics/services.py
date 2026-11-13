@@ -458,6 +458,52 @@ def _same_stream(stream, target_class):
     return match
 
 
+# ---------- attendance ----------
+
+def notify_absence(attendance):
+    """Tell the parents of one absent student, once per recorded session.
+
+    Each linked guardian gets an in-app notification plus one queued message
+    per channel the parent account has (email and SMS are queued, never sent
+    inline). The attendance row is flagged, so re-saving the same date does
+    not notify anybody twice. Returns the queued outbound messages.
+    """
+    from academics.models import Attendance, Guardian
+    from core.models import OutboundMessage
+    from core.notifications import notify, queue_message
+
+    if attendance.status != Attendance.Status.ABSENT or attendance.guardians_notified:
+        return []
+    student = attendance.enrollment.student
+    guardians = list(Guardian.objects.filter(student=student).select_related("parent"))
+    attendance.guardians_notified = True
+    attendance.save(update_fields=["guardians_notified"])
+    if not guardians:
+        return []
+    when = f"{attendance.date:%A %d %B %Y}"
+    lesson = attendance.enrollment.label
+    title = f"{student.name} was absent"
+    body = (f"{student.name} was marked absent for {lesson} on {when}."
+            + (f" Reason: {attendance.reason}." if attendance.reason else ""))
+    from django.urls import reverse
+
+    link = reverse("child_detail", args=[student.pk])
+    queued = []
+    for guardian in guardians:
+        parent = guardian.parent
+        notify(parent, title, body, link=link, category="attendance",
+               institution=attendance.institution)
+        if parent.email:
+            queued.append(queue_message(
+                OutboundMessage.Channel.EMAIL, parent.email, body, subject=title,
+                institution=attendance.institution, related_object=attendance))
+        if parent.phone:
+            queued.append(queue_message(
+                OutboundMessage.Channel.SMS, parent.phone, body,
+                institution=attendance.institution, related_object=attendance))
+    return queued
+
+
 # ---------- course registration ----------
 
 PASS_MARK = Decimal("40")

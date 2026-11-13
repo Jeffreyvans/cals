@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ list_url }}">{{ module.title }} / {{ kind.title }}</a></p>
+<div class="head"><div><h1>{{ object }}</h1>
+<p class="muted">{{ kind.title }}</p></div>
+{% if can_edit %}<a class="btn" href="{{ edit_url }}">Edit</a>{% endif %}</div>
+
+<div class="card">
+<table class="tbl">
+  {% for label, value in fields %}
+  <tr><th style="width:30%">{{ label }}</th><td>{{ value|default:"-" }}</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

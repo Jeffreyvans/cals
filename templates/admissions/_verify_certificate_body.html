@@ -1,0 +1,21 @@
+<div class="public-wrap">
+  <p class="muted">{{ INSTITUTION }}</p>
+  <div class="card">
+    <h1>Certificate verification</h1>
+    {% if certificate.is_revoked %}
+      <p class="msg error">This certificate has been revoked{% if certificate.revoked_reason %}: {{ certificate.revoked_reason }}{% endif %}.</p>
+    {% else %}
+      <p class="msg success">This is a genuine certificate issued by {{ certificate.student.institution.name }}.</p>
+    {% endif %}
+    <table class="tbl">
+      <tr><th>Serial</th><td>{{ certificate.serial_no }}</td></tr>
+      <tr><th>Student</th><td>{{ certificate.student.name }}</td></tr>
+      <tr><th>Student number</th><td>{{ certificate.student.student_no }}</td></tr>
+      <tr><th>Programme</th><td>{{ certificate.student.programme.name }}</td></tr>
+      <tr><th>Award</th><td>{{ certificate.award }}</td></tr>
+      <tr><th>Graduated</th><td>{{ certificate.graduation_date|date:"j F Y" }}</td></tr>
+      <tr><th>Issued</th><td>{{ certificate.issued_at|date:"j F Y" }}</td></tr>
+    </table>
+  </div>
+  <p class="muted">Verification confirms that the certificate was issued by the institution. It does not display marks or financial information.</p>
+</div>

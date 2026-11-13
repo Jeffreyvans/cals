@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block content %}
+<h1>Tax rates and exchange rates</h1>
+<p class="muted">The VAT rate that applies to a document is the dated rate in force on the document's date. An institution that is not VAT-registered never charges VAT, whatever is listed here.</p>
+
+<h2>VAT rates</h2>
+<table class="tbl"><tr><th>Name</th><th>Category</th><th class="r">Rate</th><th>From</th><th>To</th></tr>
+{% for r in rows %}<tr><td>{{ r.name }}</td><td>{{ r.get_category_display }}</td>
+<td class="r">{{ r.rate }}%</td><td>{{ r.effective_from }}</td>
+<td>{{ r.effective_to|default:"—" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No tax rates yet. Standard-rated items use the default rate.</td></tr>{% endfor %}</table>
+
+<h3>Add a tax rate</h3>
+<form method="post">{% csrf_token %}{{ rate_form.as_p }}
+<button class="btn" name="save_rate" value="1">Save rate</button></form>
+
+<h2>Exchange rates</h2>
+<p class="muted">Used to convert a foreign-currency amount into the reporting currency on each document line.</p>
+<table class="tbl"><tr><th>Currency</th><th class="r">Rate</th><th>From</th></tr>
+{% for r in exchange_rates %}<tr><td>{{ r.currency }}</td><td class="r">{{ r.rate }}</td>
+<td>{{ r.effective_from }}</td></tr>
+{% empty %}<tr><td colspan="3" class="muted">No exchange rates yet.</td></tr>{% endfor %}</table>
+
+<h3>Add an exchange rate</h3>
+<form method="post">{% csrf_token %}{{ fx_form.as_p }}
+<button class="btn" name="save_fx" value="1">Save rate</button></form>
+{% endblock %}

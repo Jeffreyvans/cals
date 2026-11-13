@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block content %}
+<h1>{{ sponsor.name }}</h1>
+<p class="muted">{{ sponsor.get_type_display }} · {{ sponsor.email }} · {{ sponsor.phone }}</p>
+<p><a class="btn ghost" href="{% url 'sponsor_statement' sponsor.pk %}">Statement</a></p>
+<h2>Sponsored students</h2>
+<table class="tbl"><tr><th>Student</th><th class="r">Percentage</th><th class="r">Fixed</th><th>Reference</th></tr>
+{% for link in links %}<tr><td>{{ link.student.name }}</td><td class="r">{{ link.percentage|default:"-" }}</td>
+<td class="r">{{ link.fixed_amount|default:"-" }}</td><td>{{ link.reference }}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">No students linked yet.</td></tr>{% endfor %}</table>
+<h2>Link a student</h2>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn">Link</button></form>
+<h2>Statement</h2>
+<p><b>{{ CUR }}{{ statement.total }}</b> sponsored to date</p>
+{% endblock %}

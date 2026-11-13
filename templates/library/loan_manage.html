@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ list_url }}">Loans</a></p>
+<div class="head"><div><h1>{{ loan.book }}</h1>
+<p class="muted">{{ loan.student }} &middot; borrowed {{ loan.borrowed_on }} &middot;
+  due {{ loan.due_on }} &middot; <span class="badge">{{ loan.get_status_display }}</span></p></div></div>
+
+<div class="card">
+  <p><strong>Renewals used:</strong> {{ loan.renewals }}</p>
+  <p><strong>Fine:</strong> {{ loan.fine }}
+    {% if loan.fine_invoice %} &middot; charged to invoice {{ loan.fine_invoice_id }}{% endif %}</p>
+
+  {% if loan.status == "borrowed" and not loan.is_overdue %}
+  <form method="post" action="{{ renew_url }}" style="display:inline">{% csrf_token %}
+    <button class="btn">Renew for 14 days</button>
+  </form>
+  {% endif %}
+
+  {% if can_manage %}
+    {% if loan.fine > 0 and not loan.fine_invoice %}
+    <form method="post" action="{{ fine_url }}" style="display:inline">{% csrf_token %}
+      <button class="btn ghost">Charge fine to student account</button>
+    </form>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:course_list' %}">Back to learning</a></p>
+<div class="head"><div><h1>{{ site.display_title }}</h1>
+<p class="muted">{{ site.course.code }} {{ site.course.title }}{% if manage %} &middot; {{ students_count }} enrolled{% endif %}</p></div>
+{% if manage %}<a class="btn ghost" href="{% url 'lms:site_edit' site.pk %}">Edit site</a>{% endif %}</div>
+{% if site.welcome %}<div class="card">{{ site.welcome|linebreaks }}</div>{% endif %}
+{% if site.description %}<div class="card">{{ site.description|linebreaks }}</div>{% endif %}
+
+{% if manage %}
+<div class="card"><b>Course tools</b>
+<p><a class="btn ghost" href="{% url 'lms:section_create' site.pk %}">Add section</a>
+<a class="btn ghost" href="{% url 'lms:content_create' site.pk %}">Add content</a>
+<a class="btn ghost" href="{% url 'lms:assignment_create' site.pk %}">New assignment</a>
+<a class="btn ghost" href="{% url 'lms:quiz_create' site.pk %}">New quiz</a>
+<a class="btn ghost" href="{% url 'lms:forum_create' site.pk %}">New forum</a>
+<a class="btn ghost" href="{% url 'lms:live_create' site.pk %}">Schedule live class</a>
+<a class="btn ghost" href="{% url 'lms:gradebook_setup' site.pk %}">Gradebook setup</a></p></div>
+{% endif %}
+
+{% for section in sections %}
+<h2>{{ section.title }}</h2>
+{% if section.description %}<p class="muted">{{ section.description }}</p>{% endif %}
+{% for item in section.visible_items %}
+<div class="card"><b>{{ item.title }}</b> <span class="muted">{{ item.get_kind_display }}</span>
+{% if item.body %}<p>{{ item.body|linebreaksbr }}</p>{% endif %}
+{% if item.target_url %}<p><a href="{{ item.target_url }}" target="_blank" rel="noopener">Open resource</a></p>{% endif %}</div>
+{% empty %}<p class="muted">No content in this section.</p>{% endfor %}
+{% empty %}<p class="muted">No sections have been added yet.</p>{% endfor %}
+
+<h2>Assignments</h2>
+{% for assignment in assignments %}
+<div class="card"><b><a href="{% url 'lms:assignment_detail' assignment.pk %}">{{ assignment.title }}</a></b>
+<span class="muted">Due {{ assignment.due_at|date:"d M Y H:i" }} &middot; {{ assignment.max_score }} marks</span></div>
+{% empty %}<p class="muted">No assignments yet.</p>{% endfor %}
+
+<h2>Quizzes</h2>
+{% for quiz in quizzes %}
+<div class="card"><b><a href="{% url 'lms:quiz_detail' quiz.pk %}">{{ quiz.title }}</a></b>
+<span class="muted">{{ quiz.total_points }} marks{% if quiz.time_limit_minutes %} &middot; {{ quiz.time_limit_minutes }} minutes{% endif %}</span></div>
+{% empty %}<p class="muted">No quizzes yet.</p>{% endfor %}
+
+<h2>Discussions</h2>
+{% for forum in forums %}
+<div class="card"><b><a href="{% url 'lms:forum_detail' forum.pk %}">{{ forum.title }}</a></b>
+{% if forum.description %}<p class="muted">{{ forum.description }}</p>{% endif %}</div>
+{% empty %}<p class="muted">No discussion forums yet.</p>{% endfor %}
+
+<h2>Live classes</h2>
+{% for session in live_sessions %}
+<div class="card"><b>{{ session.title }}</b> <span class="muted">{{ session.get_provider_display }} &middot; {{ session.starts_at|date:"d M Y H:i" }}</span>
+{% if session.can_join %}<a class="btn ghost" href="{% url 'lms:live_join' session.pk %}">Join</a>{% else %}<span class="muted">Join link opens 15 minutes before the class.</span>{% endif %}</div>
+{% empty %}<p class="muted">No live classes scheduled.</p>{% endfor %}
+
+<p><a class="btn" href="{% url 'lms:gradebook' site.pk %}">Open gradebook</a></p>
+{% endblock %}

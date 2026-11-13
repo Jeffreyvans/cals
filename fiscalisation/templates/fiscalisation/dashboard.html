@@ -1,0 +1,54 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div>
+    <h1>Fiscalisation (ZIMRA FDMS)</h1>
+    <p class="muted">{{ institution.name }} · gateway <code>{{ gateway }}</code></p>
+  </div>
+  <a class="btn ghost" href="{% url 'fiscalisation:day_report' %}">Day report</a>
+</div>
+
+<div class="stats">
+<div><b>{{ counts.verified }}</b>Verified</div>
+<div><b>{{ counts.pending }}</b>Pending</div>
+<div><b>{{ counts.failed }}</b>Failed</div>
+<div><b>{{ counts.submitted }}</b>Submitted</div>
+</div>
+
+<h2>Fiscal day</h2>
+{% if fiscal_day %}
+<p>Fiscal day <b>{{ fiscal_day.fiscal_day_no }}</b> for {{ fiscal_day.day }} is
+{% if fiscal_day.status == "open" %}<span class="badge">open</span>{% else %}<span class="badge">closed</span>{% endif %}.</p>
+{% else %}
+<p class="muted">No fiscal day is open for today. Issuing a document opens one automatically.</p>
+{% endif %}
+<form method="post" action="{% url 'fiscalisation:open_day' %}" class="inline">{% csrf_token %}
+  <button class="btn">Open today's fiscal day</button></form>
+<form method="post" action="{% url 'fiscalisation:close_day' %}" class="inline">{% csrf_token %}
+  <button class="btn ghost">Close today's fiscal day</button></form>
+
+<h2>Device</h2>
+<table class="tbl"><tr><th>Device ID</th><th>Serial</th><th>Active</th><th>Last fiscal day</th></tr>
+<tr><td>{{ device.device_id|default:"—" }}</td><td>{{ device.device_serial|default:"—" }}</td>
+<td>{{ device.is_active|yesno:"Yes,No" }}</td><td>{{ device.last_fiscal_day_no|default:"0" }}</td></tr></table>
+
+<h2>Submissions</h2>
+<table class="tbl">
+<tr><th>Document</th><th>Type</th><th>Status</th><th>Verification code</th><th>Attempts</th><th></th></tr>
+{% for s in submissions %}
+<tr>
+  <td>{{ s.document_number }}</td>
+  <td>{{ s.get_document_type_display }}</td>
+  <td>{{ s.get_status_display }}{% if s.last_error %} <span class="muted">{{ s.last_error|truncatechars:60 }}</span>{% endif %}</td>
+  <td>{{ s.verification_code|default:"—" }}</td>
+  <td>{{ s.attempts }}</td>
+  <td class="r">
+    {% if s.verification_code %}<a class="btn ghost" href="{% url 'fiscalisation:qr' s.pk %}">QR</a>{% endif %}
+    {% if not s.is_verified %}
+    <form method="post" action="{% url 'fiscalisation:retry' s.pk %}" class="inline">{% csrf_token %}
+      <button class="btn ghost">Retry</button></form>
+    {% endif %}
+  </td>
+</tr>
+{% empty %}<tr><td colspan="6" class="muted">Nothing has been sent to ZIMRA yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

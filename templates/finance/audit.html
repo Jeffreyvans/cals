@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block content %}
 <div class="noprint"><button class="btn" onclick="window.print()">Print</button>
-<a class="btn ghost" href="{% url 'audit_export' %}?action={{ action }}&amp;from={{ raw_from }}&amp;to={{ raw_to }}">Export CSV</a></div>
+{% include "finance/_export_links.html" with export_name="audit_export" %}</div>
 <h1>Money audit log</h1>
 <p class="muted">Every invoice, payment, credit note, edit and deletion, newest first (latest 200).</p>
 <form method="get" class="inline">

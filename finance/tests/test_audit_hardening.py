@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from finance.models import Invoice, MoneyLog, Payment, Waiver
+from finance.models import DebitNote, Invoice, MoneyLog, Payment, Waiver
 
 from .test_audit import BaseAudit
 
@@ -115,7 +115,7 @@ class AuditExportTests(BaseAudit):
 
 
 class AdminAuditTests(BaseAudit):
-    """Edits and deletions made in the Django admin join the trail."""
+    """Issued documents are read-only in the admin; only adds are allowed."""
 
     def setUp(self):
         super().setUp()
@@ -124,106 +124,60 @@ class AdminAuditTests(BaseAudit):
             is_staff=True, is_superuser=True)
         self.client.force_login(self.root)
 
-    def test_payment_amount_edit_logs_an_adjustment(self):
+    def test_payment_change_is_refused(self):
         p = Payment.objects.create(invoice=self.invoice,
                                    amount=Decimal("150.00"),
                                    received_by=self.bursar)
         url = reverse("admin:finance_payment_change", args=[p.pk])
+        # The read-only view opens, but saving is refused.
         self.assertEqual(self.client.get(url).status_code, 200)
-        before = MoneyLog.objects.count()
         resp = self.client.post(url, {
             "invoice": str(self.invoice.pk), "amount": "120.00",
             "method": "cash", "reference": "",
             "received_by": str(self.bursar.pk)})
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(MoneyLog.objects.count(), before + 1)
-        entry = MoneyLog.objects.get(action="adjust")
-        self.assertEqual(entry.actor, self.root)
-        self.assertEqual(entry.reference, p.receipt_no)
-        self.assertEqual(entry.amount, Decimal("120.00"))
-        self.assertIn("150.00", entry.description)
-        self.assertIn("120.00", entry.description)
+        self.assertEqual(resp.status_code, 403)
         p.refresh_from_db()
-        self.assertEqual(p.amount, Decimal("120.00"))
+        self.assertEqual(p.amount, Decimal("150.00"))
 
-    def test_payment_saved_without_changes_logs_nothing(self):
-        p = Payment.objects.create(invoice=self.invoice,
-                                   amount=Decimal("150.00"),
-                                   received_by=self.bursar)
-        before = MoneyLog.objects.count()
-        resp = self.client.post(reverse("admin:finance_payment_change",
-                                        args=[p.pk]), {
-            "invoice": str(self.invoice.pk), "amount": "150.00",
-            "method": "cash", "reference": "",
-            "received_by": str(self.bursar.pk)})
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(MoneyLog.objects.count(), before)
-
-    def test_invoice_amount_edit_logs_an_adjustment(self):
+    def test_invoice_change_is_refused(self):
         url = reverse("admin:finance_invoice_change", args=[self.invoice.pk])
         resp = self.client.post(url, {
             "student": str(self.student.pk),
             "description": self.invoice.description,
             "amount": "550.00",
             "due_date": self.invoice.due_date.isoformat()})
-        self.assertEqual(resp.status_code, 302)
-        entry = MoneyLog.objects.get(action="adjust")
-        self.assertEqual(entry.actor, self.root)
-        self.assertIn("500.00", entry.description)
-        self.assertIn("550.00", entry.description)
+        self.assertEqual(resp.status_code, 403)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.amount, Decimal("500.00"))
 
-    def test_waiver_edits_log_adjustments(self):
+    def test_waiver_change_is_refused(self):
         w = Waiver.objects.create(invoice=self.invoice,
                                   amount=Decimal("50.00"),
                                   reason="Bursary", recorded_by=self.bursar)
         url = reverse("admin:finance_waiver_change", args=[w.pk])
-        self.client.post(url, {
-            "invoice": str(self.invoice.pk), "amount": "40.00",
-            "reason": "Bursary", "recorded_by": str(self.bursar.pk)})
-        entry = MoneyLog.objects.filter(action="adjust").latest("pk")
-        self.assertIn("50.00 -> 40.00", entry.description)
-        self.assertEqual(entry.reference, w.note_no)
-
-        self.client.post(url, {
+        resp = self.client.post(url, {
             "invoice": str(self.invoice.pk), "amount": "40.00",
             "reason": "Hardship", "recorded_by": str(self.bursar.pk)})
-        entry = MoneyLog.objects.filter(action="adjust").latest("pk")
-        self.assertIn("reason changed from 'Bursary'", entry.description)
+        self.assertEqual(resp.status_code, 403)
+        w.refresh_from_db()
+        self.assertEqual(w.amount, Decimal("50.00"))
 
-    def test_payment_deleted_in_admin_logs_a_removal(self):
+    def test_payment_delete_is_refused(self):
         p = Payment.objects.create(invoice=self.invoice,
                                    amount=Decimal("150.00"),
                                    received_by=self.bursar)
         url = reverse("admin:finance_payment_delete", args=[p.pk])
-        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.get(url).status_code, 403)
         resp = self.client.post(url, {"post": "yes"})
-        self.assertEqual(resp.status_code, 302)
-        entry = MoneyLog.objects.get(action="remove")
-        self.assertEqual(entry.actor, self.root)
-        self.assertEqual(entry.reference, p.receipt_no)
-        self.assertEqual(entry.amount, Decimal("150.00"))
-        self.assertIn("Deleted payment against 'Tuition'",
-                      entry.description)
-        self.assertEqual(entry.invoice, self.invoice)
-        self.assertFalse(Payment.objects.filter(pk=p.pk).exists())
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(Payment.objects.filter(pk=p.pk).exists())
 
-    def test_invoice_deleted_in_admin_logs_cascades(self):
-        Payment.objects.create(invoice=self.invoice,
-                               amount=Decimal("150.00"),
-                               received_by=self.bursar)
-        Waiver.objects.create(invoice=self.invoice,
-                              amount=Decimal("50.00"),
-                              reason="Bursary", recorded_by=self.bursar)
+    def test_invoice_delete_is_refused(self):
         url = reverse("admin:finance_invoice_delete", args=[self.invoice.pk])
+        self.assertEqual(self.client.get(url).status_code, 403)
         resp = self.client.post(url, {"post": "yes"})
-        self.assertEqual(resp.status_code, 302)
-        entry = MoneyLog.objects.get(action="remove")
-        self.assertIn("Deleted invoice 'Tuition'", entry.description)
-        self.assertIn("1 payment", entry.description)
-        self.assertIn("1 credit note", entry.description)
-        self.assertIsNone(entry.invoice)          # FK nulled by the cascade
-        self.assertEqual(entry.student, self.student)
-        self.assertFalse(Invoice.objects.filter(pk=self.invoice.pk).exists())
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(Invoice.objects.filter(pk=self.invoice.pk).exists())
 
     def test_invoice_created_in_admin_logs_once_with_the_actor(self):
         before = MoneyLog.objects.count()
@@ -237,6 +191,21 @@ class AdminAuditTests(BaseAudit):
         entry = MoneyLog.objects.filter(action="invoice").latest("pk")
         self.assertEqual(entry.actor, self.root)
         self.assertEqual(entry.description, "Admin raised fee")
+
+    def test_debit_note_change_and_delete_are_refused(self):
+        note = DebitNote.objects.create(invoice=self.invoice,
+                                        amount=Decimal("25.00"),
+                                        reason="Extra lab fee",
+                                        recorded_by=self.bursar)
+        change = reverse("admin:finance_debitnote_change", args=[note.pk])
+        self.assertEqual(self.client.post(change, {
+            "invoice": str(self.invoice.pk), "amount": "30.00",
+            "reason": "Extra lab fee",
+            "recorded_by": str(self.bursar.pk)}).status_code, 403)
+        delete = reverse("admin:finance_debitnote_delete", args=[note.pk])
+        self.assertEqual(
+            self.client.post(delete, {"post": "yes"}).status_code, 403)
+        self.assertTrue(DebitNote.objects.filter(pk=note.pk).exists())
 
     def test_moneylog_admin_is_read_only(self):
         entry = MoneyLog.objects.filter(action="invoice").first()

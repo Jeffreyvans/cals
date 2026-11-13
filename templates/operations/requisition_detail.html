@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ list_url }}">Requisitions</a></p>
+<div class="head"><div><h1>{{ requisition.title }}</h1>
+<p class="muted">{{ requisition.get_status_display }} &middot;
+  needed by {{ requisition.needed_by|default:"-" }} &middot;
+  estimated {{ requisition.estimated_total }}</p></div>
+<a class="btn ghost" href="{{ quotation_list_url }}">All quotations</a></div>
+
+{% if requisition.justification %}
+<div class="card"><p>{{ requisition.justification }}</p></div>
+{% endif %}
+
+<h2>Supplier quotations</h2>
+{% if quotations %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Supplier</th><th>Quote</th><th>Amount</th><th>Valid until</th>
+    <th>Status</th><th>Lines</th><th></th></tr>
+  {% for quotation in quotations %}
+  <tr>
+    <td>{{ quotation.supplier }}</td>
+    <td>{{ quotation.number|default:"-" }}</td>
+    <td>{{ quotation.amount }}</td>
+    <td>{{ quotation.valid_until|default:"-" }}</td>
+    <td><span class="badge">{{ quotation.get_status_display }}</span></td>
+    <td>{{ quotation.lines.count }}</td>
+    <td class="actions">
+      {% if can_manage and requisition.status == "approved" and quotation.status == "received" %}
+      <form method="post" action="{% url award_url_name quotation.pk %}" style="display:inline">
+        {% csrf_token %}
+        <button class="btn">Award</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No quotations yet. Add them from the quotations register.</p>
+{% endif %}
+{% endblock %}

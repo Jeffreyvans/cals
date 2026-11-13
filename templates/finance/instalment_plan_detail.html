@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block content %}
+<h1>{{ plan.name }}</h1>
+<p>{{ plan.student.name }} · {{ CUR }}{{ plan.total_amount }}</p>
+<table class="tbl"><tr><th>Due date</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Outstanding</th></tr>
+{% for i in instalments %}<tr><td>{{ i.due_date }}</td><td class="r">{{ CUR }}{{ i.amount }}</td>
+<td class="r">{{ CUR }}{{ i.paid_amount }}</td><td class="r">{{ CUR }}{{ i.outstanding }}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">No instalments yet.</td></tr>{% endfor %}</table>
+<h2>Add instalment</h2>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn">Add</button></form>
+{% endblock %}

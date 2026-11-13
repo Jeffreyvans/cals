@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block content %}
+<h1>Search</h1>
+<form method="get" class="inline">
+  <label>Find <input type="search" name="q" value="{{ query }}" placeholder="Name, student number, receipt, application or course" autofocus></label>
+  <button class="btn">Search</button>
+</form>
+{% if query %}
+  {% if query|length < 2 %}
+    <p class="muted">Type at least two characters.</p>
+  {% elif not result_count %}
+    <p class="muted">Nothing matched "{{ query }}" in the records you can see.</p>
+  {% else %}
+    <p class="muted">{{ result_count }} result{{ result_count|pluralize }} for "{{ query }}".</p>
+    {% for group in groups %}
+      <h2>{{ group.title }}</h2>
+      {% for item in group.items %}
+      <a class="card link-card" href="{{ item.url }}"><b>{{ item.label }}</b><span class="muted">{{ item.meta }}</span></a>
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+{% else %}
+  <p class="muted">Search students, staff, courses, receipts and applications. Results depend on your role.</p>
+{% endif %}
+{% endblock %}

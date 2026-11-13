@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-10-26 (session 6, Phase 2 in progress).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-13 (session 20, gave every public/access page one all-brown theme and kept the signed-in app's own theme).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -39,9 +39,48 @@ Started: 2026-10-21. Session 1. Last updated: 2026-10-26 (session 6, Phase 2 in 
 - Decision: results are credit-weighted. A course enrolment uses the offering's credits (falling back to the course's), and a subject counts as one credit, so school-mode averages are ordinary means.
 - Decision: GPA is the credit-weighted average of the points in the grade bands, not of the marks, so changing a band's points changes the GPA without touching the marks.
 - Decision: class position ranks credit-weighted term averages within the student's cohort, else their school class, else their programme year, else their whole programme. Equal averages share a place and the next place is skipped (1, 2, 2, 4).
+- Decision: an application is a public enquiry, not a student. Only `accept_offer` creates the login, student number, invoice and welcome message, and it does so in one transaction so a failed acceptance never leaves a half-created student.
+- Decision: the public application form is protected by a honeypot, a per-institution/IP rate limit and a UUID tracking link; the form is valid without a login but the institution is resolved the same way as the rest of the app.
+- Decision: eligibility is advisory. A missing requirement leaves `eligible` as `None` (review by a person); only an explicit requirement produces a pass/fail, and an officer can still review or make an offer with a note.
+- Decision: offers carry the deposit, acceptance deadline and a public token. The deposit is recorded through the normal payment service, so it posts to the ledger and produces a receipt like any other money row.
+- Decision: lifecycle changes go through `transition_student`, which validates the allowed edges and writes a `LifecycleTransition`; graduation is deliberately excluded and must use `graduate_student`, which also enforces clearance.
+- Decision: certificates and ID cards get stable UUID tokens and public verification pages that confirm the document without exposing marks or personal detail. A card is issued once per student and re-issuing replaces the photo/validity rather than duplicating it.
+- Decision: uploaded application documents and card photos live under `MEDIA_ROOT`; the development URLconf serves them only while `DEBUG` is on.
+- Decision: alumni records are created from a graduated student and keep the graduation award/date, so the alumni list is a view of history rather than a second student table.
+- Decision: a `CollectionTarget` is a dated goal, not a budget; the collection-vs-target report compares it with payments whose `paid_on` falls inside its period, so a target can match a term, a month or the whole year.
+- Decision: every finance export goes through one `_export_response` helper so CSV, Excel and PDF stay in step. `?format=csv|xlsx|pdf` selects the output and an unknown value falls back to CSV.
+- Decision: the daily finance job (`run_finance_jobs`) is a management command, not a Celery task yet, so it runs from any scheduler and can be simulated with `--as-of`. Penalties are idempotent per rule/instalment, and reminders are capped at one per student per channel per day.
+- Decision: reversing a journal entry posts a mirror entry with source type `Reversal`; the original entry and its source row stay in place, and a second reversal is refused. Refunds remain the way to reverse a payment's business effect.
+- Decision: a parent sees fees only when both the guardian link's `can_view_finance` flag and the `parent_portal.view_finance` permission allow it; the child page hides the balance, invoices and the pay link otherwise.
+- Decision: online payment is self-service. A student may pay their own invoice and a finance-visible parent may pay a linked child's invoice without holding the staff `finance.receive_payment` code; everyone else is refused.
+- Decision: a lecturer's assignment is fanned out to one `Activity` per enrolled student, because the student portal already reads activities per student. The lecturer screens group those rows back together by title, due date and course/subject.
+- Decision: at-risk scoring is one shared function used by the dashboard and the nightly command. The score is the number of failed rules (fees owed, attendance below 75%, average below 50); `AtRiskScore` keeps one row per student per day, and the command notifies class teachers at most once per student per day.
+- Decision: the department portal is a staff page, not an admin page. It shows the departments a person belongs to or heads, their staff profiles and budget variance, and refuses student and parent accounts.
+- Decision: the Phase 7 administration registers share one registry-driven list/create/edit/delete screen. Each kind declares its model, form, search fields, columns and optional row action, but every entry point still checks its module feature flag and module permission.
+- Decision: `operations._guard()` defaults to the module's own permission codes when no explicit permission is passed. This prevents an approver-only role from browsing or editing an unrelated module just because it holds one approval code.
+- Decision: payroll uses flat-rate active `PayrollRule` rows for tax and pension. Saved payslips are the source for the payslip PDF, bank CSV and ledger posting, so all three always agree.
+- Decision: awarding a quotation rejects the other received quotes, marks the requisition `ordered`, and raises an approved purchase order from the winning quote's lines (or one line from its headline amount). This keeps the order, stock and ledger flow in one service.
+- Decision: a supplier invoice is matched to the purchase order (or goods received note) total. A difference leaves it `disputed` with the variance recorded and creates no expense; an exact match posts the expense through the normal finance service, so the ledger sees it like any other expense.
+- Decision: the Phase 7B/7C department apps share the `core.registers` screens but declare their own module fixture flag and permission codes. `core/module_directory.py` adds one "School services" hub that only lists modules the current user can actually open.
+- Decision: reading a register only needs any module permission, but creating, editing or deleting needs the module's `.manage` code when it declares one. This lets a librarian with `library.borrow` browse loans without silently gaining catalogue write access.
+- Decision: health and counselling registers are marked `sensitive` in their registries, so list, detail and JSON views write a `SensitiveViewLog` row on every access.
+- Decision: a counselling session is visible only to its own counsellor unless the role holds `counselling.view_all_notes`; the author scope is applied by the registry queryset, so the list, detail and JSON views all obey it.
+- Decision: a health profile is shared with teachers only when `share_with_teachers` is set, and the teacher-safe screen shows only the `teacher_note`, emergency contact and the student/class; the full history stays with health staff.
+- Decision: library overdue notices, renewals and fines are services: renewals are capped and refused when overdue, notices are sent once per loan per day, and a fine creates one ordinary finance invoice linked back to the loan.
+- Decision: an exam paper is checked twice. Saving a paper checks the sitting window, the venue and the invigilator; the clash screen also compares candidates, because candidates are usually entered after the timetable is built.
+- Decision: seat numbers are allocated from 1 in candidate-number order, and releasing a sitting publishes every candidate result and marks the sitting published.
+- Decision: an equipment loan takes a copy only while it is on loan. Saving an already-returned loan does not take another copy, and dating the return restores one.
+- Decision: automatic boarding allocation is first-in-first-out by admission date (then pk), and it only previews until a person confirms the run.
+- Decision: the transport pick-up list and its CSV both default to the first route when none is chosen, and times are shown as HH:MM.
+- Decision: a catering stock purchase posts one ordinary finance `Expense` for quantity x unit cost, so the cost reaches the ledger exactly like any other expense.
+- Decision: completing an account reset generates the temporary password in memory and returns it once to the caller; it is never written to the database.
+- Decision: the ICT SLA clock stops on the first technician response, which also assigns the ticket to that technician when it is still open.
+- Decision: `Attendance.status` is the source of truth and the stored `present` flag follows it: present and late count as attended, absent and excused as missed. The flag is kept so the older summaries and the at-risk rule keep working without a rewrite.
+- Decision: a guardian is told about an absence once per recorded date. `notify_absence` flags the row, so editing the reason or re-saving the register never sends a second message; excused absences are intentionally silent.
+- Decision: a calendar event without a class is institution-wide; one with a class reaches only that class's students and the parents of linked children. Past events drop off the dashboards, but an event that is still running today stays until it ends.
 
 ## Bugs found
-- None blocking baseline; tests pass. `makemigrations --check` clean. Lint has 194 issues (mostly import/style) but tests unrelated to style pass.
+- None blocking baseline; tests pass. `makemigrations --check` clean and `ruff check .` is clean as of session 10.
 - `core/roles.py ensure_permissions()` raised `NameError` (it used `PERMISSIONS` but only imported `PERMISSION_CODES`); fixed.
 - `core/access.py _roles_for_user()` never fell back to the legacy role map: `Q(pk__in=[])` has one child, so the `if not q.children` guard was always false. Rewritten.
 - `core/modules.py enabled_modules()` fell back to the type defaults whenever no module was *enabled*, which brought switched-off modules back. Now it only falls back when the institution has no switch rows at all.
@@ -67,6 +106,24 @@ Started: 2026-10-21. Session 1. Last updated: 2026-10-26 (session 6, Phase 2 in 
 - `_annotate_components` built a dictionary from three-column `values_list` rows, which raised `ValueError` as soon as a roster had component marks. It now keys a dict by `(enrollment_id, component_id)`.
 - `AssessmentComponentForm` could never validate: the model's `clean()` insists on a course or a subject, but neither field is on the form. The view now passes an instance with the owner already set.
 - The assessment setup screen initially created components without an owner, so a form that did validate would have saved a row belonging to neither a course nor a subject. The owner is set before validation now.
+- The student portal linked to `my_id_card_pdf` without the `admissions:` namespace, so every student page raised `NoReverseMatch` (13 tests failed). The link now reverses through `admissions`.
+- `assignment_submit` used `AssignmentSubmissionForm` without importing it, and the form had no file field even though the view reads one; the import and the file field were added.
+- Uploaded files had no `MEDIA_ROOT`, so test and demo uploads were written into the project root (for example `admissions/1/...`). `MEDIA_ROOT`/`MEDIA_URL` are now configured, `.env.example` documents `EDUSPHERE_MEDIA_PATH`, `media/` is ignored, and the development URLconf serves media only with `DEBUG` on.
+- The new `examinations.Exam.term` used `related_name="exam_sittings"`, which clashed with `academics.ExamSitting.term` and made `manage.py check` fail. It is `exam_sessions` now.
+- `library.Loan.save()` always decremented the available copies on insert, even for a loan entered with a `returned_on` date. It only takes a copy when the loan is not already returned.
+- Registry create, edit and delete used the same read permission set as the list pages, so a borrow-only role could change the catalogue. Writes now require the module's `.manage` code when it has one.
+- The Phase 7B/7C app scaffolds had unused imports (Django admin/render placeholders); `ruff check . --fix` removed them.
+- The registry JSON endpoint passed column values such as `Student` objects straight to `JsonResponse`, so the counselling API raised `TypeError: Object of type Student is not JSON serializable`. The shared serialiser now turns model values into their labels (dates and numbers were already handled by Django's encoder).
+- The counselling tests compared an escaped apostrophe and an exact topic against a label of the form "student - topic"; the assertions now look for the stable fragments.
+- The inherited `institution` reverse accessor (`%(class)s_records`) clashed for same-named models in two apps (`sports.Equipment`/`labs.Equipment` and `catering.StockItem`/`operations.StockItem`), which made `manage.py check` fail. The two new models declare an explicit `related_name`.
+- Several Phase 7B/7C models had been added without migrations, so their tables did not exist and the tests failed with `no such table`. New migrations cover boarding, library, careers, catering, ict_helpdesk, labs, research, sports and transport.
+- The transport pick-up CSV chose no route when the query string had none, so it exported only a header row; it now defaults to the first route like the page.
+- Pick-up times rendered as `6:45 a.m.` and fuel totals as `40.5`; the templates now render `HH:MM` and two decimal places.
+- Boarding allocation ordered waiting boarders by surname, so the last-created boarder could be placed ahead of an earlier one; it now orders by admission date and pk.
+- The sports loan test helper passed `due_on` twice (a duplicate keyword error), and the "unavailable" test saved the loan before validating it; both now merge/build first.
+- `Attendance.save()` recomputed `present` from the status but could not persist it through `update_or_create`, which saves only the keys in `defaults`; the model now adds `present` to `update_fields` whenever the status is written.
+- The attendance register's attended/missed counters compared the display letter (`P`, `A`) with the status values (`present`, `absent`), so every student showed zero; they now count the statuses.
+- The old attendance tests and the demo seed still created rows with `present=` only; with the status defaulting to present their "absent" rows were silently present. They now write statuses.
 
 ## What's done
 - [x] Read all files; ran `manage.py check` (ok), `makemigrations --check` (ok), `manage.py test` (276 passed), installed test/dev tools.
@@ -117,13 +174,215 @@ Phase 1 is complete. The whole suite is 440 tests, all passing.
 - [x] Results engine: credit-weighted term average and cumulative GPA, class positions with shared places, and term summaries on the report card, with 10 tests.
 - [x] Marks workflow (migration `0015`): `ResultSheet` moves through submitted -> moderated -> approved -> released with an audit entry at every step; a workflow screen lets the registrar review, return or release a term; marks lock once moderated; students and parents see released results only; fee balances withhold results, and a bursar can release one term with a written reason through an audited `ResultClearance`; report cards and portals show pending or withheld notices, with 21 tests.
 - [x] Award classification (migration `0016`): `AwardRule` bands by programme level or for all programmes, built-in degree and diploma scales, a projected award from cumulative GPA on the report card, and admin add/remove screens on the grade-scale page; hidden or withheld results never contribute, with 14 tests.
-- [ ] Report cards and transcripts.
+- [x] Report cards and transcripts (migration `0017`): `DocumentVerification` gives each student a stable UUID token per document kind; ReportLab builds branded PDFs with the institution logo, colours, term tables, GPA/award summary and a QR code; staff, students and linked parents can download report cards and transcripts; a public `/verify/<token>/` page confirms the document without exposing marks; results still respect release and fee-withholding rules; `reportlab` and `qrcode[pil]` are now declared, with 10 tests.
 
-The whole suite is now 546 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+The whole suite is now 574 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+
+## Phase 3 progress
+- [x] Chart of accounts and double-entry ledger (`Account`, `FinancialYear`, `JournalEntry`, `JournalLine`); every invoice, payment, waiver, discount, credit, refund and expense posts a balanced entry through `finance/services.py`.
+- [x] Financial years lock posting when closed; close/reopen screens.
+- [x] Fee structures with `FeeItem` kinds; bulk invoice generation with preview and duplicate protection.
+- [x] Discounts/bursaries/sponsorships, sponsor statements, instalment plans, overdue detection and capped late penalties (manual run).
+- [x] Payments with cash/bank/card/mobile money, partial payments, overpayment as student credit, sequential QR-verifiable receipts.
+- [x] Refunds with request/approve/reject and reversing journal entries; never deletes money rows.
+- [x] `PaymentGateway` base + Paynow initiate/poll/webhook with signature checks, idempotency keys and an online-payment screen.
+- [x] Payment currency, exchange rate and base amount; no separate `ExchangeRate` table yet.
+- [x] PDF statements, debtors ageing, daily cash-up, income by fee item, refunds/expenses reports.
+- [x] Suppliers, expenses, department budgets and variance.
+- [x] Bank statement CSV import and automatic receipt matching.
+- [x] `student_balance(student)` is the single service and now backs `Student.balance`; bulk reporting still has a separate path.
+- [x] Collection-vs-target report with dated goals (`CollectionTarget`), collected/variance/percent per target, and create/delete screens.
+- [x] Full CSV/Excel/PDF export matrix for debtors, collections, audit log, trial balance, income statement, balance sheet, income by item, refunds, expenses, daily cash-up, budgets and collection targets.
+- [x] Scheduled penalty/reminder runs via `run_finance_jobs` (per active institution, idempotent penalties, one reminder per student/channel/day).
+- [x] Formal journal reversal endpoint (`reverse_journal_entry` + `journal_reverse`) that posts a mirror entry, requires a reason and refuses double reversal.
+
+## Phase 4 progress
+- [x] Public application form with a honeypot, per-institution/IP rate limiting, document upload, results entry and a UUID tracking link; the tracking page shows status, interview and offer without a login.
+- [x] Admissions office screens: application list/detail, review states, interview scheduling, eligibility check, offer creation, document download and entry requirements per programme.
+- [x] Offer letters as branded PDFs; a public acceptance page takes the deposit method/reference, and `accept_offer` atomically creates the student, login, student number, invoice and welcome message.
+- [x] Lifecycle states with validated transitions (defer, suspend, transfer in/out, withdraw, return), audited with a required reason; graduation is restricted to the graduation service.
+- [x] Graduation clearance checklist, graduation service, certificate issuance with serial/UUID and a public verification page.
+- [x] Student ID cards with photo, QR token, bulk print and a public verification page; students can download their own card from the portal.
+- [x] Alumni records created from graduated students, with list and detail screens; admissions is behind a feature flag and its own permission codes.
+
+The whole suite is now 644 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+
+## Phase 5 progress
+- [x] Student portal now lists assignments and submissions; students can open, submit and resubmit work and download their ID card, report card and transcript.
+- [x] Parent portal has a multi-child switch, respects the finance consent flag, and offers pay-online for a linked child's outstanding invoices.
+- [x] Lecturer portal shows the current timetable, course/subject rosters, mark and attendance entry, and assignment management with submissions.
+- [x] Department portal on the shared shell shows a staff member's departments, colleagues and budget variance.
+- [x] Role dashboards with Chart.js (collections and class mix) plus the at-risk list.
+- [x] At-risk scoring (`academics/risk.py`, migration `0020`): shared rules, `AtRiskScore` daily rows, and `score_at_risk` with `--institution`, `--as-of`, `--dry-run` and `--no-notify`.
+- [x] Global search across students, staff, courses, receipts and applications, filtered by permission and tenant.
+- [x] 14 new Phase 5 tests cover lecturer assignments, parent finance consent and self-service payment, department access and the nightly at-risk run.
+
+The whole suite is now 664 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+
+## Phase 6 progress
+- [x] New `lms` app and migration `0001_initial`: `CourseSite`, dated `SiteSection`/`ContentItem`, `Assignment`, `Submission`, `Rubric`, `Quiz`, `Question`, `Choice`, `MatchingPair`, `QuizAttempt`, `QuizAnswer`, `Forum`/`ForumThread`/`ForumPost`, `LiveSession`, weighted `GradeCategory`/`GradeItem`/`GradeEntry` and `PlagiarismReport`.
+- [x] Course site screens for sections, notes/files/links, assignments, quizzes, forums and live classes; published/draft and date-based visibility are enforced for students.
+- [x] Assignments support due dates, late acceptance/penalty/block policies, text/file submissions, resubmission and rubric criteria; grading applies late penalties and caps marks, then syncs the gradebook.
+- [x] Quizzes support four question types (multiple choice, true/false, short answer, matching), random question/choice order, time limits, attempt limits, automatic marking, manual marking for unkeyed short answers, regrading and per-question analytics.
+- [x] Discussions support threads, replies, pinning, locking, approval and post flagging; live classes expose a join link only from 15 minutes before the start.
+- [x] Weighted gradebook with default Assignments 40 / Quizzes 30 / Coursework 30 categories, category/item setup, manual score entry and student-visible published items.
+- [x] Internal plagiarism check compares submissions in one assignment with `difflib`, stores similarity reports and flags pairs at or above 35%.
+- [x] Added `lms` to all institution module presets, `lms.manage`/`lms.grade` to teaching roles, LMS navigation, URLconf, templates and 16 tests.
+- [x] Fixed datetime-local form parsing so assignment/quiz/live-class forms accept the browser's `YYYY-MM-DDTHH:MM` values; quiz grade items now refresh when question points change.
+- [x] Known limits: similarity checking is internal text comparison (no external plagiarism service), live classes are join-link based (no embedded conferencing), and content is plain text/file/link rather than a rich-text editor.
+
+The whole suite is now 680 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+
+## Phase 7 progress
+### A. Administration
+- [x] New `operations` app and migration `0001_initial`: HR, payroll, procurement/stores, estates, security, compliance, marketing and governance models.
+- [x] Registry-driven module hub and registers for every administration kind, with search, create, edit, delete and audit entries.
+- [x] HR contracts, documents, leave decisions, appraisals, training, discipline, vacancies and job applications; leave decisions notify the staff member.
+- [x] Payroll salary structures, flat-rate tax/pension rules, monthly runs, payslip generation, approval, individual payslip PDF, bank CSV and ledger posting through `finance.post_payroll`.
+- [x] Procurement requisitions, requisition lines, purchase orders, order lines, goods received notes, stock items/movements and assets; stock movements update quantities.
+- [x] Procurement quotations (`Quotation`, `QuotationLine`) with a requisition comparison page; awarding a quote rejects the others, marks the requisition ordered and raises an approved purchase order.
+- [x] Supplier invoices matched to the order or receipt total; an exact match posts a finance expense, a difference records the variance and leaves the invoice disputed.
+- [x] Estates work orders, cleaning schedules, utility readings and preventive maintenance.
+- [x] Security visitor log, gate passes, student sign-out and incidents.
+- [x] Compliance policies, acknowledgements, audits, risk register and data-protection requests.
+- [x] Marketing enquiries, campaigns, open days and newsletters queued through the notification system.
+- [x] Governance meetings, agendas, minutes, resolutions, action items and levies.
+- [x] Added `estates_officer`, `compliance_officer` and `governance_officer` roles, plus the permission-gated Administration navigation link.
+- [x] 31 operations tests cover module access, tenant isolation, CRUD, stock updates, leave decisions, payroll end to end, payslip PDF, policy acknowledgement, newsletter sending, quotation awarding and supplier-invoice matching.
+- [ ] Known follow-up: payroll tax/pension is flat-rate rather than bracket tables.
+
+### B/C. Student services and academic support (registers in place)
+- [x] New apps `library`, `health`, `counselling`, `student_affairs`, `sports`, `boarding`, `transport`, `catering`, `careers`, `examinations`, `research`, `labs`, `ict_helpdesk` with models, forms, registry entries, URLs, migrations and feature flags.
+- [x] Every app uses the shared registry screens with search, create/edit/delete, tenant isolation and audit entries; stock-style writes update their sources (loans, wallets, stock movements).
+- [x] Health and counselling registers are `sensitive`, and every list/detail/API view writes a `SensitiveViewLog` row.
+- [x] `core/module_directory.py` adds a "School services" hub linked from the staff navigation; it only lists modules the user can open.
+- [x] Added `sports_officer`, `student_affairs_officer`, `catering_officer`, `careers_officer`, `research_officer` and `lab_technician` roles; existing librarian/nurse/counsellor/warden/transport/ICT roles already cover the rest.
+- [x] Model-flow tests for each app (loans, wallets, exeats, route stops, dates, unique memberships/registrations, ticket comments) plus cross-module access, tenancy and sensitive-log tests.
+- [x] Counselling notes are author-only unless a role holds `counselling.view_all_notes`; the scope covers list, detail and JSON views.
+- [x] Health has a teacher-safe alerts screen that shows only profiles flagged `share_with_teachers`, never the full history.
+- [x] Library renewals (capped), overdue notices (once per loan per day), fines posted to the student account through a normal invoice, a quick ISBN/title/author/shelf lookup, and stable QR tokens with a token/ISBN lookup plus a PNG QR image.
+- [x] Examinations now check venue, invigilator and candidate clashes, allocate seat numbers in candidate order, move each paper through enter -> submit -> moderate -> release with marks locked after moderation and a reopen path that withdraws results, release a whole sitting only when every paper is moderated, and export the candidate list plus ZIMSEC/HEXCO result CSVs.
+- [x] Sports equipment loans track availability (`available`/`total`), refuse a loan when none are free, and restore stock when the item is returned.
+- [x] Boarding automatic allocation previews and applies room/bed assignments in admission order; boarders beyond capacity are listed as waiting.
+- [x] Transport pick-up lists (morning/afternoon, by stop order) with HTML and CSV output, and a fuel-log report totalled per vehicle with a date range and CSV export.
+- [x] Catering stock items, stock purchases (quantity on hand) and the purchase cost posted to finance as an expense (and therefore the ledger); reorder levels are flagged.
+- [x] Careers supervisor reports and attachment grading (`grade_placement` sets a mark/letter and completes the placement).
+- [x] Research milestones (overdue detection) and one thesis per project.
+- [x] Labs safety inductions, consumables/issues and practical assessments.
+- [x] ICT SLA policies with response/resolution targets and overdue detection, plus the account-reset workflow (request, complete with a one-time temporary password, or reject) and a manage screen.
+
+The whole suite is now 814 tests, all passing; `ruff check .` is clean and `makemigrations --check` reports no changes.
+
+## Phase 2 completion - attendance and calendar (session 14)
+- [x] `Attendance.status` (present/late/absent/excused), `reason`, `recorded_by` and `guardians_notified`; migration `0021` derives a status for legacy rows from the old `present` flag.
+- [x] The roster screens post a status per student plus an optional absence reason; `present` is kept in step with the status (`present` and `late` count as attended, `absent` and `excused` as missed).
+- [x] The attendance register shows a letter per date (P/L/A/E) with the reason as a tooltip, per-date totals and per-student attended/missed counts.
+- [x] `notify_absence` tells each linked guardian once per recorded absence: an in-app notification plus any queued email/SMS channels. Present, late and excused rows never notify, and re-saving a date never repeats the message.
+- [x] Student and parent pages list recent absences with their status and reason.
+- [x] Academic calendar: `CalendarEvent` (holiday/exam/meeting/deadline/event) with an optional class, `when` label and `upcoming()` visibility. Managed on the years and terms screen, shown on the staff, role, lecturer, student and parent dashboards; students see whole-institution and own-class events, parents also see any linked child's class events.
+- [x] Timetable PDF (`build_timetable_pdf`): a landscape branded grid of the lessons that actually exist, one column per day and one row per time slot, downloadable by the registrar (with class and teacher filters) and by each teacher and student for their own timetable.
+- [x] Fixed `Attendance.save()` to add `present` to `update_fields` when the status is saved, because Django's `update_or_create` only writes the keys it was given and the stored flag was going stale.
+- [x] Fixed the register's attended/missed counters, which compared the display letter (P/A) with the status strings and always showed zero.
+- [x] Updated the old attendance tests to the status API and added 26 tests for statuses, reasons, register summaries, one-time guardian notification, calendar visibility and the timetable PDF. The demo seed now writes statuses.
+- [x] Data migration and seed verified: `repair_enrollment_terms` covers null terms, migration `0021` backfills attendance statuses, and `seed` still creates demo attendance.
+
+## UI redesign - navy and light blue theme (session 15)
+- [x] Rewrote `static/css/app.css` around design tokens: navy `#1E3A8A`, light blue `#3B82F6`, off-white `#F8FAFC`, white cards, slate text `#0F172A`/`#64748B` and `#E2E8F0` borders. Every class the templates already used is preserved, so all ~170 screens inherit the new look without business-logic changes.
+- [x] Rebuilt the application shell in `templates/base.html`: fixed navy sidebar with grouped, icon-led navigation, institution brand block, user card and sign-out, sticky translucent top bar with notification bell, and a mobile drawer with overlay, Escape close and active-link highlighting.
+- [x] Restyled cards, stat tiles, balances, tables (scroll wrappers, sticky-style headers, row hover), forms, filters, search, buttons, badges, messages, steps, event lists, module grids, empty states and print output from the same tokens.
+- [x] New split-panel sign-in page; public application, tracking, offer, verification and document pages now use the shared `.public-wrap` layout; the 403 page is a styled empty state.
+- [x] Updated the default institution branding to `#1E3A8A`/`#3B82F6`, added `accent_text()` so buttons keep white text on the blue accent while pale accents switch to dark ink, and updated the PDF document ink/muted/rule colours to match.
+- [x] Updated Chart.js collections and class charts to the new palette and responsive options; `static/js/app.js` now adds table wrappers, the mobile drawer, active navigation and chart defaults.
+- [x] Tightened sidebar links to the roles and permission codes each view actually allows, so no role is shown a link that returns 403.
+- [x] Fixed `role_dashboard`'s outstanding total, which read non-existent `Student.billed_amt` attributes and crashed once any student had an invoice; added a regression test.
+- [x] Verification: 842 tests pass, `ruff check .` is clean and `makemigrations --check` reports no changes. Navigation links were smoke-tested for admin, registrar, bursar, lecturer, student and parent accounts against the demo database.
+
+## Phase 8 completion - REST API and webhooks (session 16)
+- [x] New `api` app with `ApiKey`, `WebhookEndpoint` and `WebhookDelivery` (migration `0001`). Keys and endpoints carry an explicit `institution` FK rather than `TenantModel`, because a key must identify the tenant before a user is known and a webhook worker may run with no current institution.
+- [x] API key auth: `Authorization: Api-Key esk_<prefix>_<secret>` (a bare `Bearer`/`Token` scheme and `X-API-Key` are also accepted). Only a SHA-256 digest plus a public prefix are stored; the raw key is shown once on issue. Revoking a key, deactivating its user, or a prefix/secret mismatch returns 401.
+- [x] The key decides the tenant: `ApiKeyAuthentication` sets `request.institution` and the current institution, so the existing tenant managers and every explicit viewset filter see only that institution's rows.
+- [x] `HasApiPermission` bridges DRF to the data-driven permission codes, and a key can optionally carry `scopes` that narrow its account's permissions. `IsInstitutionMember` confirms the key and user belong to the same institution.
+- [x] Read-only API v1 under `/api/v1/`: students, staff, academic years, terms, programmes, courses, subjects, classes, enrolments, attendance, invoices, payments and applications, plus `whoami`.
+- [x] Row-level scope is explicit per viewset: `students.view_all` sees all; `students.view_own` sees only the caller's own rows; `parent_portal.view_child` sees linked children; parent finance additionally requires `guardian_links.can_view_finance`. A caller with none of the relevant codes gets an empty queryset.
+- [x] Pagination (`page_size`, capped at 200), search, ordering and a whitelist-based filter backend supporting `exact`, `in`, `gte/lte/gt/lt`, `contains/icontains` and `isnull`. Filters on columns a view did not expose are ignored, so a caller cannot probe hidden fields.
+- [x] Scoped throttling (`api` 120/min, `api-write` 30/min) and OpenAPI 3 schema at `/api/schema/` with Swagger UI at `/api/docs/` and ReDoc at `/api/redoc/`.
+- [x] Attendance-device endpoint `POST /api/v1/attendance/device/` accepts `{"records": [...]}` and creates or updates attendance by student number (optionally course/subject), returning written ids and skipped records; it requires `academics.take_attendance`.
+- [x] Accounting export `GET /api/v1/finance/journal/export/` streams the ledger as CSV with an optional `start`/`end` date range; it requires `finance.view_ledger` or `finance.view_reports`.
+- [x] Webhooks: configurable endpoints per institution with event subscriptions, a generated `whsec_` signing secret and a test-ping action. Events are queued as `WebhookDelivery` rows, so a slow receiver never blocks the save that raised the event.
+- [x] HMAC-SHA256 signatures over `<unix timestamp>.<compact sorted JSON>` sent as `X-EduSphere-Signature: t=...,v1=...`, with `X-EduSphere-Event` and `X-EduSphere-Delivery` headers. Delivery uses a 10-second timeout and only http(s) URLs.
+- [x] Retries: a failed delivery gets exponential back-off (1 min, 5 min, 15 min, 1 hour, 6 hours) and is abandoned after 6 attempts. `manage.py deliver_webhooks` sends due deliveries; `--id`, `--limit` and `--now` are supported for cron/schedulers.
+- [x] Delivery log and controls at `/settings/api/` and `/settings/api/webhooks/<id>/`: issue/revoke keys, add/pause/rotate/delete endpoints, send a test event, and retry a failed delivery. All screens require `admin.manage_settings` and are tenant-scoped.
+- [x] Signal receivers queue `student.created`, `invoice.created`, `payment.received` and `application.submitted`. Each receiver converts dates to ISO strings, swallows and logs any queueing error, and is a no-op when the institution has no active endpoint, so webhooks can never break a domain save.
+- [x] Added `djangorestframework` and `drf-spectacular` to `requirements.txt`, the `api` app to `INSTALLED_APPS`, API routes to `config/urls.py`, an "API keys" navigation link for admins, and styling for the new screens.
+- [x] 50 new tests (`api/tests/test_api.py`, `api/tests/test_webhooks.py`) cover authentication, scopes, tenancy, row scope, filtering/search/ordering/pagination, schema/docs, the attendance device, the journal export, webhook subscription/signing/delivery/retries and the admin screens.
+- [x] Bug found and fixed: the first webhook signal assumed `Invoice.due_date` was always a date object, so the existing Phase 0 tests (which pass a string) raised `AttributeError: 'str' object has no attribute 'isoformat'`. Signals now use an `_iso()` helper and wrap queueing in `try/except`.
+- [x] Bug found and fixed: the custom filter backend built lookups such as `status__exact__in`, which Django rejected. It now maps a whitelisted field to its lookup directly (`status__in`).
+- [~] Integrations are partial, honestly: Paynow already exists (initiate, poll and signed webhook) and EcoCash is a supported payment method; SMTP email already exists; the attendance device and accounting export are new. Still outstanding: a real SMS gateway adapter, a real WhatsApp Business adapter (both are stub providers today), and Google/Microsoft OIDC SSO, which is not built.
+- [x] Verification: 890 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
+
+## Public landing page and self-registration (session 17)
+- [x] Replaced the old split-panel sign-in page with a platform-level landing page that never reads institution branding or names: EduSphere wordmark and navigation, sign-in card beside a classroom photo, trust strip, feature and audience cards, how-it-works steps, role blocks, a security band, a contact section and a footer with the current year and privacy link.
+- [x] Added a separate `static/css/landing.css` built on the existing deep green `#12403c`, marigold `#e8a317` and Figtree identity, with dark mode, mobile-first breakpoints, reduced-motion handling, visible focus, a skip link and a gradient placeholder that appears when a photo file is absent. The signed-in application keeps its navy tokens in `app.css`.
+- [x] Added `static/js/landing.js` for the mobile menu, sticky-header state and a searchable institution picker. The page works without JavaScript; no library or hotlinked image was added.
+- [x] Generated WebP and JPEG landing images at phone and desktop widths under `static/img/landing/`; every file is below 200 KB. `scripts/build_landing_images.py` rebuilds them from `static/img/landing/originals/`.
+- [x] Added the contact form on the landing page with a honeypot, per-IP rate limit, CSRF protection and an email to `vanhuvaonejeffrey@gmail.com`; the phone number is linked with `tel:` and `https://wa.me/263774573765`, and the footer repeats both contacts.
+- [x] Added `accounts/urls.py` for sign-in, sign-out, password reset, registration, email verification, privacy and administrator review, and removed the old inline auth routes from `config/urls.py`.
+- [x] Added `/register/` with clear student and staff paths. Both list only institutions whose new `public_registration` setting is on, and the staff position list is limited by that institution's `staff_positions` setting.
+- [x] Student path: registration number, surname and date of birth are compared case-insensitively with collapsed spaces against the existing admission record. A match attaches or creates one login, activates it immediately and sends an email verification link when the contact is an email address. A mismatch always shows the required generic message, offers the institution's contact page and writes an audit entry; attempts are throttled per IP and per registration number. A duplicate login is reported with sign-in and password-reset links.
+- [x] Staff path: creates an inactive "Pending approval" account and a `StaffRegistrationRequest` limited to the institution's allowed positions. Administrators see a filtered list and a detail screen with approve (including a different position and department), reject with a reason, email the decision and notify administrators in-app. Approval assigns the data-driven role, department and `StaffProfile`; every decision is audited. Administrator and principal roles cannot be requested or approved through this flow.
+- [x] Added institution settings for public registration and staff positions, plus a link to the registration request screen. Added migrations `core/0005_institution_public_registration_and_more.py` and `accounts/0006_alter_user_role_emailverification_and_more.py`.
+- [x] Added `accounts/tests/test_registration.py` with 21 tests covering the landing page, sign-in, contact form and honeypot, student match/mismatch/duplicate/throttling/audit, the generic message, staff creation/approval/rejection, cross-institution isolation, forbidden roles and the settings screen.
+- [x] Bug found and fixed: Django's `send_mail()` does not accept `reply_to`; the contact form now builds an `EmailMessage` with the visitor's address as the reply-to.
+- [x] Bug found and fixed: the `static_exists` template filter received an absolute filesystem path from `{% static %}` when `STATIC_URL` is relative, which raised `SuspiciousFileOperation`. It now reduces either URL or path to the path below `static/` before asking the staticfiles finders.
+- [x] Because the public pages use the platform identity, the landing page does not extend `base.html`; registration and password-reset pages extend `templates/public_base.html`. Existing signed-in screens are untouched.
+- [x] Verification: 911 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
+
+## Administrator user management and bulk account import (Part 2B, session 18)
+- [x] Added the Users area behind `admin.manage_users`: search, type/role/department/status/email-verified filters, pagination, a pending-registration badge, and row actions for view, edit, change role, reset password, resend invitation, deactivate/reactivate and unlock. Registrars may add students through `students.create`; HR officers may add staff only when they hold the users permission.
+- [x] One account-creation service (`accounts.user_admin.provision_user`) creates the login, data-driven role and staff profile or student record atomically. `admissions.services.create_student_record` is now shared with offer acceptance, so an admin-added student gets the same student number, login and optional first invoice.
+- [x] Two access modes: a single-use invitation link (UUID token, 72 hours, re-send closes the previous link) and a strong one-time temporary password that forces a change at the next sign-in. A person with no email falls back to a temporary password. Neither mode stores the password after the one-time screen.
+- [x] Bulk import accepts a batch-wide access mode, downloadable student/staff templates, duplicate email/username/registration checks, unknown-role/programme and bad-date errors, atomic per-row writes, a printable/downloadable result with one-time passwords, and an undo that only deactivates accounts that have never signed in.
+- [x] Link or repair accounts without deleting history: attach a login to a student, link parents to children, and flag or merge duplicates while keeping invoices, results and audit rows. Deactivation/reactivation, unlocking, password reset and role changes are audited and never remove an account that has financial, academic or audit history. An administrator cannot remove their own admin role or deactivate the last administrator.
+- [x] Safeguards: unique usernames/emails, strong-password validation, no role above the actor's own, cross-institution checks on every service and route, action rate limits, login lockout, and email notices for account creation, role changes and password resets. Accounts created by an administrator are not pending requests and are treated as existing by public self-registration.
+- [x] Added `ResendProvider` behind the existing notification interface, selected when `EDUSPHERE_RESEND_API_KEY` is set; otherwise the console/email provider is used.
+- [x] Tenant reads stay lazy and request-safe. A request always sets an explicit institution (the default when the page has none), so views remain isolated; code that never sets one is treated as platform code and may read across institutions. The tenant expression still reads the institution when SQL is compiled, so model-form querysets built at import time remain correct.
+- [x] Bug found and fixed: a student added without an email got the generic username `user`; the login now derives from the email local part, then the first name.
+- [x] Bug found and fixed: service-level registration calls without a request raised `AttributeError` in the rate limiter; the client-IP helper now handles a missing request.
+- [x] Bug found and fixed: bulk import undo used `User.all_objects`, which does not exist; it uses the unfiltered `User.objects` manager.
+- [x] Verification: 929 tests pass (including the 18-test `accounts/tests/test_user_admin.py` acceptance suite), `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
+
+## Zimbabwe tax and record-keeping audit (session 19)
+- [x] Audited the finished finance module against the ZIMRA VAT and record-keeping rules. Existing and kept: chart of accounts and double-entry ledger, financial-year period locks, fee structures, invoices/payments/waivers/MoneyLog, discounts/bursaries/sponsorships, instalment plans and late penalties, receipts with QR, refunds/reversals, the Paynow gateway, statements/ageing/cash-up/collections and the CSV/Excel/PDF export matrix, expenses/suppliers/budgets, bank reconciliation, and the single `student_balance` service.
+- [x] Added per-institution VAT registration: `Institution.vat_status` (exempt/registered), `vat_number`, `bp_number`, `vat_address` and `base_currency`, editable on the institution settings screen. An institution that is not registered never charges VAT.
+- [x] Added `FeeItem.tax_category` (exempt/standard/zero) and a dated `TaxRate` table; `tax_rate_in_force()` picks the rate in force and falls back to the standard 15.5% only for a registered institution. `Invoice` stores `tax_category`, `tax_rate` and `tax_amount` with the amount treated as VAT-inclusive; `Expense` stores its own tax fields.
+- [x] Added `ExchangeRate` (migration `finance/0015`) and stored `currency`, `exchange_rate` and `base_amount` on invoices and payments, plus currency/rate/base amount on journal lines.
+- [x] Added gap-free document numbering: `DocumentSequence` per institution, document type and financial year, for `INV-`, `RC-`, `CN-` and `DN-` numbers, allocated with `select_for_update` plus an atomic `F()` update and bounded retries for transient SQLite lock contention.
+- [x] Made issued financial documents immutable through `ImmutableFinancialDocument`: changing a protected field or calling `delete()` raises `ValidationError`; the admin refuses change/delete but still allows adding, and `MoneyLog` is append-only. Corrections are credit notes, new debit notes (`DebitNote`) or reversing entries.
+- [x] Added the switchable `fiscalisation` app (migration `fiscalisation/0001`) with `FiscalDevice`, `FiscalDay` and `FiscalSubmission`. A `finance/signals.py` signal keeps the apps decoupled; the receiver submits invoices, receipts, credit and debit notes, stores the device, fiscal day, receipt counter, verification code, QR data and response, opens/closes fiscal days, and retries failures (Celery-optional; mock gateway by default).
+- [x] Printed the ZIMRA verification code and QR image on receipts, credit notes and debit notes, and added a fiscalisation dashboard plus a printable fiscal day report.
+- [x] Added six-year retention and backup: `backup_finance` writes a Fernet-encrypted JSON backup (key from `EDUSPHERE_FINANCE_BACKUP_KEY`), `prune_finance` only removes records older than six years and only with `--confirm`, and delete guards stop hard deletion in the app.
+- [x] Added the VAT output-vs-input summary (`services.vat_summary`, `/finance/reports/vat/` with CSV/Excel/PDF export) and tax-rate/exchange-rate management screens, and registered the new models in the admin.
+- [x] Added 35 tests: `finance/tests/test_tax_and_numbering.py` (gap-free numbering including 10 concurrent allocations, immutability, dated VAT rate in force, default rate, exempt/zero categories, fee-item category, VAT summary) and `fiscalisation/tests/test_fiscalisation.py` (submission of all four document types, verification code/QR, fiscal day open/close, gateway failure recorded, retry, and skip for non-registered/module-off/global-off).
+- [x] Fixed the allocator to retry transient SQLite "database is locked" errors, which the concurrency test exposed; without it simultaneous requests could fail rather than wait their turn.
+- [~] Still needs ZIMRA: the live FDMS endpoint URL, device ID, device serial and API key (set `EDUSPHERE_ZIMRA_FDMS_URL`, `EDUSPHERE_ZIMRA_DEVICE_ID`, `EDUSPHERE_ZIMRA_DEVICE_SERIAL`, `EDUSPHERE_ZIMRA_API_KEY`). `ZimraFdmsGateway` follows the documented receipt API but the field names and reply shape must be confirmed against ZIMRA's test documentation and a test device before production. No live submission has been made.
+- [x] Verification: 964 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
+
+## Brown public theme (Part 3B, session 20)
+- [x] Replaced the deep green/marigold public identity with one all-brown palette in a single shared stylesheet, `static/css/public.css`: `--brown-950 #2b1a12`, `-900 #3e2723`, `-800 #4e342e`, `-700 #5d4037`, `-600 #6f4a36`, `-500 #8d6e63`, `-400 #a1887f`, `-300 #c4a998`, `-200 #dcc8b6`, `-100 #efe2d3`, `-50 #faf4ec`. Semantic tokens (`--bg`, `--surface`, `--field`, `--ink`, `--muted`, `--brand`, `--accent`, `--line`) map onto those values, so nothing is hard-coded outside them and every gradient runs between two browns. Surfaces use brown tones rather than white.
+- [x] The signed-out surface uses the brown theme everywhere: the platform landing/sign-in page, registration (choice, student, staff, sent, contact), password reset (form, done, confirm, complete), email verification, invitation acceptance, forced password change, the learn index (`/learn/`) and the public institution page (`/i/<slug>/`). The signed-in application keeps its own `static/css/app.css`.
+- [x] Moved the dashboard to `/dashboard/` and put the platform landing at `/` (`EduSphereLandingView`), so a signed-out visitor sees the platform page at the root and a signed-in visitor is redirected to the dashboard. `LOGIN_REDIRECT_URL` still points at the dashboard; no `accounts`/`core` tests regressed.
+- [x] All-brown dark variant (espresso `#1e120c`/`#2b1a12`, cream text, caramel accents) driven by `prefers-color-scheme` plus a per-user toggle remembered in `localStorage` (`edusphere.public.theme`) and applied with a no-flash inline script; `static/js/landing.js` gained `setUpTheme()` with a system-change listener and aria labels. Added `--on-brand`/`--on-brand-strong` (cream in light, dark in dark) and `--band-strong`/`--band`/`--on-band` so buttons, the skip link, step numbers, initials and the security strip stay readable in both themes.
+- [x] Accessibility: main text/button pairs reach WCAG AA (>=4.5:1, checked for both themes), a thick dark-brown focus outline sits on a cream offset, and error/success messages use a dark-brown panel with a clear icon (`!` / `✓`) and wording rather than colour alone.
+- [x] Institution branding: `Institution.tagline` and `Institution.about` were added (migration `0008`) and are editable on the institution settings screen; the public institution page shows the logo, name, tagline and About while the page colours stay brown. A logo sits on a soft cream backing (`.brand-badge`) with initials as a fallback for missing or very light/dark logos. The institution's primary/accent colours stay app/PDF-only and never reach public pages.
+- [x] Photos get a CSS-only warm brown duotone (`.media img` sepia/contrast plus a `.media::after` multiply overlay); faces stay clear and the meaningful alt text is kept. Print styles force cream-on-brown.
+- [x] Emails from email verification, invitation and password reset use the same brown palette with inline CSS (`templates/emails/base_email.html`, `verify_email.html`, `invitation.html`, `password_reset.html`) and keep a plain-text alternative. Added `OutboundMessage.html_body` (migration `0009`), taught the Resend/SMTP providers to send `html`/`multipart`, added `render_email_html()` and `html_body=` to `queue_message`/`send_message`, and wired the templates into `accounts/registration.py`, `accounts/user_admin.py` and the password-reset view (`html_email_template_name`).
+- [x] Added `core/tests/test_public_theme.py` (46 tests): a palette scan of `public.css` and the public/email templates (any colour outside the defined brown variables fails), a contrast check of the main text/button pairs in the light, dark and system-driven themes, and a render test that loads every public page with the shared stylesheet and asserts no 500s. Also covers the theme toggle, the brown emails, the landing redirect and the institution branding.
+- [x] Bug found and fixed: the palette scan compared hex values with their `#` while `ALLOWED_HEX` had been stripped; the comparison now strips both sides. The dark-mode button/skip-link/step/initials text was cream on a caramel accent (unreadable), which the new `--on-brand` tokens fix.
+- [x] Deleted the one-off `scripts/_build_public_css.py` that produced the stylesheet. The earlier `static/css/landing.css` is superseded and unreferenced; it is left in place rather than deleted, pending a decision.
+- [x] Verification: 1010 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
 
 ## Next up
-- Continue Phase 2: report cards and transcripts (PDF, branding, QR verification page).
-- Phase 3 starts with the chart of accounts and the double-entry ledger; the `FeeStructure`/`FeeItem` models added for the import will be completed there.
+- Phase 7B/7C are complete, Phase 2 is complete apart from optional hardening, and Phase 8 is complete except for the honest integration gaps above (real SMS/WhatsApp adapters and OIDC SSO). The public landing page and self-registration are complete, and the public surface now uses one all-brown theme (Part 3B). The next phase is Phase 9 (security and compliance).
 
 ## Open questions
 - None at start.

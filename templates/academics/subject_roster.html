@@ -3,14 +3,21 @@
 {% if can_save %}
 <form method="post">{% csrf_token %}
 <label class="inline-l">Attendance date <input type="date" name="attendance_date" value="{{ today|date:'Y-m-d' }}"></label>
-<table class="tbl"><tr><th>Student</th><th>Present</th>
+<table class="tbl"><tr><th>Student</th><th>Attendance</th><th>Absence reason</th>
 {% if components %}{% for c in components %}<th>{{ c.name }} <span class="muted">({{ c.weight }}%)</span></th>{% endfor %}<th class="r">Final</th>{% else %}<th>Mark (0–100)</th>{% endif %}<th>Grade</th></tr>
 {% for e in rows %}<tr><td><a href="{% url 'student_detail' e.student.pk %}">{{ e.student.name }}</a></td>
-<td><input type="checkbox" name="present_{{ e.pk }}" checked></td>
+<td><select name="status_{{ e.pk }}">
+  <option value="present" selected>Present</option>
+  <option value="late">Late</option>
+  <option value="absent">Absent</option>
+  <option value="excused">Excused</option>
+</select></td>
+<td><input type="text" name="reason_{{ e.pk }}" maxlength="200" placeholder="If absent"></td>
 {% if components %}{% for c, m in e.component_cells %}<td><input type="number" step="0.01" min="0" max="100" name="component_{{ c.pk }}_{{ e.pk }}" value="{{ m|default_if_none:'' }}"></td>{% endfor %}<td class="r">{{ e.mark|default_if_none:"—" }}</td>
 {% else %}<td><input type="number" step="0.01" min="0" max="100" name="mark_{{ e.pk }}" value="{{ e.mark|default_if_none:'' }}"></td>{% endif %}<td>{{ e.grade }}</td></tr>
 {% empty %}<tr><td colspan="8" class="muted">Nobody is enrolled in this subject yet. Ask the registrar to enrol students.</td></tr>{% endfor %}</table>
-{% if rows %}<button class="btn">Save marks and attendance</button>{% endif %}</form>
+{% if rows %}<button class="btn">Save marks and attendance</button>
+<p class="muted">Marking a student absent queues a message to their linked parents once per date.</p>{% endif %}</form>
 {% else %}
 <table class="tbl"><tr><th>Student</th>
 {% if components %}{% for c in components %}<th>{{ c.name }} <span class="muted">({{ c.weight }}%)</span></th>{% endfor %}<th class="r">Final</th>{% else %}<th>Mark (0–100)</th>{% endif %}<th>Grade</th></tr>

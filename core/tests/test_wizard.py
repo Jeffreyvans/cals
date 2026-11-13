@@ -24,8 +24,8 @@ def _details(**overrides):
         "address": "Box 42, Mhofu",
         "contact_email": "office@mhofu.test",
         "contact_phone": "+263 77 000 0001",
-        "primary_color": "#12403c",
-        "accent_color": "#e8a317",
+        "primary_color": "#1E3A8A",
+        "accent_color": "#3B82F6",
     }
     data.update(overrides)
     return data
@@ -349,12 +349,18 @@ class BrandingTests(TestCase):
     def test_white_text_is_kept_on_a_dark_colour(self):
         from core.branding import readable_text
 
-        self.assertEqual(readable_text("#12403c"), "#ffffff")
+        self.assertEqual(readable_text("#1E3A8A"), "#ffffff")
 
     def test_dark_text_is_used_on_a_light_colour(self):
         from core.branding import readable_text
 
-        self.assertEqual(readable_text("#f4d03f"), "#1d2b2a")
+        self.assertEqual(readable_text("#f4d03f"), "#0f172a")
+
+    def test_buttons_keep_white_text_on_the_blue_accent(self):
+        from core.branding import accent_text
+
+        self.assertEqual(accent_text("#3B82F6"), "#ffffff")
+        self.assertEqual(accent_text("#f4d03f"), "#0f172a")
 
     def test_the_contrast_ratio_is_measured_correctly(self):
         from core.branding import contrast_ratio
@@ -368,7 +374,7 @@ class BrandingTests(TestCase):
         institution = Institution(name="Test", slug="test", type="primary",
                                    primary_color="not a colour",
                                    accent_color="#00ff00")
-        self.assertEqual(primary_colour(institution), "#12403c")
+        self.assertEqual(primary_colour(institution), "#1E3A8A")
         self.assertEqual(accent_colour(institution), "#00ff00")
 
     def test_the_branding_reaches_the_page(self):

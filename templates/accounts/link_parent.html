@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Link a parent to a student{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Link a parent to a student</h1>
+    <p class="muted">The parent can then see that child's progress and money in the parent portal.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'user_list' %}">Back to users</a>
+</div>
+
+<form method="post" class="form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="msg error" role="alert">{{ form.non_field_errors|striptags }}</div>
+  {% endif %}
+  {{ form.as_p }}
+  <div class="row">
+    <button class="btn">Link the parent</button>
+    <a class="btn ghost" href="{% url 'user_list' %}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

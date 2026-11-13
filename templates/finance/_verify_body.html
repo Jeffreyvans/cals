@@ -1,0 +1,8 @@
+<h1>Receipt verified</h1>
+<p>This receipt is genuine.</p>
+<table class="tbl"><tr><th>Receipt</th><td>{{ p.receipt_no }}</td></tr>
+<tr><th>Student</th><td>{{ s.name }} ({{ s.student_no }})</td></tr>
+<tr><th>Institution</th><td>{{ INSTITUTION }}</td></tr>
+<tr><th>Amount</th><td>{{ p.invoice.institution.currency }} {{ p.amount }}</td></tr>
+<tr><th>Date</th><td>{{ p.paid_on|date:"d M Y H:i" }}</td></tr>
+<tr><th>For</th><td>{{ p.invoice.description }}</td></tr></table>

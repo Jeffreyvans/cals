@@ -6,7 +6,7 @@ institution is used.
 """
 
 
-from core.tenancy import reset_current_institution, set_current_institution
+from core.tenancy import default_institution_id, reset_current_institution, set_current_institution
 
 
 def institution_from_request(request):
@@ -46,7 +46,12 @@ class InstitutionMiddleware:
     def __call__(self, request):
         institution = institution_from_request(request)
         request.institution = institution
-        token = set_current_institution(institution)
+        # Always scope the request explicitly. Public pages have no institution
+        # of their own, so they read the installation's default institution
+        # rather than every institution.
+        token = set_current_institution(
+            institution if institution is not None else default_institution_id()
+        )
         try:
             return self.get_response(request)
         finally:

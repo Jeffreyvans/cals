@@ -8,6 +8,7 @@ from .models import (
     Announcement,
     AssessmentComponent,
     AwardRule,
+    CalendarEvent,
     ClassSubjectAllocation,
     ClassTeacher,
     Cohort,
@@ -28,6 +29,35 @@ from .models import (
     Term,
     TimetableEntry,
 )
+
+
+class AssignmentSubmissionForm(forms.Form):
+    text = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 6}))
+    file = forms.FileField(required=False)
+
+
+class LecturerAssignmentForm(forms.Form):
+    course = forms.ModelChoiceField(queryset=Course.objects.none(), required=False)
+    subject = forms.ModelChoiceField(queryset=Subject.objects.none(), required=False)
+    title = forms.CharField(max_length=150)
+    due_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    detail = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 5}))
+    attachment = forms.FileField(required=False)
+
+    def __init__(self, user=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user is not None:
+            self.fields["course"].queryset = user.courses.all()
+            self.fields["subject"].queryset = user.subjects_taught.all()
+        self.fields["course"].empty_label = "Choose a course"
+        self.fields["subject"].empty_label = "Choose a subject"
+
+    def clean(self):
+        cleaned = super().clean()
+        if bool(cleaned.get("course")) == bool(cleaned.get("subject")):
+            raise forms.ValidationError(
+                "Choose either a course or a subject, not both and not neither.")
+        return cleaned
 
 
 class StudentRegistrationForm(forms.ModelForm):
@@ -148,6 +178,32 @@ class TermForm(forms.ModelForm):
         self.fields["academic_year"].empty_label = "Choose a year"
         if not self.is_bound:
             self.initial["academic_year"] = AcademicYear.objects.filter(is_current=True).first()
+
+
+class CalendarEventForm(forms.ModelForm):
+    class Meta:
+        model = CalendarEvent
+        fields = ["title", "kind", "starts_on", "ends_on", "detail", "school_class"]
+        widgets = {"starts_on": forms.DateInput(attrs={"type": "date"}),
+                   "ends_on": forms.DateInput(attrs={"type": "date"})}
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["title"].help_text = "For example Mid-term break or SMT meeting."
+        self.fields["detail"].help_text = "One line shown under the title."
+        self.fields["ends_on"].required = False
+        if SchoolSettings.get().is_school:
+            self.fields["school_class"].empty_label = "Whole institution"
+            self.fields["school_class"].help_text = "Only this class sees the event."
+        else:
+            self.fields.pop("school_class")
+
+    def clean(self):
+        c = super().clean()
+        starts, ends = c.get("starts_on"), c.get("ends_on")
+        if starts and ends and ends < starts:
+            self.add_error("ends_on", "The event must end after it starts.")
+        return c
 
 
 class SchoolClassForm(forms.ModelForm):

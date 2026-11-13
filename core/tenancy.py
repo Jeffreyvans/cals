@@ -60,6 +60,17 @@ def default_institution_id():
     return inst.pk
 
 
+def institution_is_scoped():
+    """True when an institution has been set for the current scope.
+
+    A request, a service or a test that sets the institution gets tenant
+    filtering. Code that never sets one is treated as platform code: it may
+    read across institutions, but new rows still default to the installation's
+    default institution.
+    """
+    return _current_institution.get() is not None
+
+
 def current_institution_id():
     """The institution whose rows the current code may read and write."""
     value = _current_institution.get()
@@ -111,10 +122,22 @@ class CurrentInstitutionId(models.Func):
     at import time into every form and every captured queryset. Reading the
     value when the SQL is built keeps the filter correct for the request,
     the background job or the test that runs it.
+
+    When no institution has been set, the comparison is made against the row's
+    own institution column. That keeps the filter in the SQL (and therefore
+    keeps the laziness above) while letting platform code work across
+    institutions. Requests always set an institution, so a view is still
+    scoped to one school.
     """
 
     output_field = models.IntegerField()
 
     def as_sql(self, compiler, connection, **extra_context):
+        if not institution_is_scoped():
+            model = getattr(getattr(compiler, "query", None), "model", None)
+            if model is not None:
+                alias = compiler.query.get_initial_alias()
+                quote = connection.ops.quote_name
+                return f"({quote(alias)}.{quote('institution_id')})", []
         return "(%s)", [current_institution_id()]
 

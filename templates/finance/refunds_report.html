@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block content %}
+<h1>Refunds report</h1>
+<p>{% include "finance/_export_links.html" with export_name="export_refunds" %}</p>
+<table class="tbl"><tr><th>Receipt</th><th>Student</th><th class="r">Amount</th><th>Status</th><th>Requested</th></tr>
+{% for r in rows %}<tr><td>{{ r.payment.receipt_no }}</td><td>{{ r.payment.invoice.student.name }}</td>
+<td class="r">{{ CUR }}{{ r.amount }}</td><td>{{ r.get_status_display }}</td><td>{{ r.created|date:"d M Y" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No refunds.</td></tr>{% endfor %}</table>
+{% endblock %}

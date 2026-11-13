@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:course_site' site.pk %}">Back to {{ site.display_title }}</a></p>
+<h1>{{ forum.title }}</h1>
+{% if forum.description %}<p class="muted">{{ forum.description }}</p>{% endif %}
+
+<h2>Start a discussion</h2>
+<form method="post" class="card" action="{% url 'lms:thread_create' forum.pk %}">{% csrf_token %}
+{{ thread_form.as_p }}
+<button class="btn">Post discussion</button>
+</form>
+
+<h2>Discussions</h2>
+<table class="tbl"><tr><th>Topic</th><th>Author</th><th>Replies</th><th>Status</th></tr>
+{% for thread in threads %}
+<tr><td><a href="{% url 'lms:thread_detail' thread.pk %}">{{ thread.title }}</a></td>
+<td>{{ thread.author.get_full_name|default:thread.author.username }}</td>
+<td>{{ thread.post_count }}</td>
+<td>{% if thread.is_pinned %}Pinned {% endif %}{% if thread.is_locked %}Locked {% endif %}{% if not thread.is_approved %}Awaiting approval{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">No discussions yet.</td></tr>{% endfor %}</table>
+{% endblock %}

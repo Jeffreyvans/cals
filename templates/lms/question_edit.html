@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:quiz_detail' quiz.pk %}">Back to {{ quiz.title }}</a></p>
+<h1>Edit question</h1>
+<form method="post" class="card">{% csrf_token %}
+{{ form.as_p }}
+<button class="btn">Save question</button>
+</form>
+
+<h2>Choices</h2>
+<table class="tbl"><tr><th>Choice</th><th>Correct</th><th>Order</th></tr>
+{% for choice in question.choices.all %}
+<tr><td>{{ choice.text }}</td><td>{% if choice.is_correct %}Yes{% else %}No{% endif %}</td><td>{{ choice.order }}</td></tr>
+{% empty %}<tr><td colspan="3" class="muted">No choices.</td></tr>{% endfor %}</table>
+<form method="post" class="card" action="{% url 'lms:choice_create' question.pk %}">{% csrf_token %}
+{{ choice_form.as_p }}
+<button class="btn">Add choice</button>
+</form>
+
+<h2>Matching pairs</h2>
+<table class="tbl"><tr><th>Left</th><th>Right</th><th>Order</th></tr>
+{% for pair in question.matching_pairs.all %}
+<tr><td>{{ pair.left_text }}</td><td>{{ pair.right_text }}</td><td>{{ pair.order }}</td></tr>
+{% empty %}<tr><td colspan="3" class="muted">No matching pairs.</td></tr>{% endfor %}</table>
+<form method="post" class="card" action="{% url 'lms:pair_create' question.pk %}">{% csrf_token %}
+{{ pair_form.as_p }}
+<button class="btn">Add pair</button>
+</form>
+{% endblock %}

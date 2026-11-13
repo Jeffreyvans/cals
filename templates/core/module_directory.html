@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block content %}
+<div class="head"><div><h1>School services</h1>
+<p class="muted">The department modules your role can use.</p></div></div>
+
+{% if modules %}
+<div class="grid">
+{% for module in modules %}
+  <a class="card" href="{{ module.url }}">
+    <h2>{{ module.title }}</h2>
+    <p class="muted">{{ module.description }}{% if module.sensitive %} &middot; Restricted records{% endif %}</p>
+  </a>
+{% endfor %}
+</div>
+{% else %}
+<p class="muted">No service modules are available to your role.</p>
+{% endif %}
+{% endblock %}

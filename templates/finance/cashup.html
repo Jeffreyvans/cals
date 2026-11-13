@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block content %}
+<h1>Daily cash-up</h1>
+<p>{% include "finance/_export_links.html" with export_name="export_cashup" %}</p>
+<form method="get" class="inline"><label>Date <input type="date" name="date" value="{{ day|date:'Y-m-d' }}"></label>
+<button class="btn">Apply</button></form>
+<div class="stats"><div><b>{{ CUR }}{{ total }}</b>Collected</div>
+<div><b>{{ payments|length }}</b>Receipts</div></div>
+<h2>By method</h2>
+<table class="tbl">{% for label, amount in by_method %}<tr><td>{{ label }}</td><td class="r">{{ CUR }}{{ amount }}</td></tr>
+{% empty %}<tr><td class="muted">No payments.</td><td></td></tr>{% endfor %}</table>
+<h2>By cashier</h2>
+<table class="tbl">{% for label, amount in by_user %}<tr><td>{{ label }}</td><td class="r">{{ CUR }}{{ amount }}</td></tr>
+{% empty %}<tr><td class="muted">No payments.</td><td></td></tr>{% endfor %}</table>
+{% endblock %}

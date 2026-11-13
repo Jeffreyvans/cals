@@ -18,7 +18,7 @@ class BaseProvider:
 
     name = "base"
 
-    def send(self, channel, recipient, subject, body):
+    def send(self, channel, recipient, subject, body, html_body=""):
         """Send the message. Returns a dict with 'ok' and a 'detail' string."""
         raise NotImplementedError
 
@@ -28,10 +28,51 @@ class ConsoleProvider(BaseProvider):
 
     name = "console"
 
-    def send(self, channel, recipient, subject, body):
+    def send(self, channel, recipient, subject, body, html_body=""):
         logger.info("[%s] to=%s subject=%s body=%s", channel, recipient, subject, body)
         print(f"[{channel}] to {recipient}: {subject} {body}")
         return {"ok": True, "detail": "printed to console"}
+
+
+class ResendProvider(BaseProvider):
+    """Sends email through Resend's HTTPS API."""
+
+    name = "resend"
+
+    def send(self, channel, recipient, subject, body, html_body=""):
+        import json
+        from urllib.error import HTTPError, URLError
+        from urllib.request import Request, urlopen
+
+        from django.conf import settings
+
+        api_key = getattr(settings, "RESEND_API_KEY", "")
+        if not api_key:
+            return {"ok": False, "detail": "RESEND_API_KEY is not set"}
+        payload = {
+            "from": getattr(settings, "RESEND_FROM", "") or settings.EMAIL_FROM,
+            "to": [recipient],
+            "subject": subject or "EduSphere",
+            "text": body,
+        }
+        if html_body:
+            payload["html"] = html_body
+        data = json.dumps(payload).encode("utf-8")
+        request = Request(
+            getattr(settings, "RESEND_API_URL", "https://api.resend.com/emails"),
+            data=data,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=15) as response:
+                detail = response.read().decode("utf-8", errors="replace")
+            return {"ok": 200 <= response.status < 300, "detail": detail[:500]}
+        except (HTTPError, URLError, OSError) as exc:
+            return {"ok": False, "detail": str(exc)[:500]}
 
 
 class SmtpProvider(BaseProvider):
@@ -39,18 +80,20 @@ class SmtpProvider(BaseProvider):
 
     name = "smtp"
 
-    def send(self, channel, recipient, subject, body):
+    def send(self, channel, recipient, subject, body, html_body=""):
         from django.conf import settings
-        from django.core.mail import send_mail
+        from django.core.mail import EmailMultiAlternatives
 
         try:
-            sent = send_mail(
+            message = EmailMultiAlternatives(
                 subject or "",
                 body,
                 settings.EMAIL_FROM or None,
                 [recipient],
-                fail_silently=False,
             )
+            if html_body:
+                message.attach_alternative(html_body, "text/html")
+            sent = message.send(fail_silently=False)
         except Exception as exc:  # pragma: no cover - depends on the mail server
             return {"ok": False, "detail": str(exc)}
         return {"ok": bool(sent), "detail": f"{sent} message(s) sent"}
@@ -61,7 +104,7 @@ class StubSmsProvider(BaseProvider):
 
     name = "sms-stub"
 
-    def send(self, channel, recipient, subject, body):
+    def send(self, channel, recipient, subject, body, html_body=""):
         logger.info("[sms-stub] to=%s body=%s", recipient, body)
         return {"ok": True, "detail": "stub provider accepted the message"}
 
@@ -71,7 +114,7 @@ class StubWhatsAppProvider(BaseProvider):
 
     name = "whatsapp-stub"
 
-    def send(self, channel, recipient, subject, body):
+    def send(self, channel, recipient, subject, body, html_body=""):
         logger.info("[whatsapp-stub] to=%s body=%s", recipient, body)
         return {"ok": True, "detail": "stub provider accepted the message"}
 
@@ -81,6 +124,8 @@ def get_provider(channel):
     from django.conf import settings
 
     if channel == OutboundMessage.Channel.EMAIL:
+        if getattr(settings, "RESEND_API_KEY", ""):
+            return ResendProvider()
         if getattr(settings, "EMAIL_BACKEND", "") and "locmem" not in settings.EMAIL_BACKEND:
             return SmtpProvider()
         return ConsoleProvider()
@@ -114,7 +159,9 @@ def notify_users(users, title, body="", link="", category="general", institution
     return [notify(u, title, body, link, category, institution) for u in users]
 
 
-def queue_message(channel, recipient, body, subject="", institution=None, related_object=None):
+def queue_message(
+    channel, recipient, body, subject="", institution=None, related_object=None, html_body=""
+):
     """Queue an outbound message for sending."""
     from core.tenancy import current_institution_id
 
@@ -130,15 +177,33 @@ def queue_message(channel, recipient, body, subject="", institution=None, relate
         recipient=recipient,
         subject=subject,
         body=body,
+        html_body=html_body,
         related_object_type=obj_type,
         related_object_id=obj_id,
     )
 
 
+def render_email_html(template_name, context):
+    """Render a brown HTML email from a template. Returns an empty string on failure."""
+    from django.template.loader import render_to_string
+
+    try:
+        return render_to_string(template_name, context)
+    except Exception:  # pragma: no cover - a broken template must not stop the send
+        logger.exception("Could not render email template %s", template_name)
+        return ""
+
+
 def send_message(message):
     """Try to send one queued message. Returns the updated message."""
     provider = get_provider(message.channel)
-    result = provider.send(message.channel, message.recipient, message.subject, message.body)
+    result = provider.send(
+        message.channel,
+        message.recipient,
+        message.subject,
+        message.body,
+        getattr(message, "html_body", ""),
+    )
     message.provider = provider.name
     message.provider_response = result.get("detail", "")
     if result.get("ok"):

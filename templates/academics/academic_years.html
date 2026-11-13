@@ -30,4 +30,18 @@
   <form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="new_term">
     <h2>Add a term</h2>{{ term_form.as_p }}<button class="btn">Save term</button></form>
 </div>
+
+<h2>Academic calendar</h2>
+<p class="muted">Holidays, exams, meetings and deadlines shown on the dashboards and portals. An event for one class only reaches that class.</p>
+<table class="tbl"><tr><th>When</th><th>Event</th><th>Kind</th><th>Detail</th><th>For</th><th></th></tr>
+{% for e in events %}<tr>
+  <td>{{ e.when }}</td>
+  <td><b>{{ e.title }}</b></td>
+  <td>{{ e.get_kind_display }}</td>
+  <td>{{ e.detail|default:"—" }}</td>
+  <td>{{ e.school_class.name|default:"Everyone" }}</td>
+  <td><form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete_event"><input type="hidden" name="pk" value="{{ e.pk }}"><button class="link">Remove</button></form></td>
+</tr>{% empty %}<tr><td colspan="6" class="muted">No calendar events yet. Add the first one below.</td></tr>{% endfor %}</table>
+<form method="post" class="inline wide">{% csrf_token %}<input type="hidden" name="action" value="new_event">
+  <h2>Add a calendar event</h2>{{ event_form.as_p }}<button class="btn">Save event</button></form>
 {% endblock %}

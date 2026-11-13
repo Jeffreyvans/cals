@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block content %}
+<div class="head"><div><h1>Administration</h1>
+<p class="muted">The office modules switched on for your institution.</p></div></div>
+
+{% if modules %}
+<div class="grid">
+{% for module in modules %}
+  <a class="card" href="{{ module.url }}">
+    <h2>{{ module.title }}</h2>
+    <p class="muted">{{ module.description }}</p>
+  </a>
+{% endfor %}
+</div>
+{% else %}
+<p class="muted">No administration modules are switched on for your role yet.</p>
+{% endif %}
+{% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block content %}
 <div class="noprint"><button class="btn" onclick="window.print()">Print report</button>
-<a class="btn ghost" href="{% url 'export_debtors' %}?show={{ show }}">Export CSV</a></div>
+{% include "finance/_export_links.html" with export_name="export_debtors" %}</div>
 <h1>Debtors report</h1>
 <p class="muted">Every student who has been billed, what is still owed, and how late the money is. Amounts are net of credit notes.</p>
 <p class="muted">{% if show == 'owing' %}<b>Owing</b>{% else %}<a href="?show=owing">Owing</a>{% endif %} ·

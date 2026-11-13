@@ -1,25 +1,36 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.decorators import role_required
 from accounts.models import User
-from core.access import module_required
+from core.access import (
+    module_required,
+    permission_required_code,
+    user_has_code,
+)
+from core.branding import brand_variables
+from core.modules import is_enabled
 from finance.models import Invoice
 
+from .documents import build_academic_document, build_timetable_pdf, issue_document
 from .forms import (
     ActivityForm,
     AnnouncementForm,
     AssessmentComponentForm,
+    AssignmentSubmissionForm,
     AwardRuleForm,
+    CalendarEventForm,
     ClassSubjectAllocationForm,
     ClassTeacherForm,
     CohortForm,
@@ -30,6 +41,7 @@ from .forms import (
     GradeBandForm,
     GradeLevelForm,
     GuardianForm,
+    LecturerAssignmentForm,
     ProgrammeForm,
     ProgrammeYearForm,
     SchoolClassForm,
@@ -44,16 +56,20 @@ from .forms import (
 from .models import (
     DAY_CHOICES,
     AcademicYear,
+    Activity,
     Announcement,
     AssessmentComponent,
     AssessmentMark,
+    AssignmentSubmission,
     Attendance,
     AwardRule,
+    CalendarEvent,
     ClassTeacher,
     Cohort,
     Course,
     CourseOffering,
     CoursePrerequisite,
+    DocumentVerification,
     Enrollment,
     ExamSitting,
     GradeBand,
@@ -70,6 +86,7 @@ from .models import (
     TimetableEntry,
     balances_by_student,
 )
+from .risk import compute_at_risk
 from .services import (
     RegistrationError,
     ResultsError,
@@ -79,6 +96,7 @@ from .services import (
     clear_result_hold,
     drop_enrollment,
     moderate_results,
+    notify_absence,
     promote_students,
     promotion_plan,
     recalculate_enrollment_mark,
@@ -178,8 +196,14 @@ def _save_marks(rows, post, components=None):
     return errors
 
 
-def _save_attendance(rows, post, errors):
-    """Record present_<pk> checkboxes for the posted attendance_date."""
+def _save_attendance(rows, post, errors, user=None):
+    """Record the posted attendance for the attendance_date.
+
+    Each row posts a ``status_<pk>`` select (present, late, absent, excused)
+    and an optional ``reason_<pk>``. The old ``present_<pk>`` checkbox still
+    works when no status was posted, so bookmarks keep saving. A newly absent
+    student is handed to :func:`notify_absence`, which tells the parents once.
+    """
     raw_date = post.get("attendance_date", "").strip()
     if not raw_date:
         return
@@ -189,8 +213,21 @@ def _save_attendance(rows, post, errors):
         errors.append("Attendance date must be a real date.")
         return
     for e in rows:
-        Attendance.objects.update_or_create(enrollment=e, date=d,
-            defaults={"present": f"present_{e.pk}" in post})
+        status = post.get(f"status_{e.pk}", "").strip()
+        if status:
+            if status not in Attendance.Status.values:
+                errors.append(f"{e.student.name}: '{status}' is not an attendance status.")
+                continue
+        else:
+            status = (Attendance.Status.PRESENT if f"present_{e.pk}" in post
+                      else Attendance.Status.ABSENT)
+        defaults = {"status": status, "recorded_by": user}
+        if f"reason_{e.pk}" in post:
+            defaults["reason"] = post.get(f"reason_{e.pk}", "").strip()[:200]
+        attendance, _created = Attendance.objects.update_or_create(
+            enrollment=e, date=d, defaults=defaults)
+        if status == Attendance.Status.ABSENT:
+            notify_absence(attendance)
 
 
 def _attendance_rows(enrollments):
@@ -300,7 +337,7 @@ def _report_context(s, user):
                    if e.mark is not None and e.result_state == "withheld")
     award = None if hidden else award_classification(s, shown, bands)
     can_clear = user.role in ("bursar", "admin") and s.balance > 0
-    return {"s": s, "terms": term_rows,
+    return {"s": s, "terms": term_rows, "bands": bands,
             "marked": sum(1 for e in visible if e.mark is not None),
             "total": len(visible),
             "average": None if hidden else summary["average"],
@@ -330,11 +367,78 @@ def dashboard(request):
     billed, paid, waived = balances_by_student()
     ctx = {"students": Student.objects.filter(status="active").count(),
            "owing": sum(1 for s in Student.objects.all()
-                        if billed.get(s.pk, Decimal("0")) - paid.get(s.pk, Decimal("0"))
-                        - waived.get(s.pk, Decimal("0")) > 0),
+                         if billed.get(s.pk, Decimal("0")) - paid.get(s.pk, Decimal("0"))
+                         - waived.get(s.pk, Decimal("0")) > 0),
            "courses": Course.objects.count(),
-           "announcements": Announcement.visible_to(request.user)[:5]}
+           "announcements": Announcement.visible_to(request.user)[:5],
+           "events": CalendarEvent.upcoming(request.user, limit=6)}
     return render(request, "academics/staff_dashboard.html", ctx)
+
+
+@login_required
+@permission_required_code("reports.view_dashboards", "admin.dashboard_school")
+def role_dashboard(request):
+    """Charts and at-risk students for the roles that run the institution."""
+    from django.db.models import Sum
+    from django.db.models.functions import TruncMonth
+
+    from finance.models import Payment
+
+    students = Student.objects.filter(status="active").select_related(
+        "user", "school_class")
+    billed, paid, waived = balances_by_student()
+    total_billed = sum(billed.values(), Decimal("0"))
+    total_paid = sum(paid.values(), Decimal("0"))
+    total_waived = sum(waived.values(), Decimal("0"))
+    outstanding = sum(
+        (max(billed[s.pk] - paid.get(s.pk, Decimal("0"))
+             - waived.get(s.pk, Decimal("0")), Decimal("0"))
+         for s in students if s.pk in billed),
+        Decimal("0"))
+    collection_rate = (
+        round((total_paid * 100 / (total_billed - total_waived)), 1)
+        if total_billed > total_waived else None)
+
+    term = _current_term()
+    attendance = Attendance.objects.all()
+    if term is not None:
+        attendance = attendance.filter(enrollment__term=term)
+    att = attendance.aggregate(
+        total=Count("id"), present=Count("id", filter=Q(present=True)))
+    attendance_pct = (
+        round(att["present"] * 100 / att["total"], 1) if att["total"] else None)
+
+    by_class = list(
+        students.values("school_class__name", "year_or_grade")
+        .annotate(total=Count("id")).order_by("-total")[:8])
+    class_labels = [
+        row["school_class__name"] or f"Year {row['year_or_grade']}"
+        for row in by_class]
+    class_values = [row["total"] for row in by_class]
+
+    since = timezone.localdate() - timedelta(days=180)
+    monthly = list(
+        Payment.objects.filter(paid_on__date__gte=since)
+        .annotate(month=TruncMonth("paid_on")).values("month")
+        .annotate(total=Sum("amount")).order_by("month"))
+    month_labels = [row["month"].strftime("%b %Y") for row in monthly]
+    month_values = [float(row["total"]) for row in monthly]
+
+    at_risk = []
+    if user_has_code(request.user, "reports.view_at_risk"):
+        at_risk = compute_at_risk(students=students)[:25]
+
+    return render(request, "academics/role_dashboard.html", {
+        "students": students.count(),
+        "total_billed": total_billed, "total_paid": total_paid,
+        "total_waived": total_waived, "outstanding": outstanding,
+        "collection_rate": collection_rate, "attendance_pct": attendance_pct,
+        "term": term, "class_labels": class_labels,
+        "class_values": class_values, "month_labels": month_labels,
+        "month_values": month_values, "at_risk": at_risk,
+        "can_view_at_risk": user_has_code(request.user, "reports.view_at_risk"),
+        "announcements": Announcement.visible_to(request.user)[:5],
+        "events": CalendarEvent.upcoming(request.user, limit=6)})
 
 
 # ---------- notices ----------
@@ -538,6 +642,7 @@ def add_activity(request, pk):
 @role_required("registrar")
 def academic_years(request):
     year_form, term_form = YearForm(), TermForm()
+    event_form = CalendarEventForm()
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "new_year":
@@ -554,6 +659,21 @@ def academic_years(request):
                 messages.success(request, f"{t.name} added to {t.academic_year.name}.")
                 return redirect("academic_years")
             messages.error(request, f"Could not add the term. {_err(term_form)}")
+        elif action == "new_event":
+            event_form = CalendarEventForm(request.POST)
+            if event_form.is_valid():
+                e = event_form.save()
+                messages.success(request, f"Calendar event {e.title} added.")
+                return redirect("academic_years")
+            messages.error(request, f"Could not add the event. {_err(event_form)}")
+        elif action == "delete_event":
+            event = CalendarEvent.objects.filter(pk=request.POST.get("pk")).first()
+            if event is None:
+                messages.error(request, "That calendar event was not found.")
+            else:
+                event.delete()
+                messages.success(request, f"{event.title} removed from the calendar.")
+            return redirect("academic_years")
         elif action == "year_current":
             y = AcademicYear.objects.filter(pk=request.POST.get("pk")).first()
             if y:
@@ -576,7 +696,8 @@ def academic_years(request):
             return _close_or_reopen(request, action)
     return render(request, "academics/academic_years.html", {
         "years": AcademicYear.objects.prefetch_related("terms"),
-        "year_form": year_form, "term_form": term_form})
+        "events": CalendarEvent.objects.select_related("school_class"),
+        "year_form": year_form, "term_form": term_form, "event_form": event_form})
 
 
 def _close_or_reopen(request, action):
@@ -888,6 +1009,57 @@ def my_timetable(request):
         "page_title": "My timetable", "term": term})
 
 
+def _timetable_pdf_response(request, title, entries, term, subtitle=""):
+    pdf = build_timetable_pdf(request.institution, title, entries, term, subtitle)
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="timetable.pdf"'
+    return response
+
+
+@role_required("registrar")
+def timetable_pdf(request):
+    """A printable PDF of the weekly timetable, honouring the class and teacher filters."""
+    entries = TimetableEntry.objects.select_related(
+        "subject", "course", "course__programme", "lecturer", "school_class", "stream", "term")
+    term = _current_term()
+    if term:
+        entries = entries.filter(term=term)
+    title = "Timetable"
+    subtitle = str(term) if term else "All terms"
+    school_class = None
+    if request.GET.get("class"):
+        entries = entries.filter(school_class_id=request.GET["class"])
+        school_class = SchoolClass.objects.filter(pk=request.GET["class"]).first()
+    if request.GET.get("lecturer"):
+        lecturer = User.tenant_objects.filter(pk=request.GET["lecturer"]).first()
+        entries = entries.filter(lecturer_id=request.GET["lecturer"])
+        if lecturer is not None:
+            title = f"{lecturer.get_full_name() or lecturer.username} – timetable"
+    if school_class is not None:
+        title = f"{school_class.name} – timetable"
+    return _timetable_pdf_response(request, title, list(entries), term, subtitle)
+
+
+@role_required("lecturer")
+def my_timetable_pdf(request):
+    entries = TimetableEntry.objects.filter(lecturer=request.user).select_related(
+        "subject", "course", "course__programme", "school_class", "stream", "term")
+    term = _current_term()
+    if term:
+        entries = entries.filter(term=term)
+    name = request.user.get_full_name() or request.user.username
+    return _timetable_pdf_response(
+        request, f"{name} – timetable", list(entries), term)
+
+
+@role_required("student")
+def my_student_timetable_pdf(request):
+    s = get_object_or_404(Student, user=request.user)
+    term = _current_term()
+    return _timetable_pdf_response(
+        request, f"{s.name} – timetable", list(TimetableEntry.for_student(s)), term)
+
+
 @role_required()
 def school_settings(request):
     obj = SchoolSettings.get()
@@ -902,10 +1074,104 @@ def school_settings(request):
 # ---------- lecturer portal ----------
 @role_required("lecturer")
 def lecturer_portal(request):
+    term = _current_term()
+    lessons = TimetableEntry.objects.filter(lecturer=request.user).select_related(
+        "subject", "course", "course__programme", "school_class", "stream", "term")
+    if term:
+        lessons = lessons.filter(term=term)
+    assignments = (
+        Activity.objects.filter(created_by=request.user, kind=Activity.Kind.ASSIGN)
+        .annotate(submission_count=Count("submissions"))
+        .select_related("course", "subject")
+        .order_by("due_date", "pk"))
     return render(request, "academics/lecturer_portal.html", {
         "courses": request.user.courses.all(),
         "subjects": request.user.subjects_taught.all(),
+        "timetable": lessons,
+        "term": term,
+        "assignments": assignments,
+        "events": CalendarEvent.upcoming(request.user, limit=6),
         "announcements": Announcement.visible_to(request.user)[:5]})
+
+
+def _assignment_group(activity):
+    rows = Activity.objects.filter(
+        created_by=activity.created_by, kind=Activity.Kind.ASSIGN,
+        title=activity.title, due_date=activity.due_date)
+    if activity.course_id:
+        rows = rows.filter(course_id=activity.course_id)
+    if activity.subject_id:
+        rows = rows.filter(subject_id=activity.subject_id)
+    return rows
+
+
+@role_required("lecturer")
+def lecturer_assignments(request):
+    activities = (
+        Activity.objects.filter(created_by=request.user, kind=Activity.Kind.ASSIGN)
+        .select_related("course", "subject").order_by("due_date", "pk"))
+    groups = {}
+    for activity in activities:
+        key = (activity.title, activity.due_date, activity.course_id,
+               activity.subject_id)
+        group = groups.get(key)
+        if group is None:
+            group = groups[key] = {
+                "activity": activity, "students": 0, "submissions": 0}
+        group["students"] += 1
+        group["submissions"] += activity.submissions.count()
+    return render(request, "academics/lecturer_assignments.html", {
+        "groups": list(groups.values()),
+        "form": LecturerAssignmentForm(user=request.user)})
+
+
+@role_required("lecturer")
+def assignment_create(request):
+    form = LecturerAssignmentForm(
+        request.user, request.POST or None, request.FILES or None)
+    if request.method == "POST" and form.is_valid():
+        course = form.cleaned_data["course"]
+        subject = form.cleaned_data["subject"]
+        enrollments = Enrollment.objects.filter(course=course) if course else \
+            Enrollment.objects.filter(subject=subject)
+        term = _current_term()
+        if term:
+            enrollments = enrollments.filter(term=term)
+        students = [row.student for row in enrollments.select_related("student")]
+        if not students:
+            messages.error(request, "Nobody is enrolled for that course or subject yet.")
+        else:
+            upload = form.cleaned_data.get("attachment")
+            data = upload.read() if upload else None
+            today = timezone.localdate()
+            for student in students:
+                Activity.objects.create(
+                    institution=student.institution, student=student,
+                    course=course, subject=subject, kind=Activity.Kind.ASSIGN,
+                    title=form.cleaned_data["title"], date=today,
+                    due_date=form.cleaned_data["due_date"],
+                    detail=form.cleaned_data.get("detail", ""),
+                    attachment=(ContentFile(data, name=upload.name)
+                                if data else None),
+                    created_by=request.user)
+            messages.success(
+                request, f"Assignment set for {len(students)} students.")
+            return redirect("lecturer_assignments")
+    return render(request, "academics/assignment_form.html", {"form": form})
+
+
+@role_required("lecturer")
+def assignment_detail(request, pk):
+    activity = get_object_or_404(
+        Activity, pk=pk, created_by=request.user, kind=Activity.Kind.ASSIGN)
+    group = _assignment_group(activity).select_related("student__user")
+    submissions = AssignmentSubmission.objects.filter(
+        assignment__in=group).select_related("student__user")
+    return render(request, "academics/assignment_detail.html", {
+        "activity": activity,
+        "students": group,
+        "submissions": submissions,
+        "submitted_ids": {row.assignment_id for row in submissions}})
 
 
 def _roster_access(user, course):
@@ -926,7 +1192,7 @@ def course_roster(request, pk):
         if not _roster_access(request.user, course):
             raise PermissionDenied("Only the course lecturer can save marks.")
         errors = _save_marks(rows, request.POST, components)
-        _save_attendance(rows, request.POST, errors)
+        _save_attendance(rows, request.POST, errors, user=request.user)
         if errors:
             for msg in errors:
                 messages.error(request, msg)
@@ -959,7 +1225,7 @@ def subject_roster(request, pk):
             raise PermissionDenied("Only the subject teacher can save marks.")
         errors = _save_marks(rows, request.POST, components)
         had_attendance = bool(request.POST.get("attendance_date", "").strip())
-        _save_attendance(rows, request.POST, errors)
+        _save_attendance(rows, request.POST, errors, user=request.user)
         if errors:
             for msg in errors:
                 messages.error(request, msg)
@@ -1129,13 +1395,30 @@ def attendance_register(request, kind, pk):
     rows = list(item.enrollments.select_related("student__user")
                 .order_by("student__user__last_name", "student__user__first_name"))
     dates, grid = Attendance.register(rows)
+    reasons = {
+        (e_id, d): reason
+        for e_id, d, reason in Attendance.objects.filter(
+            enrollment_id__in=[e.pk for e in rows], date__in=dates
+        ).values_list("enrollment_id", "date", "reason")
+    }
+    per_date = []
+    for d in dates:
+        statuses = [grid.get(e.pk, {}).get(d) for e in rows]
+        attended = sum(1 for s in statuses if s in Attendance.ATTENDED)
+        per_date.append({"date": d, "attended": attended, "total": len(rows)})
     for e in rows:
-        cells = [grid.get(e.pk, {}).get(d) for d in dates]
-        present = sum(1 for c in cells if c)
-        e.cells, e.attended = cells, present
+        cells = []
+        for d in dates:
+            status = grid.get(e.pk, {}).get(d)
+            cells.append((Attendance.LETTERS.get(status, "–"),
+                          reasons.get((e.pk, d), "")))
+        e.cells = cells
+        statuses = [grid.get(e.pk, {}).get(d) for d in dates]
+        e.attended = sum(1 for s in statuses if s in Attendance.ATTENDED)
+        e.missed = sum(1 for s in statuses if s in Attendance.MISSED)
     return render(request, "academics/attendance_register.html", {
         "item": item, "kind": kind, "rows": rows, "dates": dates,
-        "sessions": len(dates), "back": back})
+        "per_date": per_date, "sessions": len(dates), "back": back})
 
 
 @role_required("registrar", "bursar", "lecturer")
@@ -1169,6 +1452,80 @@ def my_report(request):
                                                         "school_class", "stream"),
                           user=request.user)
     return render(request, "academics/student_report.html", _report_context(s, request.user))
+
+
+def _academic_document_response(request, student, kind):
+    context = _report_context(student, request.user)
+    document = issue_document(student, kind, request.user, request=request)
+    verify_url = request.build_absolute_uri(
+        reverse("verify_document", args=[document.token]))
+    pdf = build_academic_document(student, context, kind, verify_url)
+    label = ("transcript" if kind == DocumentVerification.Kind.TRANSCRIPT
+             else "report-card")
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'attachment; filename="{label}-{student.student_no or student.pk}.pdf"')
+    return response
+
+
+@role_required("registrar", "bursar", "lecturer")
+def student_report_pdf(request, pk):
+    student = get_object_or_404(Student, pk=pk)
+    return _academic_document_response(
+        request, student, DocumentVerification.Kind.REPORT_CARD)
+
+
+@role_required("registrar", "bursar", "lecturer")
+def student_transcript_pdf(request, pk):
+    student = get_object_or_404(Student, pk=pk)
+    return _academic_document_response(
+        request, student, DocumentVerification.Kind.TRANSCRIPT)
+
+
+@role_required("student")
+def my_report_pdf(request):
+    student = get_object_or_404(Student, user=request.user)
+    return _academic_document_response(
+        request, student, DocumentVerification.Kind.REPORT_CARD)
+
+
+@role_required("student")
+def my_transcript_pdf(request):
+    student = get_object_or_404(Student, user=request.user)
+    return _academic_document_response(
+        request, student, DocumentVerification.Kind.TRANSCRIPT)
+
+
+def _guardian_student(request, pk):
+    return get_object_or_404(Student, pk=pk,
+                             guardian_links__parent=request.user)
+
+
+@role_required("parent")
+def child_report_pdf(request, pk):
+    return _academic_document_response(
+        request, _guardian_student(request, pk),
+        DocumentVerification.Kind.REPORT_CARD)
+
+
+@role_required("parent")
+def child_transcript_pdf(request, pk):
+    return _academic_document_response(
+        request, _guardian_student(request, pk),
+        DocumentVerification.Kind.TRANSCRIPT)
+
+
+def verify_document(request, token):
+    """Publicly confirm a printed report card or transcript by its token."""
+    document = get_object_or_404(
+        DocumentVerification.all_objects.select_related(
+            "student__user", "institution"), token=token)
+    return render(request, "academics/verify_document.html", {
+        "document": document,
+        "INSTITUTION": document.institution.name,
+        "INSTITUTION_OBJECT": document.institution,
+        "BRAND": brand_variables(document.institution),
+    })
 
 
 # ---------- exam sittings ----------
@@ -1305,11 +1662,18 @@ def award_rule_delete(request, pk):
 # ---------- parent portal ----------
 @role_required("parent")
 def parent_portal(request):
-    links = Guardian.objects.filter(parent=request.user).select_related(
-        "student", "student__user", "student__programme", "student__school_class",
-        "student__stream")
+    links = list(
+        Guardian.objects.filter(parent=request.user).select_related(
+            "student", "student__user", "student__programme", "student__school_class",
+            "student__stream"))
+    can_view_finance = user_has_code(request.user, "parent_portal.view_finance")
+    for link in links:
+        link.show_finance = bool(link.can_view_finance and can_view_finance)
+        link.balance = link.student.balance if link.show_finance else None
     return render(request, "academics/parent_portal.html", {
         "links": links,
+        "can_view_finance": can_view_finance,
+        "events": CalendarEvent.upcoming(request.user, limit=6),
         "announcements": Announcement.visible_to(request.user)[:5]})
 
 
@@ -1318,6 +1682,12 @@ def child_detail(request, pk):
     s = get_object_or_404(
         Student.objects.select_related("user", "programme", "school_class", "stream"),
         pk=pk, guardian_links__parent=request.user)
+    link = get_object_or_404(Guardian, parent=request.user, student=s)
+    can_view_finance = bool(
+        link.can_view_finance
+        and user_has_code(request.user, "parent_portal.view_finance"))
+    siblings = Guardian.objects.filter(parent=request.user).exclude(
+        student=s).select_related("student")
     sitting = _sitting_for(s)
     exam_rows = (s.enrollments.filter(term=sitting.term)
                  .select_related("course", "subject")
@@ -1328,9 +1698,14 @@ def child_detail(request, pk):
     return render(request, "academics/child_detail.html", {
         "s": s, "enrollments": enrollments,
         "attendance": _attendance_rows(s.enrollments.all()),
+        "absences": Attendance.absences(s.enrollments.all(), limit=8),
         "timetable": TimetableEntry.for_student(s),
-        "activities": s.activities.all()[:10], "invoices": s.invoices.all(),
+        "activities": s.activities.all()[:10],
+        "invoices": s.invoices.all() if can_view_finance else [],
         "sitting": sitting, "exam_rows": exam_rows,
+        "can_view_finance": can_view_finance,
+        "finance_on": is_enabled("finance", getattr(request, "institution", None)),
+        "siblings": siblings,
         "announcements": Announcement.visible_to(request.user)[:5]})
 
 
@@ -1369,9 +1744,65 @@ def student_portal(request):
     s = get_object_or_404(Student.objects.select_related("school_class", "stream"), user=request.user)
     enrollments = list(s.enrollments.select_related("course", "subject"))
     _annotate_result_state(enrollments, s, request.user)
+    assignments = list(
+        s.activities.filter(kind=Activity.Kind.ASSIGN).select_related(
+            "course", "subject", "created_by").order_by("due_date", "pk"))
+    assignment_rows = []
+    for activity in assignments:
+        assignment_rows.append({
+            "activity": activity,
+            "submission": activity.submissions.filter(student=s).first(),
+        })
     return render(request, "academics/student_portal.html", {
         "s": s, "enrollments": enrollments,
         "attendance": _attendance_rows(s.enrollments.all()),
+        "absences": Attendance.absences(s.enrollments.all(), limit=8),
         "activities": s.activities.all()[:10], "invoices": s.invoices.prefetch_related("payments"),
         "timetable": TimetableEntry.for_student(s),
-        "announcements": Announcement.visible_to(request.user)[:5]})
+        "announcements": Announcement.visible_to(request.user)[:5],
+        "events": CalendarEvent.upcoming(request.user, limit=6),
+        "finance_on": is_enabled("finance", getattr(request, "institution", None)),
+        "assignments": assignments,
+        "assignment_rows": assignment_rows})
+
+
+@role_required("student")
+def my_assignments(request):
+    s = get_object_or_404(Student.objects.select_related("school_class", "stream", "programme"), user=request.user)
+    assignments = list(
+        s.activities.filter(kind=Activity.Kind.ASSIGN).select_related(
+            "course", "subject", "created_by").order_by("due_date", "pk"))
+    rows = []
+    for activity in assignments:
+        rows.append({
+            "activity": activity,
+            "submission": activity.submissions.filter(student=s).first(),
+        })
+    return render(request, "academics/my_assignments.html", {
+        "s": s, "assignment_rows": rows})
+
+
+@role_required("student")
+def assignment_submit(request, pk):
+    s = get_object_or_404(Student.objects.select_related("school_class", "stream", "programme"), user=request.user)
+    activity = get_object_or_404(Activity, pk=pk, student=s)
+    if activity.kind != Activity.Kind.ASSIGN:
+        raise Http404("That is not an assignment.")
+    if request.method == "POST":
+        form = AssignmentSubmissionForm(request.POST, request.FILES)
+        if form.is_valid():
+            submission = activity.submissions.filter(student=s).first()
+            if submission is None:
+                submission = AssignmentSubmission(
+                    institution=s.institution, assignment=activity, student=s)
+            submission.text = form.cleaned_data.get("text") or submission.text
+            submission.file = form.cleaned_data.get("file") or submission.file
+            submission.submitted_at = timezone.now()
+            submission.save()
+            messages.success(request, "Assignment submitted.")
+            return redirect("my_assignments")
+        messages.error(request, _err(form))
+        return redirect("my_assignments")
+    form = AssignmentSubmissionForm()
+    return render(request, "academics/assignment_submit.html", {
+        "s": s, "activity": activity, "form": form})

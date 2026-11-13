@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block content %}
+<h1>Graduation</h1>
+<p class="muted">Clear the checklist before a student is graduated. Certificates can only be issued after graduation.</p>
+<form method="get" class="inline">
+  <input name="q" value="{{ query }}" placeholder="Name or student number">
+  <button class="btn ghost">Search</button>
+</form>
+<table class="tbl">
+  <tr><th>Student</th><th>Number</th><th>Programme</th><th>Status</th><th></th></tr>
+  {% for s in students %}
+  <tr>
+    <td>{{ s.name }}</td><td>{{ s.student_no }}</td><td>{{ s.programme.name }}</td>
+    <td><span class="badge">{{ s.get_status_display }}</span></td>
+    <td><a href="{% url 'admissions:graduation_detail' s.pk %}">Open</a></td>
+  </tr>
+  {% empty %}<tr><td colspan="5" class="muted">No students match.</td></tr>{% endfor %}
+</table>
+{% endblock %}

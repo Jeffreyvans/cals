@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block content %}
+<h1>General journal</h1>
+<table class="tbl"><tr><th>Number</th><th>Date</th><th>Description</th><th>Reference</th><th class="r">Lines</th></tr>
+{% for e in entries %}<tr><td><a href="{% url 'journal_detail' e.pk %}">{{ e.number }}</a></td>
+<td>{{ e.date }}</td><td>{{ e.description }}</td><td>{{ e.reference }}</td><td class="r">{{ e.lines.count }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No journal entries yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

@@ -6,7 +6,15 @@
 <tr><td>Reason</td><td>{{ w.reason }}</td></tr>
 <tr><td>Date</td><td>{{ w.created }}</td></tr>
 <tr><td>Recorded by</td><td>{{ w.recorded_by_name }}</td></tr>
-<tr><td>Balance on this invoice</td><td>{{ CUR }}{{ w.invoice.balance }}</td></tr></table>
+<tr><td>Balance on this invoice</td><td>{{ CUR }}{{ w.invoice.balance }}</td></tr>
+{% if fiscal.verification_code %}<tr><td>ZIMRA verification</td><td><b>{{ fiscal.verification_code }}</b></td></tr>{% endif %}
+</table>
+{% if fiscal.verification_code %}
+<div class="fiscal-qr">
+  <img src="{% url 'fiscalisation:qr' fiscal.pk %}" alt="ZIMRA verification QR code" width="140" height="140">
+  <p class="muted">Fiscal day {{ fiscal.fiscal_day.fiscal_day_no }}</p>
+</div>
+{% endif %}
 <button class="btn noprint" onclick="print()">Print credit note</button></div>
 <a class="btn ghost noprint" href="{% url 'student_detail' s.pk %}">Back to student</a>
 {% endblock %}

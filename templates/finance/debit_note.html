@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block content %}
+<div class="receipt"><h1>{{ INSTITUTION }}</h1><h2>Debit note {{ n.note_no }}</h2>
+<table class="tbl"><tr><td>Student</td><td>{{ s.name }} ({{ s.student_no }})</td></tr>
+<tr><td>Against</td><td>{{ n.invoice.description }}</td></tr>
+<tr><td>Amount added</td><td><b>{{ CUR }}{{ n.amount }}</b></td></tr>
+<tr><td>Reason</td><td>{{ n.reason }}</td></tr>
+<tr><td>Date</td><td>{{ n.created }}</td></tr>
+<tr><td>Recorded by</td><td>{{ n.recorded_by_name }}</td></tr>
+<tr><td>Balance on this invoice</td><td>{{ CUR }}{{ n.invoice.balance }}</td></tr>
+{% if fiscal.verification_code %}<tr><td>ZIMRA verification</td><td><b>{{ fiscal.verification_code }}</b></td></tr>{% endif %}
+</table>
+{% if fiscal.verification_code %}
+<div class="fiscal-qr">
+  <img src="{% url 'fiscalisation:qr' fiscal.pk %}" alt="ZIMRA verification QR code" width="140" height="140">
+  <p class="muted">Fiscal day {{ fiscal.fiscal_day.fiscal_day_no }}</p>
+</div>
+{% endif %}
+<button class="btn noprint" onclick="print()">Print debit note</button></div>
+<a class="btn ghost noprint" href="{% url 'student_detail' s.pk %}">Back to student</a>
+{% endblock %}

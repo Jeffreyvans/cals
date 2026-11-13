@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block content %}
+<h1>Expenses report</h1>
+<p>{% include "finance/_export_links.html" with export_name="export_expenses" %}</p>
+<table class="tbl"><tr><th>Date</th><th>Description</th><th>Category</th><th>Supplier</th><th class="r">Amount</th></tr>
+{% for e in rows %}<tr><td>{{ e.date }}</td><td>{{ e.description }}</td><td>{{ e.category }}</td>
+<td>{{ e.supplier|default:"-" }}</td><td class="r">{{ CUR }}{{ e.amount }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No expenses.</td></tr>{% endfor %}
+<tr><th colspan="4">Total</th><th class="r">{{ CUR }}{{ total }}</th></tr></table>
+{% endblock %}

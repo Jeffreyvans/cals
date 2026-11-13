@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:course_site' site.pk %}">Back to {{ site.display_title }}</a></p>
+<div class="head"><div><h1>{{ assignment.title }}</h1>
+<p class="muted">Due {{ assignment.due_at|date:"d M Y H:i" }} &middot; {{ assignment.max_score }} marks
+{% if assignment.is_late %} &middot; <span class="badge">Past due</span>{% endif %}</p></div>
+{% if can_grade %}<a class="btn ghost" href="{% url 'lms:plagiarism_report' assignment.pk %}">Similarity report</a>{% endif %}</div>
+
+{% if assignment.instructions %}<div class="card">{{ assignment.instructions|linebreaks }}</div>{% endif %}
+{% if assignment.attachment %}<p><a href="{{ assignment.attachment.url }}">Download the assignment brief</a></p>{% endif %}
+{% if rubric %}<div class="card"><b>{{ rubric.title }}</b>
+{% if rubric.description %}<p class="muted">{{ rubric.description }}</p>{% endif %}
+<ul>{% for criterion in rubric.criteria.all %}<li>{{ criterion.description }} <span class="muted">{{ criterion.max_points }} points</span></li>{% endfor %}</ul></div>{% endif %}
+
+{% if submission %}
+<div class="card"><b>Your submission</b> <span class="muted">{{ submission.submitted_at|date:"d M Y H:i" }}</span>
+{% if submission.is_late %}<span class="badge">Late</span>{% endif %}
+{% if submission.text %}<p>{{ submission.text|linebreaksbr }}</p>{% endif %}
+{% if submission.file %}<p><a href="{{ submission.file.url }}">Download your file</a></p>{% endif %}
+<p>Mark: <b>{{ submission.mark|default_if_none:"Not marked" }}</b>{% if submission.mark is not None %} / {{ assignment.max_score }}{% endif %}</p>
+{% if submission.feedback %}<p>{{ submission.feedback|linebreaksbr }}</p>{% endif %}
+</div>
+{% endif %}
+
+{% if can_submit %}
+<h2>{% if submission %}Resubmit work{% else %}Submit work{% endif %}</h2>
+<form method="post" enctype="multipart/form-data" class="card" action="{% url 'lms:assignment_submit' assignment.pk %}">{% csrf_token %}
+{{ submission_form.as_p }}
+<button class="btn">Submit</button>
+</form>
+{% endif %}
+
+{% if can_grade %}
+<h2>Submissions</h2>
+<table class="tbl"><tr><th>Student</th><th>Submitted</th><th>Late</th><th>Mark</th><th></th></tr>
+{% for row in submissions %}
+<tr><td>{{ row.student.name }} <span class="muted">{{ row.student.student_no }}</span></td>
+<td>{{ row.submitted_at|date:"d M Y H:i" }}</td>
+<td>{% if row.is_late %}Yes{% else %}No{% endif %}</td>
+<td>{{ row.mark|default_if_none:"-" }}</td>
+<td><a class="btn ghost" href="{% url 'lms:assignment_grade' assignment.pk row.pk %}">Grade</a></td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No submissions yet.</td></tr>{% endfor %}</table>
+{% endif %}
+{% endblock %}

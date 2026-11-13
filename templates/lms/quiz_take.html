@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:quiz_detail' quiz.pk %}">Back to {{ quiz.title }}</a></p>
+<div class="head"><div><h1>{{ quiz.title }}</h1>
+<p class="muted">Attempt {{ attempt.get_status_display }}{% if remaining is not None %} &middot; <span id="timer">{{ remaining }}</span> seconds left{% endif %}</p></div></div>
+{% if quiz.instructions %}<div class="card">{{ quiz.instructions|linebreaks }}</div>{% endif %}
+{% if expired %}<div class="msg">Time is up. Submit now to save your answers.</div>{% endif %}
+
+<form method="post">{% csrf_token %}
+{% for question in questions %}
+<div class="card"><b>{{ forloop.counter }}. {{ question.text }}</b> <span class="muted">({{ question.points }} marks)</span>
+{% if question.kind == 'multiple_choice' or question.kind == 'true_false' %}
+{% for choice in question.take_choices %}
+<p><label><input type="radio" name="q_{{ question.pk }}" value="{{ choice.pk }}"> {{ choice.text }}</label></p>
+{% empty %}<p class="muted">No choices have been added.</p>{% endfor %}
+{% elif question.kind == 'short_answer' %}
+<p><input type="text" name="q_{{ question.pk }}" class="wide" autocomplete="off"></p>
+{% else %}
+{% for pair in question.matching_pairs.all %}
+<p><label>{{ pair.left_text }}
+<select name="match_{{ question.pk }}_{{ pair.pk }}">
+<option value="">Choose</option>
+{% for option in question.take_right_options %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+</select></label></p>
+{% empty %}<p class="muted">No matching pairs have been added.</p>{% endfor %}
+{% endif %}
+</div>
+{% empty %}<p class="muted">This quiz has no questions yet.</p>{% endfor %}
+<button class="btn">Submit quiz</button>
+</form>
+{% if remaining is not None %}<script>
+(function(){var t={{ remaining }};var el=document.getElementById('timer');var id=setInterval(function(){t-=1;if(t<=0){clearInterval(id);t=0;el.textContent='0';}else{el.textContent=String(t);}},1000);})();
+</script>{% endif %}
+{% endblock %}

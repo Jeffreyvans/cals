@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block content %}
+<h1>Overdue instalments</h1>
+<table class="tbl"><tr><th>Student</th><th>Plan</th><th>Due date</th><th class="r">Amount</th><th class="r">Outstanding</th></tr>
+{% for i in rows %}<tr><td>{{ i.plan.student.name }}</td><td>{{ i.plan.name }}</td><td>{{ i.due_date }}</td>
+<td class="r">{{ CUR }}{{ i.amount }}</td><td class="r">{{ CUR }}{{ i.outstanding }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">Nothing overdue.</td></tr>{% endfor %}</table>
+{% endblock %}

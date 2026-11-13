@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block content %}
+<h1>Chart of accounts</h1>
+<p><a class="btn" href="{% url 'account_create' %}">New account</a>
+<a class="btn ghost" href="{% url 'journal_list' %}">Journal</a>
+<a class="btn ghost" href="{% url 'trial_balance' %}">Trial balance</a></p>
+<table class="tbl"><tr><th>Code</th><th>Name</th><th>Type</th><th>Active</th></tr>
+{% for a in rows %}<tr><td>{{ a.code }}</td><td>{{ a.name }}</td><td>{{ a.get_type_display }}</td>
+<td>{{ a.is_active|yesno:"Yes,No" }}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">The default chart is created on first use.</td></tr>{% endfor %}
+</table>
+{% endblock %}

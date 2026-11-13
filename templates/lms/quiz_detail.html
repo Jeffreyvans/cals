@@ -1,0 +1,48 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:course_site' site.pk %}">Back to {{ site.display_title }}</a></p>
+<div class="head"><div><h1>{{ quiz.title }}</h1>
+<p class="muted">{{ quiz.total_points }} marks &middot; {{ quiz.max_attempts }} attempt{{ quiz.max_attempts|pluralize }}
+{% if quiz.time_limit_minutes %} &middot; {{ quiz.time_limit_minutes }} minutes{% endif %}</p></div>
+{% if can_grade %}
+<a class="btn ghost" href="{% url 'lms:quiz_analytics' quiz.pk %}">Analytics</a>
+<a class="btn ghost" href="{% url 'lms:quiz_results' quiz.pk %}">All attempts</a>
+{% endif %}</div>
+
+{% if quiz.instructions %}<div class="card">{{ quiz.instructions|linebreaks }}</div>{% endif %}
+<p>{% if is_open %}<span class="badge">Open</span>{% else %}<span class="badge">Closed</span>{% endif %}
+{% if quiz.opens_at %}Opens {{ quiz.opens_at|date:"d M Y H:i" }}.{% endif %}
+{% if quiz.closes_at %}Closes {{ quiz.closes_at|date:"d M Y H:i" }}.{% endif %}</p>
+
+{% if can_grade %}
+<h2>Questions</h2>
+<table class="tbl"><tr><th>Question</th><th>Type</th><th>Points</th><th></th></tr>
+{% for question in quiz.questions.all %}
+<tr><td>{{ question.text|truncatechars:100 }}</td><td>{{ question.get_kind_display }}</td><td>{{ question.points }}</td>
+<td><a class="btn ghost" href="{% url 'lms:question_edit' question.pk %}">Edit</a></td></tr>
+{% empty %}<tr><td colspan="4" class="muted">No questions yet.</td></tr>{% endfor %}</table>
+
+<h2>Add a question</h2>
+<form method="post" class="card" action="{% url 'lms:question_create' quiz.pk %}">{% csrf_token %}
+{{ question_form.as_p }}
+<button class="btn">Add question</button>
+</form>
+{% else %}
+{% if is_open and attempts_left %}
+<form method="post" action="{% url 'lms:quiz_start' quiz.pk %}">{% csrf_token %}
+<button class="btn">Start quiz ({{ attempts_left }} attempt{{ attempts_left|pluralize }} left)</button>
+</form>
+{% elif not attempts_left %}
+<p class="muted">You have used all your attempts.</p>
+{% else %}
+<p class="muted">This quiz is not open.</p>
+{% endif %}
+{% endif %}
+
+<h2>Attempts</h2>
+<table class="tbl"><tr><th>Student</th><th>Started</th><th>Status</th><th>Score</th><th></th></tr>
+{% for attempt in attempts %}
+<tr><td>{{ attempt.student.name }}</td><td>{{ attempt.started_at|date:"d M Y H:i" }}</td>
+<td>{{ attempt.get_status_display }}</td><td>{{ attempt.score|default_if_none:"-" }} / {{ attempt.max_score }}</td>
+<td><a class="btn ghost" href="{% url 'lms:quiz_attempt' attempt.pk %}">Open</a></td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No attempts yet.</td></tr>{% endfor %}</table>
+{% endblock %}

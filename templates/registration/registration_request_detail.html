@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Review registration request{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ reg_request.full_name }}</h1>
+    <p class="muted">{{ reg_request.get_status_display }} &middot; asked to join as {{ reg_request.position_label }} &middot; {{ reg_request.created|date:"j M Y, H:i" }}</p>
+  </div>
+  <a class="btn ghost" href="{% url 'registration_requests' %}">Back to requests</a>
+</div>
+
+{% if messages %}{% for message in messages %}<div class="msg {{ message.tags }}">{{ message }}</div>{% endfor %}{% endif %}
+
+<div class="grid two">
+  <section class="card">
+    <h2>What they sent</h2>
+    <dl class="facts">
+      <dt>Full name</dt><dd>{{ reg_request.full_name }}</dd>
+      <dt>Email</dt><dd><a href="mailto:{{ reg_request.email }}">{{ reg_request.email }}</a></dd>
+      <dt>Phone</dt><dd>{{ reg_request.phone|default:"Not given" }}</dd>
+      <dt>Position asked for</dt><dd>{{ reg_request.position_label }}</dd>
+      <dt>Department</dt><dd>{{ reg_request.department.name|default:"Not chosen" }}</dd>
+      <dt>Staff number</dt><dd>{{ reg_request.staff_no|default:"Not given" }}</dd>
+      <dt>Username</dt><dd><code>{{ reg_request.user.username }}</code></dd>
+      <dt>Account status</dt><dd>{% if reg_request.user.is_active %}Active{% else %}Inactive until approved{% endif %}</dd>
+      <dt>Message</dt><dd>{{ reg_request.message|default:"None"|linebreaksbr }}</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Decision</h2>
+    {% if reg_request.is_pending %}
+      <form method="post" class="stack">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="approve">
+        <h3>Approve</h3>
+        <p class="muted">The account is activated, the role and staff profile are attached, and the person is emailed. You may approve a different position from the one they asked for.</p>
+        <label>Position
+          <select name="position">
+            {% for position in positions %}
+              <option value="{{ position.code }}" {% if position.code == reg_request.position %}selected{% endif %}>{{ position.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Department (optional)
+          <select name="department">
+            <option value="">No department</option>
+            {% for department in departments %}
+              <option value="{{ department.pk }}" {% if department.pk == reg_request.department_id %}selected{% endif %}>{{ department.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="btn">Approve this request</button>
+      </form>
+
+      <hr>
+
+      <form method="post" class="stack">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reject">
+        <h3>Reject</h3>
+        <p class="muted">The account stays inactive and the person is emailed your reason. Give a clear, factual reason.</p>
+        <label>Reason<textarea name="reason" rows="3" required></textarea></label>
+        <button class="btn ghost">Reject this request</button>
+      </form>
+    {% else %}
+      <p><strong>{{ reg_request.get_status_display }}</strong></p>
+      {% if reg_request.approved_position %}<p class="muted">Approved as {{ reg_request.position_label }}.</p>{% endif %}
+      {% if reg_request.rejection_reason %}<p class="muted">Reason: {{ reg_request.rejection_reason }}</p>{% endif %}
+      {% if reg_request.reviewed_by %}<p class="muted">Reviewed by {{ reg_request.reviewed_by.get_full_name|default:reg_request.reviewed_by.username }} on {{ reg_request.reviewed_at|date:"j M Y, H:i" }}.</p>{% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

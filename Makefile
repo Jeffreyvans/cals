@@ -1,4 +1,4 @@
-.PHONY: install migrate seed run test lint format check precommit
+.PHONY: install migrate seed run test lint format check precommit webhooks
 
 install:
 	pip install -r requirements.txt
@@ -10,6 +10,9 @@ migrate:
 
 seed:
 	python manage.py seed
+
+webhooks:
+	python manage.py deliver_webhooks
 
 run:
 	python manage.py runserver

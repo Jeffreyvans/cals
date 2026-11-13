@@ -31,6 +31,7 @@ ALL_MODULES = [
     "governance",
     "api",
     "sso",
+    "fiscalisation",
 ]
 
 # The name each module is given on the screens.
@@ -63,6 +64,7 @@ MODULE_LABELS = {
     "governance": "Governance",
     "api": "API and integrations",
     "sso": "Single sign-on",
+    "fiscalisation": "Fiscalisation (ZIMRA FDMS)",
 }
 
 

@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:quiz_attempt' attempt.pk %}">Back to attempt</a></p>
+<h1>Mark {{ attempt.student.name }}</h1>
+<p class="muted">{{ quiz.title }} &middot; {{ attempt.score|default_if_none:"-" }} / {{ attempt.max_score }}</p>
+<form method="post" class="card">{% csrf_token %}
+{% for answer in answers %}
+<div class="card"><b>{{ forloop.counter }}. {{ answer.question.text }}</b> <span class="muted">(max {{ answer.question.points }})</span>
+{% if answer.selected_choice %}<p>Answer: {{ answer.selected_choice.text }}</p>
+{% elif answer.text_answer %}<p>Answer: {{ answer.text_answer }}</p>
+{% elif answer.matching_answer %}<p>Matches: {{ answer.matching_answer }}</p>{% endif %}
+<p><label>Points <input type="number" step="0.01" min="0" max="{{ answer.question.points }}" name="points_{{ answer.pk }}" value="{{ answer.awarded_points }}"></label></p>
+<p><label>Feedback <input type="text" name="feedback_{{ answer.pk }}" value="{{ answer.feedback }}"></label></p>
+</div>
+{% endfor %}
+<button class="btn">Save marks</button>
+</form>
+{% endblock %}

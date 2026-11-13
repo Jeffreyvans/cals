@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div><h1>{{ record.student.name }}</h1><p class="muted">{{ record.student.student_no }} · {{ record.student.programme.name }} · graduated {{ record.graduation_year|default:"—" }}</p></div>
+  <a class="btn ghost" href="{% url 'admissions:alumni_list' %}">Back to alumni</a>
+</div>
+<form method="post" class="inline wide">{% csrf_token %}{{ form.as_p }}<button class="btn">Save record</button></form>
+<p class="muted">Last updated {{ record.updated_at|date:"j F Y H:i" }}{% if record.updated_by %} by {{ record.updated_by.get_full_name|default:record.updated_by.username }}{% endif %}.</p>
+{% endblock %}

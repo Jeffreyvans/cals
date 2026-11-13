@@ -1,0 +1,3 @@
+<span class="noprint"><a class="btn ghost" href="{% url export_name %}{{ export_query|default:"?" }}format=csv">CSV</a>
+<a class="btn ghost" href="{% url export_name %}{{ export_query|default:"?" }}format=xlsx">Excel</a>
+<a class="btn ghost" href="{% url export_name %}{{ export_query|default:"?" }}format=pdf">PDF</a></span>

@@ -1,0 +1,19 @@
+<div class="public-wrap">
+  <p class="muted">{{ INSTITUTION }}</p>
+  <div class="card">
+    <h1>Student card verification</h1>
+    {% if card.is_valid %}
+      <p class="msg success">This is a valid student card issued by {{ card.student.institution.name }}.</p>
+    {% else %}
+      <p class="msg error">This card is no longer valid.</p>
+    {% endif %}
+    <table class="tbl">
+      <tr><th>Card number</th><td>{{ card.card_no }}</td></tr>
+      <tr><th>Student</th><td>{{ card.student.name }}</td></tr>
+      <tr><th>Student number</th><td>{{ card.student.student_no }}</td></tr>
+      <tr><th>Programme</th><td>{{ card.student.programme.name }}</td></tr>
+      <tr><th>Valid until</th><td>{{ card.valid_until|date:"j F Y" }}</td></tr>
+    </table>
+  </div>
+  <p class="muted">This page confirms the card was issued by the institution. It does not display marks or financial information.</p>
+</div>

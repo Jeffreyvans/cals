@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Duplicate accounts{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Duplicate accounts</h1>
+    <p class="muted">Flag an account that belongs to the same person, or merge the links where that is safe. Financial and academic history is never deleted.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'user_list' %}">Back to users</a>
+</div>
+
+<form method="post" class="form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="msg error" role="alert">{{ form.non_field_errors|striptags }}</div>
+  {% endif %}
+  {{ form.as_p }}
+  <div class="row">
+    <button class="btn">Confirm</button>
+    <a class="btn ghost" href="{% url 'user_list' %}">Cancel</a>
+  </div>
+</form>
+
+{% if duplicates %}
+<div class="card">
+  <h2>Flagged duplicates</h2>
+  <div class="tbl-wrap">
+  <table class="tbl">
+    <thead><tr><th>Flagged account</th><th>Kept account</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for account in duplicates %}
+      <tr>
+        <td><a href="{% url 'user_detail' account.pk %}">{{ account.get_full_name|default:account.username }}</a> <span class="muted"><code>{{ account.username }}</code></span></td>
+        <td><a href="{% url 'user_detail' account.duplicate_of.pk %}">{{ account.duplicate_of.get_full_name|default:account.duplicate_of.username }}</a></td>
+        <td>{% if account.is_active %}<span class="badge ok">Active</span>{% else %}<span class="badge">Inactive</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

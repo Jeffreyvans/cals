@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:quiz_detail' quiz.pk %}">Back to {{ quiz.title }}</a></p>
+<div class="head"><div><h1>{{ attempt.student.name }}: {{ quiz.title }}</h1>
+<p class="muted">{{ attempt.get_status_display }} &middot; {{ attempt.score|default_if_none:"-" }} / {{ attempt.max_score }}</p></div>
+{% if can_grade %}<a class="btn" href="{% url 'lms:quiz_grade' attempt.pk %}">Mark answers</a>{% endif %}</div>
+
+{% for answer in answers %}
+<div class="card"><b>{{ forloop.counter }}. {{ answer.question.text }}</b> <span class="muted">{{ answer.awarded_points }} / {{ answer.question.points }}</span>
+{% if answer.selected_choice %}<p>Answer: {{ answer.selected_choice.text }}</p>
+{% elif answer.text_answer %}<p>Answer: {{ answer.text_answer }}</p>
+{% elif answer.matching_answer %}<p>Matches:</p><ul>{% for key, value in answer.matching_answer.items %}<li>{{ key }}: {{ value }}</li>{% endfor %}</ul>
+{% else %}<p class="muted">No answer.</p>{% endif %}
+<p>{% if answer.is_correct %}<span class="badge">Correct</span>{% elif answer.needs_manual %}<span class="badge">Needs marking</span>{% else %}<span class="badge">Incorrect</span>{% endif %}
+{% if answer.feedback %} {{ answer.feedback }}{% endif %}</p></div>
+{% empty %}<p class="muted">No answers recorded.</p>{% endfor %}
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ list_url }}">Account resets</a></p>
+<div class="head"><div><h1>Reset for {{ reset.user }}</h1>
+<p class="muted">Requested by {{ reset.requested_by|default:"-" }} &middot;
+  <span class="badge">{{ reset.get_status_display }}</span></p></div></div>
+
+<div class="card">
+  <p><strong>Reason:</strong> {{ reset.reason|default:"-" }}</p>
+  {% if reset.ticket %}<p><strong>Ticket:</strong> {{ reset.ticket }}</p>{% endif %}
+  {% if reset.completed_at %}<p><strong>Decided:</strong> {{ reset.completed_at }}</p>{% endif %}
+
+  {% if temporary_password %}
+  <div class="card">
+    <p><strong>Temporary password:</strong> <code>{{ temporary_password }}</code></p>
+    <p class="muted">Copy it now. It is not stored and cannot be shown again.</p>
+  </div>
+  {% endif %}
+
+  {% if reset.status == "pending" %}
+  <form method="post" action="{{ manage_url }}" style="display:inline">{% csrf_token %}
+    <input type="hidden" name="action" value="complete">
+    <button class="btn">Reset the password</button>
+  </form>
+  <form method="post" action="{{ manage_url }}" style="display:inline">{% csrf_token %}
+    <input type="hidden" name="action" value="reject">
+    <button class="btn ghost">Reject request</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

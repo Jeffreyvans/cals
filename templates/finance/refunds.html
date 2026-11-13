@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block content %}
+<h1>Refunds</h1>
+<p><a class="btn" href="{% url 'refund_request' %}">Request refund</a></p>
+<table class="tbl"><tr><th>Receipt</th><th>Student</th><th class="r">Amount</th><th>Reason</th><th>Status</th><th></th></tr>
+{% for r in rows %}<tr><td>{{ r.payment.receipt_no }}</td><td>{{ r.payment.invoice.student.name }}</td>
+<td class="r">{{ CUR }}{{ r.amount }}</td><td>{{ r.reason }}</td><td>{{ r.get_status_display }}</td>
+<td>{% if r.status == "pending" %}<form method="post" action="{% url 'refund_decide' r.pk %}">{% csrf_token %}
+<button class="btn" name="action" value="approve">Approve</button>
+<button class="btn ghost" name="action" value="reject">Reject</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted">No refunds yet.</td></tr>{% endfor %}</table>
+{% endblock %}

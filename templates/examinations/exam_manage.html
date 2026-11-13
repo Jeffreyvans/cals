@@ -1,0 +1,90 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ list_url }}">Exam sittings</a></p>
+<div class="head"><div><h1>{{ exam.name }}</h1>
+<p class="muted">{{ exam.term }} &middot; {{ exam.starts_on }} to {{ exam.ends_on }} &middot;
+  <span class="badge">{{ exam.get_status_display }}</span></p></div>
+<div>
+  <a class="btn ghost" href="{{ clash_url }}">Clash check</a>
+  <a class="btn ghost" href="{{ export_url }}">Export candidates</a>
+  <a class="btn ghost" href="{{ zimsec_url }}">ZIMSEC CSV</a>
+  <a class="btn ghost" href="{{ hexco_url }}">HEXCO CSV</a>
+</div></div>
+
+<div class="card">
+  <p><strong>Candidates:</strong> {{ candidate_count }} &middot;
+    <strong>Released:</strong> {{ published_count }}</p>
+  {% if can_manage %}
+  <form method="post" action="{{ release_url }}">{% csrf_token %}
+    <button class="btn">Release all results</button>
+  </form>
+  {% endif %}
+</div>
+
+<h2>Papers and moderation</h2>
+{% if papers %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Paper</th><th>Date</th><th>Status</th><th>Candidates</th><th>Marks</th><th></th></tr>
+  {% for paper in papers %}
+  <tr>
+    <td>{{ paper }}</td>
+    <td>{{ paper.date }} {{ paper.start_time }}</td>
+    <td><span class="badge">{{ paper.get_mark_status_display }}</span>
+      {% if paper.moderation_note %}<br><small class="muted">{{ paper.moderation_note }}</small>{% endif %}</td>
+    <td>{{ paper.candidate_count }}</td>
+    <td>{{ paper.marked_count }}</td>
+    <td class="actions">
+      {% if can_manage %}
+        {% if paper.mark_status == "entering" %}
+        <form method="post" action="{% url 'examinations:paper_action' paper.pk 'submit' %}" style="display:inline">{% csrf_token %}
+          <button class="btn ghost">Submit</button>
+        </form>
+        {% elif paper.mark_status == "submitted" %}
+        <form method="post" action="{% url 'examinations:paper_action' paper.pk 'moderate' %}" style="display:inline">{% csrf_token %}
+          <input name="note" placeholder="Moderation note">
+          <button class="btn ghost">Moderate</button>
+        </form>
+        <form method="post" action="{% url 'examinations:paper_action' paper.pk 'reopen' %}" style="display:inline">{% csrf_token %}
+          <button class="btn ghost">Return</button>
+        </form>
+        {% elif paper.mark_status == "moderated" %}
+        <form method="post" action="{% url 'examinations:paper_action' paper.pk 'release' %}" style="display:inline">{% csrf_token %}
+          <button class="btn ghost">Release</button>
+        </form>
+        <form method="post" action="{% url 'examinations:paper_action' paper.pk 'reopen' %}" style="display:inline">{% csrf_token %}
+          <button class="btn ghost">Reopen</button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'examinations:paper_action' paper.pk 'reopen' %}" style="display:inline">{% csrf_token %}
+          <button class="btn ghost">Reopen</button>
+        </form>
+        {% endif %}
+      {% endif %}
+      <a class="btn ghost" href="{% url 'examinations:seating_plan' paper.pk %}">Seating</a>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No papers have been timetabled for this sitting.</p>
+{% endif %}
+
+<h2>Clashes</h2>
+{% if issues %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Kind</th><th>Paper</th><th>Problem</th></tr>
+  {% for issue in issues %}
+  <tr>
+    <td><span class="badge">{{ issue.kind }}</span></td>
+    <td>{{ issue.paper }}</td>
+    <td>{{ issue.message }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No clashes in this sitting.</p>
+{% endif %}
+{% endblock %}

@@ -23,7 +23,10 @@ def log_action(actor, action, instance=None, before=None, after=None, request=No
     """Write one audit row. Safe to call from anywhere."""
     from core.tenancy import current_institution_id
 
-    institution_id = getattr(actor, "institution_id", None) or current_institution_id()
+    institution = extra.pop("institution", None)
+    institution_id = (
+        institution.pk if institution is not None else getattr(actor, "institution_id", None)
+    ) or current_institution_id()
     model_name = extra.pop("model_name", "")
     object_id = extra.pop("object_id", "")
     if instance is not None:

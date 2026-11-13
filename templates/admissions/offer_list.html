@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block content %}
+<h1>Offers</h1>
+<form method="get" class="inline">
+  <select name="status">
+    <option value="">All offers</option>
+    {% for value, label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <button class="btn ghost">Filter</button>
+</form>
+<table class="tbl">
+  <tr><th>Offer</th><th>Applicant</th><th>Programme</th><th>Deadline</th><th>Deposit</th><th>Status</th><th>Student</th></tr>
+  {% for o in offers %}
+  <tr>
+    <td><a href="{% url 'admissions:offer_detail' o.pk %}">{{ o.offer_no }}</a></td>
+    <td>{{ o.application.name }}</td>
+    <td>{{ o.application.programme|default:"—" }}</td>
+    <td>{{ o.acceptance_deadline|date:"d M Y" }}</td>
+    <td>{{ CUR }}{{ o.deposit_amount }}</td>
+    <td><span class="badge">{{ o.get_status_display }}</span></td>
+    <td>{% if o.student %}{{ o.student.name }} ({{ o.student.student_no }}){% else %}<span class="muted">Not yet</span>{% endif %}</td>
+  </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No offers yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

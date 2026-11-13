@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block content %}
+<h1>Alumni</h1>
+<p class="muted">Contact records kept after graduation.</p>
+<form method="get" class="inline"><input name="q" value="{{ query }}" placeholder="Name, number, email or employer"><button class="btn ghost">Search</button></form>
+<table class="tbl">
+  <tr><th>Alumnus</th><th>Student number</th><th>Programme</th><th>Graduated</th><th>Email</th><th>Employer</th></tr>
+  {% for a in alumni %}
+  <tr>
+    <td><a href="{% url 'admissions:alumni_detail' a.pk %}">{{ a.student.name }}</a></td>
+    <td>{{ a.student.student_no }}</td>
+    <td>{{ a.student.programme.name }}</td>
+    <td>{{ a.graduation_year|default:"—" }}</td>
+    <td>{{ a.contact_email|default:"—" }}</td>
+    <td>{{ a.employer|default:"—" }}</td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="muted">No alumni records yet. Graduating a student creates one.</td></tr>{% endfor %}
+</table>
+{% endblock %}

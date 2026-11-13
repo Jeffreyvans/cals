@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ hub_url }}">Transport</a></p>
+<div class="head"><div><h1>Fuel log report</h1>
+<p class="muted">Fuel bought per vehicle between two dates.</p></div>
+<a class="btn ghost" href="{{ export_url }}">Export CSV</a></div>
+
+<form method="get" class="card">
+  <label for="start">From</label>
+  <input id="start" name="start" type="date" value="{{ start|date:'Y-m-d' }}">
+  <label for="end">To</label>
+  <input id="end" name="end" type="date" value="{{ end|date:'Y-m-d' }}">
+  <label for="vehicle">Vehicle</label>
+  <select id="vehicle" name="vehicle">
+    <option value="">All vehicles</option>
+    {% for option in vehicles %}
+    <option value="{{ option.pk }}" {% if vehicle and option.pk == vehicle.pk %}selected{% endif %}>{{ option }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn">Run report</button>
+</form>
+
+<div class="card">
+  <p><strong>Total litres:</strong> {{ totals.litres|floatformat:2 }} &middot;
+    <strong>Total cost:</strong> {{ totals.cost|floatformat:2 }}</p>
+</div>
+
+{% if rows %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Vehicle</th><th>Litres</th><th>Cost</th></tr>
+  {% for row in rows %}
+  <tr><td>{{ row.vehicle__registration }}</td><td>{{ row.litres|default:0|floatformat:2 }}</td>
+    <td>{{ row.cost|default:0|floatformat:2 }}</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No fuel purchases in this period.</p>
+{% endif %}
+{% endblock %}

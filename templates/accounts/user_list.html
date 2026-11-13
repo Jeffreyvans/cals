@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Users</h1>
+    <p class="muted">Every login at {{ inst.name }}. Accounts added here can sign in immediately; they never wait in the registration queue.</p>
+  </div>
+  <div class="row">
+    {% if can_add_student %}<a class="btn" href="{% url 'user_add_student' %}">Add a student</a>{% endif %}
+    {% if can_add_staff %}<a class="btn ghost" href="{% url 'user_add_staff' %}">Add a staff member</a>{% endif %}
+  </div>
+</div>
+
+{% if pending_requests %}
+<div class="msg">
+  <strong>{{ pending_requests }}</strong> staff registration request{{ pending_requests|pluralize }} still waiting.
+  <a href="{% url 'registration_requests' %}">Review the pending requests</a>
+</div>
+{% endif %}
+
+<form method="get" class="filters">
+  <label>Search<input type="search" name="q" value="{{ query }}" placeholder="Name, username, email, student or staff number"></label>
+  <label>Type
+    <select name="type">
+      <option value="">All types</option>
+      <option value="staff" {% if current_type == "staff" %}selected{% endif %}>Staff</option>
+      <option value="student" {% if current_type == "student" %}selected{% endif %}>Students</option>
+      <option value="parent" {% if current_type == "parent" %}selected{% endif %}>Parents</option>
+    </select>
+  </label>
+  <label>Role
+    <select name="role">
+      <option value="">All roles</option>
+      {% for role in roles %}
+        <option value="{{ role.pk }}" {% if current_role == role.pk|stringformat:"s" %}selected{% endif %}>{{ role.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Department
+    <select name="department">
+      <option value="">All departments</option>
+      {% for department in departments %}
+        <option value="{{ department.pk }}" {% if current_department == department.pk|stringformat:"s" %}selected{% endif %}>{{ department.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Status
+    <select name="status">
+      <option value="">All statuses</option>
+      <option value="active" {% if current_status == "active" %}selected{% endif %}>Active</option>
+      <option value="pending" {% if current_status == "pending" %}selected{% endif %}>Pending invitation or first sign-in</option>
+      <option value="inactive" {% if current_status == "inactive" %}selected{% endif %}>Inactive</option>
+      <option value="locked" {% if current_status == "locked" %}selected{% endif %}>Locked</option>
+    </select>
+  </label>
+  <label>Email verified
+    <select name="verified">
+      <option value="">Any</option>
+      <option value="yes" {% if current_verified == "yes" %}selected{% endif %}>Verified</option>
+      <option value="no" {% if current_verified == "no" %}selected{% endif %}>Not verified</option>
+    </select>
+  </label>
+  <button class="btn">Filter</button>
+  {% if query or current_type or current_role or current_department or current_status or current_verified %}
+    <a class="btn ghost" href="{% url 'user_list' %}">Clear</a>
+  {% endif %}
+</form>
+
+{% if page.object_list %}
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead>
+    <tr><th>Name</th><th>Type and role</th><th>Department</th><th>Contact</th><th>Status</th><th>Email</th><th class="actions">Actions</th></tr>
+  </thead>
+  <tbody>
+  {% for account in page %}
+    <tr>
+      <td>
+        <a href="{% url 'user_detail' account.pk %}"><strong>{{ account.get_full_name|default:account.username }}</strong></a>
+        <br><span class="muted"><code>{{ account.username }}</code>{% if account.student_record %} &middot; {{ account.student_record.student_no }}{% elif account.staff_record.employee_no %} &middot; {{ account.staff_record.employee_no }}{% endif %}</span>
+      </td>
+      <td>
+        {% if account.role == "student" %}Student{% elif account.role == "parent" %}Parent{% else %}Staff{% endif %}
+        <br><span class="muted">{% if account.primary_role %}{{ account.primary_role.name }}{% else %}{{ account.get_role_display }}{% endif %}</span>
+      </td>
+      <td>{{ account.department_names|default:"-" }}</td>
+      <td>
+        {{ account.email|default:"-" }}
+        {% if account.phone %}<br><span class="muted">{{ account.phone }}</span>{% endif %}
+      </td>
+      <td>
+        {% if not account.is_active %}<span class="badge bad">Inactive</span>
+        {% elif account.is_currently_locked %}<span class="badge warn">Locked</span>
+        {% elif account.has_open_invitation %}<span class="badge warn">Invitation pending</span>
+        {% elif account.must_change_password %}<span class="badge warn">Must change password</span>
+        {% else %}<span class="badge ok">Active</span>{% endif %}
+      </td>
+      <td>{% if account.email_verified %}<span class="badge ok">Verified</span>{% else %}<span class="muted">Not verified</span>{% endif %}</td>
+      <td class="actions">
+        <a class="btn ghost" href="{% url 'user_detail' account.pk %}">View</a>
+        <a class="btn ghost" href="{% url 'user_edit' account.pk %}">Edit</a>
+        <a class="btn ghost" href="{% url 'user_edit' account.pk %}#role">Change role</a>
+        <form method="post" action="{% url 'user_action' account.pk %}" class="inline">
+          {% csrf_token %}
+          <select name="action" aria-label="Action for {{ account.username }}">
+            {% if account.is_active %}<option value="deactivate">Deactivate</option>{% else %}<option value="reactivate">Reactivate</option>{% endif %}
+            {% if account.is_currently_locked %}<option value="unlock">Unlock</option>{% endif %}
+            <option value="reset">Reset password</option>
+            {% if account.email %}<option value="resend_invitation">Resend invitation</option>{% endif %}
+          </select>
+          <button class="btn ghost">Go</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% if page.has_other_pages %}
+<div class="row">
+  {% if page.has_previous %}<a class="btn ghost" href="{% querystring page=page.previous_page_number %}">Previous</a>{% endif %}
+  <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn ghost" href="{% querystring page=page.next_page_number %}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% else %}
+<div class="empty">
+  <h2>No users found</h2>
+  <p>{% if query or current_type or current_role or current_department or current_status or current_verified %}Try clearing the filters.{% else %}Add the first staff member or student to get started.{% endif %}</p>
+</div>
+{% endif %}
+
+<div class="row">
+  <a class="btn ghost" href="{% url 'user_link_parent' %}">Link a parent to a student</a>
+  <a class="btn ghost" href="{% url 'user_duplicates' %}">Duplicate accounts</a>
+</div>
+{% endblock %}

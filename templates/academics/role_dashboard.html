@@ -1,0 +1,93 @@
+{% extends "base.html" %}{% block content %}
+<div class="head"><div><h1>Role dashboard</h1>
+<p class="muted">A live picture of enrolment, money and attendance{% if term %} for {{ term }}{% endif %}.</p></div>
+<a class="btn ghost" href="{% url 'report_debtors' %}">Debtors report</a></div>
+
+<div class="stats">
+  <div><b>{{ students }}</b>Active students</div>
+  <div><b>{{ CUR }}{{ outstanding|floatformat:2 }}</b>Fees outstanding</div>
+  <div class="{% if collection_rate is not None and collection_rate >= 80 %}ok{% else %}warn{% endif %}"><b>{% if collection_rate is not None %}{{ collection_rate }}%{% else %}n/a{% endif %}</b>Collection rate</div>
+  <div class="{% if attendance_pct is not None and attendance_pct >= 75 %}ok{% else %}warn{% endif %}"><b>{% if attendance_pct is not None %}{{ attendance_pct }}%{% else %}n/a{% endif %}</b>Attendance{% if term %} this term{% endif %}</div>
+</div>
+
+<div class="grid2">
+  <section class="card">
+    <h2>Collections, last six months</h2>
+    {% if month_labels %}<canvas id="collectionsChart" height="220"></canvas>
+    {% else %}<p class="muted">No payments have been received in the last six months.</p>{% endif %}
+  </section>
+  <section class="card">
+    <h2>Active students by class</h2>
+    {% if class_labels %}<canvas id="classesChart" height="220"></canvas>
+    {% else %}<p class="muted">No active students are placed in a class or year yet.</p>{% endif %}
+  </section>
+</div>
+
+<section class="card">
+  <h2>Fees at a glance</h2>
+  <table class="tbl"><tr><th>Billed</th><th>Received</th><th>Waived</th><th>Outstanding</th></tr>
+  <tr><td>{{ CUR }}{{ total_billed|floatformat:2 }}</td><td>{{ CUR }}{{ total_paid|floatformat:2 }}</td><td>{{ CUR }}{{ total_waived|floatformat:2 }}</td><td>{{ CUR }}{{ outstanding|floatformat:2 }}</td></tr></table>
+</section>
+
+{% if can_view_at_risk %}
+<section class="card">
+  <h2>At-risk students</h2>
+  <p class="muted">Students with fees outstanding, attendance below 75% or an average mark below 50.</p>
+  {% if at_risk %}
+  <table class="tbl"><tr><th>Student</th><th>Class</th><th>Why</th><th></th></tr>
+  {% for row in at_risk %}
+  <tr><td>{{ row.student.name }}<br><span class="muted">{{ row.student.student_no }}</span></td>
+  <td>{% if row.student.school_class %}{{ row.student.class_label }}{% else %}Year {{ row.student.year_or_grade }}{% endif %}</td>
+  <td>{% for reason in row.reasons %}<span class="badge warn">{{ reason }}</span> {% endfor %}</td>
+  <td><a class="btn ghost" href="{% url 'student_detail' row.student.pk %}">Open</a></td></tr>
+  {% endfor %}</table>
+  {% else %}<p class="muted">No students currently meet the risk rules.</p>{% endif %}
+</section>
+{% endif %}
+
+<h2>Coming up</h2>
+<ul class="event-list">
+{% for e in events %}<li><b>{{ e.starts_on|date:"d M Y" }}</b> · {{ e.title }} <span class="muted">{{ e.get_kind_display }}{% if e.school_class %} · {{ e.school_class.name }} only{% endif %}{% if e.detail %} · {{ e.detail }}{% endif %}</span></li>
+{% empty %}<li class="muted">No upcoming events.</li>{% endfor %}
+</ul>
+<h2>Announcements</h2>
+{% for a in announcements %}<div class="card"><b>{{ a.title }}</b> <span class="muted">{{ a.posted|date:"d M Y" }}</span><p>{{ a.body }}</p></div>
+{% empty %}<p class="muted">No announcements yet.</p>{% endfor %}
+{% endblock %}
+{% block js %}
+{{ month_labels|json_script:"month-labels" }}
+{{ month_values|json_script:"month-values" }}
+{{ class_labels|json_script:"class-labels" }}
+{{ class_values|json_script:"class-values" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  if (typeof Chart === "undefined") return;
+  const read = (id) => JSON.parse(document.getElementById(id).textContent);
+  const months = read("month-labels"), money = read("month-values");
+  const classes = read("class-labels"), counts = read("class-values");
+  const moneyChart = document.getElementById("collectionsChart");
+  if (moneyChart) new Chart(moneyChart, {
+    type: "bar",
+    data: {labels: months, datasets: [{label: "Collected", data: money,
+      backgroundColor: "#3B82F6", hoverBackgroundColor: "#1E3A8A",
+      borderRadius: 6, maxBarThickness: 44}]},
+    options: {responsive: true, plugins: {legend: {display: false}},
+      scales: {
+        x: {grid: {display: false}, ticks: {color: "#64748B"}},
+        y: {beginAtZero: true, grid: {color: "#E2E8F0"}, ticks: {color: "#64748B"}}
+      }}
+  });
+  const classChart = document.getElementById("classesChart");
+  if (classChart) new Chart(classChart, {
+    type: "doughnut",
+    data: {labels: classes, datasets: [{data: counts,
+      backgroundColor: ["#1E3A8A", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#DBEAFE"],
+      borderColor: "#ffffff", borderWidth: 2}]},
+    options: {responsive: true, cutout: "62%",
+      plugins: {legend: {position: "bottom",
+        labels: {color: "#64748B", boxWidth: 10, boxHeight: 10, padding: 14}}}}
+  });
+})();
+</script>
+{% endblock %}

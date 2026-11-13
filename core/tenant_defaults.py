@@ -1,6 +1,6 @@
 """Default module switches per institution type (see build plan section 9)."""
 
-PRIMARY = ["core_academics", "finance", "parent_portal", "health", "transport", "library"]
+PRIMARY = ["core_academics", "finance", "parent_portal", "lms", "health", "transport", "library"]
 
 SECONDARY = PRIMARY + [
     "exams",
@@ -48,6 +48,7 @@ VOCATIONAL = [
     "core_academics",
     "finance",
     "admissions",
+    "lms",
     "exams",
     "labs",
     "careers_attachment",

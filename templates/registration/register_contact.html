@@ -1,0 +1,30 @@
+{% extends "public_base.html" %}
+{% block title %}Contact {{ institution.name }} — EduSphere{% endblock %}
+{% block content %}
+<div class="page-shell narrow">
+  <div class="page-title">
+    <a class="back-link" href="{% url 'register_student' %}?institution={{ institution.pk }}">&larr; Back to student registration</a>
+    <h1>Contact {{ institution.name }}</h1>
+    <p>Ask the institution to confirm your admission details. Do not send your password or any payment details.</p>
+  </div>
+  <div class="panel">
+    <h2>Institution contacts</h2>
+    <ul class="contact-list">
+      {% if institution.contact_phone %}
+        <li><a href="tel:{{ institution.contact_phone }}">{{ institution.contact_phone }}</a></li>
+      {% endif %}
+      {% if institution.contact_email %}
+        <li><a href="mailto:{{ institution.contact_email }}">{{ institution.contact_email }}</a></li>
+      {% endif %}
+    </ul>
+    {% if institution.address %}<p class="sub" style="margin-top: 1rem;">{{ institution.address|linebreaksbr }}</p>{% endif %}
+    {% if not institution.contact_phone and not institution.contact_email %}
+      <div class="alert" role="status">This institution has not published contact details yet. Ask for the registrar's office when you next visit or call the school.</div>
+    {% endif %}
+  </div>
+  <div class="panel">
+    <h2>What to say</h2>
+    <p class="sub">Give your full name, the registration number on your admission letter and your date of birth. The registrar can confirm whether the record matches and help you get into your portal.</p>
+  </div>
+</div>
+{% endblock %}

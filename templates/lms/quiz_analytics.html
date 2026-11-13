@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:quiz_detail' quiz.pk %}">Back to {{ quiz.title }}</a></p>
+<h1>Quiz analytics</h1>
+<table class="tbl"><tr><th>Question</th><th>Answers</th><th>Correct</th><th>Needs marking</th><th>Average</th></tr>
+{% for row in rows %}
+<tr><td>{{ row.question.text|truncatechars:100 }}</td><td>{{ row.total }}</td><td>{{ row.correct }}</td>
+<td>{{ row.manual }}</td><td>{{ row.average|default_if_none:"-" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No questions yet.</td></tr>{% endfor %}</table>
+{% endblock %}

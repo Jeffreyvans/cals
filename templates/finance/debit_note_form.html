@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block content %}
+<h1>Raise a debit note</h1>
+<p class="muted">A debit note adds an extra charge to an invoice that has already been issued. It is the only permitted way to increase an issued invoice.</p>
+<div class="cols">
+<div class="card"><b>{{ invoice.description }}</b>
+<p class="muted">{{ invoice.student.name }} · {{ invoice.student.student_no }}</p>
+<table class="tbl"><tr><td>Amount</td><td class="r">{{ CUR }}{{ invoice.amount }}</td></tr>
+<tr><td>Debit notes</td><td class="r">{{ CUR }}{{ invoice.debited }}</td></tr>
+<tr><td>Still owed</td><td class="r"><b>{{ CUR }}{{ invoice.balance }}</b></td></tr></table></div>
+<form method="post" class="inline wide">{% csrf_token %}<h2>New debit note</h2>{{ form.as_p }}
+<button class="btn">Issue debit note</button>
+<p><a href="{% url 'student_detail' invoice.student.pk %}">Back to student</a></p></form>
+</div>
+{% endblock %}

@@ -95,6 +95,10 @@ def import_start(request):
             messages.error(request, str(exc))
             return redirect("import_start")
         headers = list(rows[0].keys())
+        access_mode = request.POST.get(
+            "access_mode", ImportBatch.AccessMode.INVITATION)
+        if access_mode not in ImportBatch.AccessMode.values:
+            access_mode = ImportBatch.AccessMode.INVITATION
         batch = ImportBatch.objects.create(
             institution=inst,
             kind=kind,
@@ -103,6 +107,7 @@ def import_start(request):
             mapping=importer.guess_mapping(headers, importer.FIELDS_BY_KIND[kind]),
             created_by=request.user,
             status=ImportBatch.Status.UPLOADED,
+            access_mode=access_mode,
         )
         messages.success(request, f"{upload.name} uploaded. Check the columns.")
         return redirect("import_map", pk=batch.pk)
@@ -160,6 +165,12 @@ def import_preview(request, pk):
     if not batch.mapping:
         messages.error(request, "Map the columns first.")
         return redirect("import_map", pk=batch.pk)
+    if request.method == "POST":
+        access_mode = request.POST.get("access_mode", batch.access_mode)
+        if access_mode in ImportBatch.AccessMode.values:
+            batch.access_mode = access_mode
+            batch.save(update_fields=["access_mode"])
+        return redirect("import_preview", pk=batch.pk)
     results = importer.validate(batch.kind, batch.data_rows, batch.mapping,
                                  batch.institution)
     ready = [r for r in results if not r["errors"]]
@@ -172,6 +183,8 @@ def import_preview(request, pk):
         "total": len(results),
         "fields": importer.FIELDS_BY_KIND[batch.kind],
         "shown": min(PREVIEW_LIMIT, len(results)),
+        "access_modes": ImportBatch.AccessMode.choices,
+        "needs_access_mode": batch.kind in ("students", "staff"),
     })
 
 
@@ -185,8 +198,10 @@ def import_run(request, pk):
         return redirect("import_map", pk=batch.pk)
     results = importer.validate(batch.kind, batch.data_rows, batch.mapping,
                                  batch.institution)
-    imported, errors = importer.run_import(batch.kind, results, batch.institution,
-                                           request.user)
+    imported, errors = importer.run_import(
+        batch.kind, results, batch.institution, request.user,
+        access_mode=batch.access_mode, batch=batch,
+    )
     batch.imported_count = imported
     batch.error_count = len(errors)
     batch.errors = errors
@@ -194,7 +209,8 @@ def import_run(request, pk):
     batch.finished = timezone.now()
     batch.save(update_fields=["imported_count", "error_count", "errors", "status", "finished"])
     log_action(request.user, "import.imported", batch,
-               after={"kind": batch.kind, "imported": imported, "errors": len(errors)},
+               after={"kind": batch.kind, "imported": imported, "errors": len(errors),
+                      "access_mode": batch.access_mode},
                request=request)
     if imported:
         messages.success(request, f"{imported} rows imported.")
@@ -211,7 +227,76 @@ def import_result(request, pk):
     return render(request, "core/import_result.html", {
         "batch": batch,
         "errors": batch.errors or [],
+        "has_credentials": bool(batch.credentials),
+        "can_undo": batch.kind in ("students", "staff")
+        and not batch.undone_at
+        and bool(batch.created_user_ids),
     })
+
+
+@login_required
+def import_credentials(request, pk):
+    """Download usernames and one-time passwords, then forget the passwords."""
+    batch = _batch(request, pk=pk)
+    _may_import(request, batch.kind)
+    credentials = batch.credentials or []
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = (
+        f'attachment; filename="import-credentials-{batch.pk}.csv"')
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(["Name", "Username", "Email", "Access", "One-time password", "Student number"])
+    for row in credentials:
+        writer.writerow([
+            row.get("name", ""),
+            row.get("username", ""),
+            row.get("email", ""),
+            row.get("access_mode", ""),
+            row.get("password", ""),
+            row.get("student_no", ""),
+        ])
+    batch.credentials = []
+    batch.credentials_downloaded = True
+    batch.save(update_fields=["credentials", "credentials_downloaded"])
+    return response
+
+
+@login_required
+def import_undo(request, pk):
+    """Undo the accounts of a batch that nobody has signed in to yet."""
+    batch = _batch(request, pk=pk)
+    _may_import(request, batch.kind)
+    if request.method != "POST":
+        return redirect("import_result", pk=batch.pk)
+    if batch.kind not in ("students", "staff"):
+        messages.error(request, "Only student and staff imports can be undone.")
+        return redirect("import_result", pk=batch.pk)
+    if batch.undone_at:
+        messages.info(request, "This import has already been undone.")
+        return redirect("import_result", pk=batch.pk)
+    undone, skipped = importer.undo_import(batch, actor=request.user, request=request)
+    messages.success(request, f"{undone} accounts were deactivated.")
+    if skipped:
+        messages.warning(
+            request,
+            f"{len(skipped)} accounts were left active because they have already "
+            "signed in or were already inactive.",
+        )
+    return redirect("import_result", pk=batch.pk)
+
+
+@login_required
+def import_template(request, kind):
+    """Download an empty template with the column names this import expects."""
+    _may_import(request, kind)
+    fields = importer.FIELDS_BY_KIND[kind]
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = (
+        f'attachment; filename="edusphere-{kind}-template.csv"')
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow([field["label"] for field in fields])
+    return response
 
 
 @login_required

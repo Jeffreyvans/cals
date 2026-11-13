@@ -2,10 +2,11 @@
 <div class="noprint"><button class="btn" onclick="window.print()">Print</button> <a class="btn ghost" href="{{ back }}">Back</a></div>
 <h1>Attendance register</h1>
 <h2>{{ item }}</h2>
-<p class="muted">Sessions recorded: {{ sessions }} · P = present, – = absent or not recorded.</p>
-<div class="tbl-wrap"><table class="tbl"><tr><th>Student</th>{% for d in dates %}<th class="r">{{ d|date:"d M" }}</th>{% endfor %}<th class="r">Attended</th></tr>
+<p class="muted">Sessions recorded: {{ sessions }} · P = present, L = late, A = absent, E = excused.</p>
+<div class="tbl-wrap"><table class="tbl"><tr><th>Student</th>{% for c in per_date %}<th class="r">{{ c.date|date:"d M" }}</th>{% endfor %}<th class="r">Attended</th><th class="r">Missed</th></tr>
 {% for e in rows %}<tr><td>{{ e.student.name }} <span class="muted">{{ e.student.student_no }}</span></td>
-{% for c in e.cells %}<td class="r">{% if c %}P{% else %}–{% endif %}</td>{% endfor %}
-<td class="r">{{ e.attended }}/{{ sessions }}</td></tr>
-{% empty %}<tr><td colspan="9" class="muted">Nobody is enrolled yet.</td></tr>{% endfor %}</table></div>
+{% for letter, reason in e.cells %}<td class="r" {% if reason %}title="{{ reason }}"{% endif %}>{{ letter }}</td>{% endfor %}
+<td class="r">{{ e.attended }}/{{ sessions }}</td><td class="r">{{ e.missed }}</td></tr>
+{% empty %}<tr><td colspan="9" class="muted">Nobody is enrolled yet.</td></tr>{% endfor %}
+{% if rows %}<tr><th class="r">Present on the day</th>{% for c in per_date %}<th class="r">{{ c.attended }}/{{ c.total }}</th>{% endfor %}<th></th><th></th></tr>{% endif %}</table></div>
 {% endblock %}

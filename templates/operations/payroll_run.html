@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ list_url }}">Payroll runs</a></p>
+<div class="head"><div><h1>{{ run.name }}</h1>
+<p class="muted">{{ run.start_date }} to {{ run.end_date }} &middot; paid {{ run.pay_date }} &middot;
+  <span class="badge">{{ run.get_status_display }}</span></p></div></div>
+
+<div class="card">
+  <p><strong>Gross:</strong> {{ run.total_gross }} &nbsp;
+     <strong>Net:</strong> {{ run.total_net }}</p>
+  {% if run.status == "draft" %}
+  <form method="post" action="{{ generate_url }}" style="display:inline">{% csrf_token %}
+    <button class="btn">Generate payslips</button>
+  </form>
+  <form method="post" action="{{ approve_url }}" style="display:inline">{% csrf_token %}
+    <button class="btn ghost">Approve run</button>
+  </form>
+  {% elif run.status == "approved" %}
+  <form method="post" action="{{ post_url }}" style="display:inline">{% csrf_token %}
+    <button class="btn">Post to ledger and mark paid</button>
+  </form>
+  {% endif %}
+  {% if payslips %}<a class="btn ghost" href="{{ bank_url }}">Download bank file</a>{% endif %}
+</div>
+
+{% if payslips %}
+<table class="tbl">
+  <tr><th>Staff</th><th>Basic</th><th>Allowances</th><th>Tax</th><th>Pension</th>
+    <th>Other deduction</th><th>Net</th><th></th></tr>
+  {% for slip in payslips %}
+  <tr><td>{{ slip.staff }}</td><td>{{ slip.basic }}</td><td>{{ slip.allowances }}</td>
+    <td>{{ slip.tax }}</td><td>{{ slip.pension }}</td><td>{{ slip.other_deduction }}</td>
+    <td><b>{{ slip.net }}</b></td>
+    <td><a href="{% url 'operations:payroll_payslip_pdf' slip.pk %}">PDF</a></td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">No payslips yet. Generate them from the salary structures.</p>
+{% endif %}
+{% endblock %}

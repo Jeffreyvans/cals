@@ -1,0 +1,147 @@
+from core.modules import module_label
+
+from .forms import (
+    ConsumableForm,
+    ConsumableIssueForm,
+    EquipmentBookingForm,
+    EquipmentForm,
+    LabForm,
+    MaintenanceLogForm,
+    PracticalAssessmentForm,
+    SafetyInductionForm,
+)
+from .models import (
+    Consumable,
+    ConsumableIssue,
+    Equipment,
+    EquipmentBooking,
+    Lab,
+    MaintenanceLog,
+    PracticalAssessment,
+    SafetyInduction,
+)
+
+MODULES = {
+    "labs": {
+        "title": module_label("labs"),
+        "description": "Laboratories, equipment, bookings and maintenance.",
+        "permissions": ("labs.manage",),
+        "kinds": [
+            {
+                "slug": "labs",
+                "title": "Laboratories",
+                "description": "Lab rooms and technicians.",
+                "model": Lab,
+                "form": LabForm,
+                "search": ["name", "location"],
+                "columns": [
+                    ("Lab", lambda o: o.name),
+                    ("Location", lambda o: o.location or "-"),
+                    ("Capacity", lambda o: o.capacity),
+                    ("Technician", lambda o: o.technician or "-"),
+                ],
+            },
+            {
+                "slug": "equipment",
+                "title": "Equipment",
+                "description": "Equipment and its condition.",
+                "model": Equipment,
+                "form": EquipmentForm,
+                "search": ["name", "code", "lab__name"],
+                "columns": [
+                    ("Equipment", lambda o: o.name),
+                    ("Code", lambda o: o.code or "-"),
+                    ("Lab", lambda o: o.lab or "-"),
+                    ("Status", lambda o: o.get_status_display()),
+                ],
+            },
+            {
+                "slug": "bookings",
+                "title": "Bookings",
+                "description": "Equipment booked by staff.",
+                "model": EquipmentBooking,
+                "form": EquipmentBookingForm,
+                "search": ["equipment__name", "purpose", "requested_by__last_name"],
+                "columns": [
+                    ("Equipment", lambda o: o.equipment),
+                    ("Purpose", lambda o: o.purpose),
+                    ("Starts", lambda o: o.starts_at),
+                    ("Ends", lambda o: o.ends_at),
+                    ("Status", lambda o: o.get_status_display()),
+                ],
+            },
+            {
+                "slug": "inductions",
+                "title": "Safety inductions",
+                "description": "Students cleared to use each laboratory.",
+                "model": SafetyInduction,
+                "form": SafetyInductionForm,
+                "search": ["student__student_no", "lab__name", "notes"],
+                "columns": [
+                    ("Lab", lambda o: o.lab),
+                    ("Student", lambda o: o.student),
+                    ("Completed", lambda o: o.completed_on),
+                    ("Expires", lambda o: o.expires_on or "-"),
+                    ("Valid", lambda o: "Yes" if o.is_valid else "No"),
+                ],
+            },
+            {
+                "slug": "consumables",
+                "title": "Consumables",
+                "description": "Laboratory stock on hand.",
+                "model": Consumable,
+                "form": ConsumableForm,
+                "search": ["name", "lab__name"],
+                "columns": [
+                    ("Consumable", lambda o: o.name),
+                    ("Lab", lambda o: o.lab or "-"),
+                    ("On hand", lambda o: f"{o.quantity} {o.unit}"),
+                    ("Needs reorder", lambda o: "Yes" if o.needs_reorder else "No"),
+                ],
+            },
+            {
+                "slug": "consumable-issues",
+                "title": "Consumable issues",
+                "description": "Stock handed to students for practicals.",
+                "model": ConsumableIssue,
+                "form": ConsumableIssueForm,
+                "search": ["consumable__name", "student__student_no"],
+                "columns": [
+                    ("Consumable", lambda o: o.consumable),
+                    ("Student", lambda o: o.student),
+                    ("Date", lambda o: o.date),
+                    ("Quantity", lambda o: o.quantity),
+                ],
+            },
+            {
+                "slug": "practicals",
+                "title": "Practical assessments",
+                "description": "Marks for laboratory practicals.",
+                "model": PracticalAssessment,
+                "form": PracticalAssessmentForm,
+                "search": ["student__student_no", "title", "comments"],
+                "columns": [
+                    ("Student", lambda o: o.student),
+                    ("Practical", lambda o: o.title),
+                    ("Date", lambda o: o.date),
+                    ("Mark", lambda o: f"{o.mark}/{o.max_mark}"),
+                    ("Percent", lambda o: o.percentage),
+                ],
+            },
+            {
+                "slug": "maintenance",
+                "title": "Maintenance",
+                "description": "Service and repair history.",
+                "model": MaintenanceLog,
+                "form": MaintenanceLogForm,
+                "search": ["equipment__name", "description", "performed_by"],
+                "columns": [
+                    ("Equipment", lambda o: o.equipment),
+                    ("Date", lambda o: o.date),
+                    ("Cost", lambda o: o.cost),
+                    ("Next service", lambda o: o.next_service or "-"),
+                ],
+            },
+        ],
+    }
+}

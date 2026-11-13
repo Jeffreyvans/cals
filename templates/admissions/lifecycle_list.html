@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% block content %}
+<h1>Student lifecycle</h1>
+<p class="muted">Defer, suspend, withdraw, transfer or graduate a student. Every change needs a reason and is kept in the audit trail.</p>
+<form method="get" class="inline">
+  <input name="q" value="{{ query }}" placeholder="Name, student number or programme">
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for value, label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <button class="btn ghost">Filter</button>
+</form>
+<table class="tbl">
+  <tr><th>Student</th><th>Number</th><th>Programme</th><th>Class / year</th><th>Status</th><th></th></tr>
+  {% for s in students %}
+  <tr>
+    <td><a href="{% url 'admissions:lifecycle_detail' s.pk %}">{{ s.name }}</a></td>
+    <td>{{ s.student_no }}</td>
+    <td>{{ s.programme.name }}</td>
+    <td>{{ s.class_label }}</td>
+    <td><span class="badge">{{ s.get_status_display }}</span></td>
+    <td><a href="{% url 'admissions:lifecycle_detail' s.pk %}">Manage</a></td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="muted">No students match.</td></tr>{% endfor %}
+</table>
+{% endblock %}

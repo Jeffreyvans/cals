@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block content %}
+<div class="head"><div><h1>{{ module.title }}</h1>
+<p class="muted">{{ module.description }}</p></div>
+<a class="btn ghost" href="{{ api_url }}">JSON summary</a></div>
+
+<div class="grid">
+{% for kind in kinds %}
+  <a class="card" href="{{ kind.url }}">
+    <h2>{{ kind.title }}</h2>
+    <p class="muted">{{ kind.count }} record{{ kind.count|pluralize }}{% if kind.description %} &middot; {{ kind.description }}{% endif %}</p>
+  </a>
+{% endfor %}
+</div>
+
+{% if links %}
+<div class="card">
+  <h2>Other screens</h2>
+  {% for link in links %}
+  <p><a class="btn ghost" href="{{ link.url }}">{{ link.title }}</a></p>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:assignment_detail' assignment.pk %}">Back to {{ assignment.title }}</a></p>
+<div class="head"><div><h1>Similarity report</h1>
+<p class="muted">{{ assignment.title }}</p></div>
+<form method="post" action="{% url 'lms:plagiarism_check' assignment.pk %}">{% csrf_token %}
+<button class="btn">Run similarity check</button></form></div>
+
+{% if reports %}
+<table class="tbl"><tr><th>Submission A</th><th>Submission B</th><th>Similarity</th><th>Flagged</th></tr>
+{% for report in reports %}
+<tr><td>{{ report.submission_a.student.name }}</td><td>{{ report.submission_b.student.name }}</td>
+<td>{{ report.similarity }}%</td><td>{% if report.is_flagged %}<span class="badge">Flagged</span>{% else %}No{% endif %}</td></tr>
+{% endfor %}</table>
+{% else %}
+<p class="muted">No flagged pairs. Run the check after students submit work.</p>
+{% endif %}
+{% endblock %}

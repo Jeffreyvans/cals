@@ -5,14 +5,18 @@ cannot carry readable text is refused and the default is used instead, so a
 school never ends up with white text on a white sidebar.
 """
 
-DEFAULT_PRIMARY = "#12403c"
-DEFAULT_ACCENT = "#e8a317"
-INK = "#1d2b2a"
+DEFAULT_PRIMARY = "#1E3A8A"
+DEFAULT_ACCENT = "#3B82F6"
+INK = "#0f172a"
 WHITE = "#ffffff"
 
 # The sidebar and the buttons use these two, so they are the pairs that have
 # to reach the 4.5:1 contrast ratio of WCAG 2.1 AA.
 MINIMUM_RATIO = 4.5
+
+# Buttons carry bold text, so white is acceptable from this ratio upwards.
+# Below it the accent is genuinely pale and dark ink reads better.
+WHITE_TEXT_RATIO = 3.0
 
 
 def parse_hex(value):
@@ -91,6 +95,14 @@ def accent_colour(institution):
     return usable_colour(institution.accent_color, DEFAULT_ACCENT)
 
 
+def accent_text(accent):
+    """White on a mid-tone accent, dark ink on a genuinely pale one."""
+    ratio = contrast_ratio(WHITE, accent)
+    if ratio is not None and ratio >= WHITE_TEXT_RATIO:
+        return WHITE
+    return readable_text(accent, (INK, WHITE))
+
+
 def brand_variables(institution):
     """The CSS variables that carry the institution's branding."""
     primary = primary_colour(institution)
@@ -99,5 +111,5 @@ def brand_variables(institution):
         "--side": primary,
         "--side-text": readable_text(primary, (WHITE, INK)),
         "--accent": accent,
-        "--accent-text": readable_text(accent, (INK, WHITE)),
+        "--accent-text": accent_text(accent),
     }

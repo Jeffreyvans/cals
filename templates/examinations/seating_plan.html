@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ list_url }}">Papers</a></p>
+<div class="head"><div><h1>Seating plan</h1>
+<p class="muted">{{ paper }} &middot; {{ paper.date }} at {{ paper.start_time }}
+  {% if paper.venue %}&middot; {{ paper.venue }}{% endif %}</p></div></div>
+
+{% if can_manage %}
+<div class="card">
+  <p class="muted">Number the candidates from 1 in candidate-number order.</p>
+  <form method="post">{% csrf_token %}
+    <button class="btn">Allocate seats</button>
+  </form>
+</div>
+{% endif %}
+
+{% if candidates %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Seat</th><th>Candidate no</th><th>Student</th><th>Student no</th><th>Mark</th></tr>
+  {% for candidate in candidates %}
+  <tr>
+    <td>{{ candidate.seat_no|default:"-" }}</td>
+    <td>{{ candidate.candidate_no|default:"-" }}</td>
+    <td>{{ candidate.student }}</td>
+    <td>{{ candidate.student.student_no }}</td>
+    <td>{{ candidate.mark|default_if_none:"-" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No candidates are entered for this paper.</p>
+{% endif %}
+{% endblock %}

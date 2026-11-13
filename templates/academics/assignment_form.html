@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lecturer_assignments' %}">Back to assignments</a></p>
+<h1>New assignment</h1>
+<form method="post" enctype="multipart/form-data" class="card">{% csrf_token %}
+{{ form.as_p }}
+<button class="btn">Set assignment</button>
+</form>
+{% endblock %}

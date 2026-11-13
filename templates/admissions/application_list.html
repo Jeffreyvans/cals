@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div><h1>Applications</h1><p class="muted">The public front door and every application in review.</p></div>
+  <a class="btn ghost" href="{% url 'admissions:application_start' %}" target="_blank">Open public form</a>
+</div>
+<form method="get" class="inline">
+  <input name="q" value="{{ query }}" placeholder="Name, email or reference">
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for value, label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <button class="btn ghost">Filter</button>
+</form>
+<table class="tbl">
+  <tr><th>Reference</th><th>Applicant</th><th>Applying for</th><th>Status</th><th>Submitted</th><th>Eligible</th></tr>
+  {% for a in applications %}
+  <tr>
+    <td><a href="{% url 'admissions:application_detail' a.pk %}">{{ a.reference }}</a></td>
+    <td>{{ a.name }}<br><span class="muted">{{ a.email }}</span></td>
+    <td>{{ a.applied_for }}</td>
+    <td><span class="badge">{{ a.get_status_display }}</span></td>
+    <td>{{ a.submitted_at|date:"d M Y" }}</td>
+    <td>{% if a.eligible is None %}<span class="muted">Review</span>{% elif a.eligible %}<span class="badge">Yes</span>{% else %}<span class="muted">No</span>{% endif %}</td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="muted">No applications match.</td></tr>{% endfor %}
+</table>
+{% endblock %}

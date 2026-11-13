@@ -1,81 +1,199 @@
 {% load static %}{% load perms %}<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="{% if INSTITUTION_OBJECT.primary_color %}{{ INSTITUTION_OBJECT.primary_color }}{% else %}#1E3A8A{% endif %}">
 <title>{% block title %}{{ INSTITUTION }}{% endblock %}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'css/app.css' %}">
 <style>:root{ {% for name, value in BRAND.items %}{{ name }}:{{ value }};{% endfor %}}</style></head>
 <body>
+<svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0">
+  <symbol id="i-logo" viewBox="0 0 24 24"><path d="M2.5 9 12 4.5 21.5 9 12 13.5Z"/><path d="M6 11.2V16c0 1.6 2.7 3 6 3s6-1.4 6-3v-4.8"/><path d="M21.5 9v5"/></symbol>
+</svg>
 {% if user.is_authenticated %}
 <div class="shell">
-  <aside class="side" id="side">
-    <div class="brand">{{ INSTITUTION }}</div>
+  <div class="side-overlay" id="sideOverlay"></div>
+  <aside class="side" id="side" aria-label="Main navigation">
+    <svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0">
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></symbol>
+      <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8.5 7V5.5A1.5 1.5 0 0 1 10 4h4a1.5 1.5 0 0 1 1.5 1.5V7"/><path d="M3 12h18"/></symbol>
+      <symbol id="i-building" viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16"/><path d="M15 9h4a1 1 0 0 1 1 1v11"/><path d="M2 21h20"/><path d="M8 8h3M8 12h3M8 16h3"/></symbol>
+      <symbol id="i-apps" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M6.5 20v-8"/><path d="M12 20V4"/><path d="M17.5 20v-5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 6.1"/><path d="M17.5 14.5A5.5 5.5 0 0 1 21 20"/></symbol>
+      <symbol id="i-megaphone" viewBox="0 0 24 24"><path d="M3 10.5v3A1.5 1.5 0 0 0 4.5 15H7l6 4V5L7 9H4.5A1.5 1.5 0 0 0 3 10.5Z"/><path d="M7 15v4"/><path d="M18 8a4 4 0 0 1 0 8"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5Z"/><path d="M4 5.5v16"/><path d="M8 7h8M8 11h6"/></symbol>
+      <symbol id="i-cash" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9v6M18 9v6"/></symbol>
+      <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2Z"/><path d="M9 8h6M9 12h6"/></symbol>
+      <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></symbol>
+      <symbol id="i-scale" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 6h14"/><path d="M7 6l-3 7h6Z"/><path d="M17 6l-3 7h6Z"/><path d="M8 21h8"/></symbol>
+      <symbol id="i-card" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/><path d="M6 15h4"/></symbol>
+      <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9Z"/><circle cx="8" cy="8" r="1.3"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 4v7h-7"/></symbol>
+      <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 9h18"/><path d="M16 14h2"/></symbol>
+      <symbol id="i-bank" viewBox="0 0 24 24"><path d="M3 10 12 4l9 6"/><path d="M5 10v8M9 10v8M15 10v8M19 10v8"/><path d="M3 21h18"/></symbol>
+      <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 10h6M9 14h6M9 18h4"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12 2.3 2.3 4.7-5"/></symbol>
+      <symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="9" r="5"/><path d="m8.5 13-1.3 8 4.8-2.6 4.8 2.6-1.3-8"/></symbol>
+      <symbol id="i-graduation" viewBox="0 0 24 24"><path d="M2.5 9 12 4.5 21.5 9 12 13.5Z"/><path d="M6 11.2V16c0 1.6 2.7 3 6 3s6-1.4 6-3v-4.8"/><path d="M21.5 9v5"/></symbol>
+      <symbol id="i-id" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2"/><circle cx="8.5" cy="11" r="2"/><path d="M5.5 16a3 3 0 0 1 6 0"/><path d="M14 10h4M14 14h4"/></symbol>
+      <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+      <symbol id="i-user-plus" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><path d="M18 8v6M15 11h6"/></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17"/><path d="M8 3v4M16 3v4"/><path d="M8 14h2M14 14h2M8 18h2"/></symbol>
+      <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17 9 5 9-5"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 6a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v5.5c0 5-3.4 8.4-8 9.5-4.6-1.1-8-4.5-8-9.5V6Z"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l2 2M14 9l2 2"/></symbol>
+      <symbol id="i-workflow" viewBox="0 0 24 24"><rect x="3" y="4" width="6" height="6" rx="1.5"/><rect x="15" y="14" width="6" height="6" rx="1.5"/><path d="M9 7h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9"/></symbol>
+      <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 6.5a4.5 4.5 0 0 0-6 5.7L3.5 17.2a2 2 0 0 0 2.8 2.8l5-5a4.5 4.5 0 0 0 5.7-6l-2.6 2.6-2.4-2.4Z"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.5S3.5 15.2 3.5 9.3A4.8 4.8 0 0 1 12 6a4.8 4.8 0 0 1 8.5 3.3c0 5.9-8.5 11.2-8.5 11.2Z"/></symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 15.5H6l1.5-2.2V9a4.5 4.5 0 0 1 9 0v4.3Z"/><path d="M10 18a2 2 0 0 0 4 0"/><path d="M12 3v1.5"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 4H5a1.5 1.5 0 0 0-1.5 1.5v13A1.5 1.5 0 0 0 5 20h4"/><path d="M16 8l4 4-4 4"/><path d="M20 12H9"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v3"/></symbol>
+    </svg>
+
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><svg class="ico"><use href="#i-logo"/></svg></span>
+      <span class="brand-text"><span class="brand-name" title="{{ INSTITUTION }}">{{ INSTITUTION }}</span><span class="brand-sub">EduSphere</span></span>
+    </div>
     <nav>
       {% modules request as on %}
       {% if user.role == 'student' %}
-        <a href="{% url 'student_portal' %}">My account</a>
-        <a href="{% url 'my_registration' %}">Course registration</a>
+        <p class="nav-label">My workspace</p>
+        <a href="{% url 'student_portal' %}"><svg class="ico"><use href="#i-grid"/></svg><span>My account</span></a>
+        <a href="{% url 'my_registration' %}"><svg class="ico"><use href="#i-clipboard"/></svg><span>Course registration</span></a>
+        {% if "lms" in on %}<p class="nav-label">Learning</p><a href="{% url 'lms:course_list' %}"><svg class="ico"><use href="#i-book"/></svg><span>Learning</span></a>{% endif %}
       {% elif user.role == 'parent' %}
-        <a href="{% url 'parent_portal' %}">My children</a>
+        <p class="nav-label">Family</p>
+        <a href="{% url 'parent_portal' %}"><svg class="ico"><use href="#i-users"/></svg><span>My children</span></a>
+        {% if "lms" in on %}<p class="nav-label">Learning</p><a href="{% url 'lms:course_list' %}"><svg class="ico"><use href="#i-book"/></svg><span>Learning</span></a>{% endif %}
       {% elif user.role == 'lecturer' %}
-        <a href="{% url 'lecturer_portal' %}">My courses</a>
-        <a href="{% url 'my_timetable' %}">My timetable</a>
-        <a href="{% url 'student_search' %}">Find a student</a>
-        <a href="{% url 'notices' %}">Notices</a>
+        {% perms request as my_perms %}
+        <p class="nav-label">Teaching</p>
+        <a href="{% url 'lecturer_portal' %}"><svg class="ico"><use href="#i-book"/></svg><span>My courses</span></a>
+        <a href="{% url 'my_timetable' %}"><svg class="ico"><use href="#i-clock"/></svg><span>My timetable</span></a>
+        <a href="{% url 'lecturer_assignments' %}"><svg class="ico"><use href="#i-clipboard"/></svg><span>Assignments</span></a>
+        {% if "lms" in on %}<a href="{% url 'lms:course_list' %}"><svg class="ico"><use href="#i-layers"/></svg><span>Learning</span></a>{% endif %}
+        <p class="nav-label">Students</p>
+        <a href="{% url 'notices' %}"><svg class="ico"><use href="#i-megaphone"/></svg><span>Notices</span></a>
+        {% if "health.view_safe_alerts" in my_perms %}<a href="{% url 'health:safe_alerts' %}"><svg class="ico"><use href="#i-heart"/></svg><span>Health alerts</span></a>{% endif %}
       {% else %}
-        <a href="{% url 'dashboard' %}">Overview</a>
-        <a href="{% url 'student_search' %}">Find a student</a>
-        <a href="{% url 'notices' %}">Notices</a>
-        {% if "exams" in on %}<a href="{% url 'exams' %}">Exams</a>{% endif %}
+        {% perms request as my_perms %}
+        {% has_perm request "admin.workflow_approve" as can_approve %}
+        <p class="nav-label">Overview</p>
+        <a href="{% url 'dashboard' %}"><svg class="ico"><use href="#i-grid"/></svg><span>Overview</span></a>
+        {% if user.is_superuser or user.role == 'admin' or "hr.manage" in my_perms or "hr.approve_leave" in my_perms or "payroll.manage" in my_perms or "payroll.approve" in my_perms or "procurement.manage" in my_perms or "procurement.approve" in my_perms or "estates.manage" in my_perms or "security.manage" in my_perms or "compliance.manage" in my_perms or "marketing.manage" in my_perms or "governance.manage" in my_perms %}
+          <a href="{% url 'operations:hub' %}"><svg class="ico"><use href="#i-briefcase"/></svg><span>Administration</span></a>
+        {% endif %}
+        <a href="{% url 'department_portal' %}"><svg class="ico"><use href="#i-building"/></svg><span>My department</span></a>
+        <a href="{% url 'module_directory' %}"><svg class="ico"><use href="#i-apps"/></svg><span>School services</span></a>
+        {% if "reports.view_dashboards" in my_perms or "admin.dashboard_school" in my_perms %}<a href="{% url 'role_dashboard' %}"><svg class="ico"><use href="#i-chart"/></svg><span>Role dashboard</span></a>{% endif %}
+        {% if "search.global" in my_perms %}<a href="{% url 'global_search' %}"><svg class="ico"><use href="#i-search"/></svg><span>Search</span></a>{% endif %}
+        {% if user.role == 'registrar' or user.role == 'bursar' or user.role == 'admin' %}<a href="{% url 'student_search' %}"><svg class="ico"><use href="#i-users"/></svg><span>Find a student</span></a>{% endif %}
+        {% if user.role == 'registrar' or user.role == 'bursar' or user.role == 'admin' %}<a href="{% url 'notices' %}"><svg class="ico"><use href="#i-megaphone"/></svg><span>Notices</span></a>{% endif %}
+        {% if "exams" in on %}{% if user.role == 'registrar' or user.role == 'bursar' or user.role == 'admin' %}<a href="{% url 'exams' %}"><svg class="ico"><use href="#i-file"/></svg><span>Exams</span></a>{% endif %}{% endif %}
+        {% if "lms" in on %}<a href="{% url 'lms:course_list' %}"><svg class="ico"><use href="#i-book"/></svg><span>Learning</span></a>{% endif %}
         {% if "finance" in on %}
-          <a href="{% url 'report_debtors' %}">Debtors</a>
-          <a href="{% url 'report_collections' %}">Collections</a>
+          <p class="nav-label">Finance</p>
+          {% if user.role == 'bursar' or user.role == 'registrar' or user.role == 'admin' %}
+            <a href="{% url 'report_debtors' %}"><svg class="ico"><use href="#i-cash"/></svg><span>Debtors</span></a>
+            <a href="{% url 'report_collections' %}"><svg class="ico"><use href="#i-receipt"/></svg><span>Collections</span></a>
+          {% endif %}
+          {% if "finance.view_reports" in my_perms %}
+            <a href="{% url 'collection_targets' %}"><svg class="ico"><use href="#i-target"/></svg><span>Collection targets</span></a>
+            <a href="{% url 'trial_balance' %}"><svg class="ico"><use href="#i-scale"/></svg><span>Trial balance</span></a>
+            <a href="{% url 'expense_list' %}"><svg class="ico"><use href="#i-wallet"/></svg><span>Expenses and budgets</span></a>
+            <a href="{% url 'bank_lines' %}"><svg class="ico"><use href="#i-bank"/></svg><span>Bank reconciliation</span></a>
+          {% endif %}
+          {% if "finance.manage_fee_structures" in my_perms %}
+            <a href="{% url 'fee_structures' %}"><svg class="ico"><use href="#i-scale"/></svg><span>Fee structures</span></a>
+            <a href="{% url 'discount_list' %}"><svg class="ico"><use href="#i-tag"/></svg><span>Discounts and sponsors</span></a>
+            <a href="{% url 'instalment_plans' %}"><svg class="ico"><use href="#i-clock"/></svg><span>Instalments</span></a>
+          {% endif %}
+          {% if "finance.issue_invoice" in my_perms %}<a href="{% url 'generate_invoices' %}"><svg class="ico"><use href="#i-file"/></svg><span>Generate invoices</span></a>{% endif %}
+          {% if "finance.view_ledger" in my_perms %}<a href="{% url 'accounts' %}"><svg class="ico"><use href="#i-book"/></svg><span>Ledger</span></a>{% endif %}
+          {% if "finance.approve_refund" in my_perms %}<a href="{% url 'refund_list' %}"><svg class="ico"><use href="#i-refresh"/></svg><span>Refunds</span></a>{% endif %}
         {% endif %}
-        {% if user.role == 'bursar' or user.role == 'admin' %}
-          <a href="{% url 'audit_trail' %}">Audit log</a>
-        {% endif %}
-        {% if user.role == 'registrar' or user.role == 'admin' %}
-          <a href="{% url 'student_create' %}">Register student</a>
-          <a href="{% url 'academic_years' %}">Years and terms</a>
-          <a href="{% url 'grade_levels' %}">Levels</a>
-          <a href="{% url 'timetable' %}">Timetable</a>
-          {% if IS_SCHOOL %}
-            <a href="{% url 'class_list' %}">Classes</a>
-            <a href="{% url 'subject_list' %}">Subjects</a>
-          {% else %}
-            <a href="{% url 'programme_list' %}">Programmes</a>
-            <a href="{% url 'college_structure' %}">College structure</a>
+        {% if "admissions" in on %}
+          {% if user.role == 'registrar' or user.role == 'admin' %}
+            <p class="nav-label">Admissions</p>
+            <a href="{% url 'admissions:application_list' %}"><svg class="ico"><use href="#i-clipboard"/></svg><span>Applications</span></a>
+            <a href="{% url 'admissions:offer_list' %}"><svg class="ico"><use href="#i-check"/></svg><span>Offers</span></a>
+            <a href="{% url 'admissions:lifecycle_list' %}"><svg class="ico"><use href="#i-graduation"/></svg><span>Student lifecycle</span></a>
+            <a href="{% url 'admissions:graduation_list' %}"><svg class="ico"><use href="#i-award"/></svg><span>Graduation</span></a>
+            <a href="{% url 'admissions:certificate_list' %}"><svg class="ico"><use href="#i-file"/></svg><span>Certificates</span></a>
+            <a href="{% url 'admissions:id_cards' %}"><svg class="ico"><use href="#i-id"/></svg><span>ID cards</span></a>
+            <a href="{% url 'admissions:alumni_list' %}"><svg class="ico"><use href="#i-users"/></svg><span>Alumni</span></a>
+            <a href="{% url 'admissions:entry_requirements' %}"><svg class="ico"><use href="#i-list"/></svg><span>Entry requirements</span></a>
           {% endif %}
         {% endif %}
-        {% perms request as my_perms %}
+        {% if user.role == 'registrar' or user.role == 'admin' %}
+          <p class="nav-label">Academics</p>
+          <a href="{% url 'student_create' %}"><svg class="ico"><use href="#i-user-plus"/></svg><span>Register student</span></a>
+          <a href="{% url 'academic_years' %}"><svg class="ico"><use href="#i-calendar"/></svg><span>Years and terms</span></a>
+          <a href="{% url 'grade_levels' %}"><svg class="ico"><use href="#i-layers"/></svg><span>Levels</span></a>
+          <a href="{% url 'timetable' %}"><svg class="ico"><use href="#i-clock"/></svg><span>Timetable</span></a>
+          {% if IS_SCHOOL %}
+            <a href="{% url 'class_list' %}"><svg class="ico"><use href="#i-building"/></svg><span>Classes</span></a>
+            <a href="{% url 'subject_list' %}"><svg class="ico"><use href="#i-book"/></svg><span>Subjects</span></a>
+          {% else %}
+            <a href="{% url 'programme_list' %}"><svg class="ico"><use href="#i-folder"/></svg><span>Programmes</span></a>
+            <a href="{% url 'college_structure' %}"><svg class="ico"><use href="#i-layers"/></svg><span>College structure</span></a>
+          {% endif %}
+        {% endif %}
         {% if "students.create" in my_perms or "admin.manage_users" in my_perms or "academics.manage_courses" in my_perms or "finance.manage_fee_structures" in my_perms %}
-          <a href="{% url 'import_start' %}">Bulk import</a>
+          <p class="nav-label">Data</p>
+          <a href="{% url 'import_start' %}"><svg class="ico"><use href="#i-plus"/></svg><span>Bulk import</span></a>
         {% endif %}
-        {% if user.role == 'admin' %}
-          <a href="{% url 'school_settings' %}">School settings</a>
-          <a href="{% url 'grade_bands' %}">Grade scale</a>
-          <a href="{% url 'institution_settings' %}">Institution</a>
-          <a href="{% url 'role_list' %}">Roles and permissions</a>
-          <a href="{% url 'department_list' %}">Departments</a>
-          <a href="{% url 'workflow_list' %}">Workflows</a>
-          <a href="{% url 'admin:index' %}">Administration</a>
+        {% if user.role == 'bursar' or user.role == 'admin' or can_approve or user.is_superuser or "admin.manage_users" in my_perms %}
+          <p class="nav-label">Administration</p>
+          {% if user.role == 'bursar' or user.role == 'admin' %}<a href="{% url 'audit_trail' %}"><svg class="ico"><use href="#i-shield"/></svg><span>Audit log</span></a>{% endif %}
+          {% if user.role == 'admin' or "admin.manage_users" in my_perms %}
+            <a href="{% url 'user_list' %}"><svg class="ico"><use href="#i-users"/></svg><span>Users</span></a>
+            <a href="{% url 'registration_requests' %}"><svg class="ico"><use href="#i-user-plus"/></svg><span>Registration requests</span></a>
+          {% endif %}
+          {% if user.role == 'admin' %}
+            <a href="{% url 'school_settings' %}"><svg class="ico"><use href="#i-settings"/></svg><span>School settings</span></a>
+            <a href="{% url 'grade_bands' %}"><svg class="ico"><use href="#i-award"/></svg><span>Grade scale</span></a>
+            <a href="{% url 'institution_settings' %}"><svg class="ico"><use href="#i-building"/></svg><span>Institution</span></a>
+            <a href="{% url 'role_list' %}"><svg class="ico"><use href="#i-key"/></svg><span>Roles and permissions</span></a>
+            <a href="{% url 'department_list' %}"><svg class="ico"><use href="#i-layers"/></svg><span>Departments</span></a>
+            <a href="{% url 'workflow_list' %}"><svg class="ico"><use href="#i-workflow"/></svg><span>Workflows</span></a>
+            <a href="{% url 'api_keys' %}"><svg class="ico"><use href="#i-key"/></svg><span>API keys</span></a>
+            <a href="{% url 'admin:index' %}"><svg class="ico"><use href="#i-wrench"/></svg><span>Administration</span></a>
+          {% endif %}
+          {% if can_approve %}<a href="{% url 'approvals' %}"><svg class="ico"><use href="#i-check"/></svg><span>Approvals</span></a>{% endif %}
+          {% if user.is_superuser %}<a href="{% url 'setup_wizard' %}"><svg class="ico"><use href="#i-plus"/></svg><span>Set up an institution</span></a>{% endif %}
         {% endif %}
-        {% has_perm request "admin.workflow_approve" as can_approve %}
-        {% if can_approve %}<a href="{% url 'approvals' %}">Approvals</a>{% endif %}
-        {% if user.is_superuser %}<a href="{% url 'setup_wizard' %}">Set up an institution</a>{% endif %}
       {% endif %}
     </nav>
-    <div class="who">{{ user.get_full_name|default:user.username }}<small>{{ user.get_role_display }}</small>
-      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link">Sign out</button></form></div>
+    <div class="who">
+      <span class="avatar" aria-hidden="true">{{ user.get_full_name|default:user.username|slice:":1"|upper }}</span>
+      <div class="who-meta"><span class="who-name">{{ user.get_full_name|default:user.username }}</span><small>{{ user.get_role_display }}</small></div>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link" title="Sign out" aria-label="Sign out"><svg class="ico"><use href="#i-logout"/></svg></button></form>
+    </div>
   </aside>
   <main>
-    <button class="menu" onclick="document.getElementById('side').classList.toggle('open')" aria-label="Menu">Menu</button>
-    <div class="topbar">
-      <span class="muted">{{ INSTITUTION }}</span>
-      <a class="bell" href="{% url 'notifications' %}">Notifications{% if UNREAD_COUNT %}<span class="dot">{{ UNREAD_COUNT }}</span>{% endif %}</a>
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu" type="button" id="menuToggle" aria-label="Open menu" aria-controls="side" aria-expanded="false"><svg class="ico"><use href="#i-menu"/></svg></button>
+        <div class="crumb"><span class="crumb-kicker">Workspace</span><span class="crumb-title">{{ INSTITUTION }}</span></div>
+      </div>
+      <div class="topbar-actions">
+        <a class="bell" href="{% url 'notifications' %}"><svg class="ico"><use href="#i-bell"/></svg><span class="bell-text">Notifications</span>{% if UNREAD_COUNT %}<span class="dot">{{ UNREAD_COUNT }}</span>{% endif %}</a>
+      </div>
+    </header>
+    <div class="page">
+      {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+      {% if user.role == 'registrar' or user.role == 'admin' %}{% if not CURRENT_YEAR %}<div class="msg">No academic year yet. <a href="{% url 'academic_years' %}">Add the current year and term</a> so timetables and results know which period they belong to.</div>{% endif %}{% endif %}
+      {% block content %}{% endblock %}
     </div>
-    {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
-    {% if user.role == 'registrar' or user.role == 'admin' %}{% if not CURRENT_YEAR %}<div class="msg">No academic year yet. <a href="{% url 'academic_years' %}">Add the current year and term</a> so timetables and results know which period they belong to.</div>{% endif %}{% endif %}
-    {% block content %}{% endblock %}
   </main>
 </div>
 {% else %}{% block bare %}{% endblock %}{% endif %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:quiz_detail' quiz.pk %}">Back to {{ quiz.title }}</a></p>
+<h1>{{ quiz.title }} results</h1>
+<table class="tbl"><tr><th>Student</th><th>Started</th><th>Submitted</th><th>Status</th><th>Score</th><th></th></tr>
+{% for attempt in attempts %}
+<tr><td>{{ attempt.student.name }}</td><td>{{ attempt.started_at|date:"d M Y H:i" }}</td>
+<td>{{ attempt.submitted_at|date:"d M Y H:i"|default:"-" }}</td><td>{{ attempt.get_status_display }}</td>
+<td>{{ attempt.score|default_if_none:"-" }} / {{ attempt.max_score }}</td>
+<td><a class="btn ghost" href="{% url 'lms:quiz_attempt' attempt.pk %}">Open</a></td></tr>
+{% empty %}<tr><td colspan="6" class="muted">No attempts yet.</td></tr>{% endfor %}</table>
+{% endblock %}

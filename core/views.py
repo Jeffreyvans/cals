@@ -53,6 +53,8 @@ def settings_view(request):
         action = request.POST.get("action", "")
         if action == "details":
             inst.name = request.POST.get("name", inst.name)[:200]
+            inst.tagline = request.POST.get("tagline", inst.tagline)[:200]
+            inst.about = request.POST.get("about", inst.about)[:5000]
             inst.currency = request.POST.get("currency", inst.currency)[:10]
             inst.timezone = request.POST.get("timezone", inst.timezone)[:64]
             inst.language = request.POST.get("language", inst.language)[:10]
@@ -64,6 +66,46 @@ def settings_view(request):
             inst.save()
             log_action(request.user, "institution.updated", inst, request=request)
             messages.success(request, "Institution details saved.")
+            return redirect("institution_settings")
+        if action == "vat":
+            inst.vat_status = request.POST.get("vat_status", inst.vat_status)[:20]
+            inst.vat_number = request.POST.get("vat_number", "")[:40]
+            inst.bp_number = request.POST.get("bp_number", "")[:40]
+            inst.vat_address = request.POST.get("vat_address", "")[:2000]
+            inst.base_currency = request.POST.get(
+                "base_currency", inst.base_currency)[:10]
+            inst.save(update_fields=[
+                "vat_status", "vat_number", "bp_number", "vat_address",
+                "base_currency"])
+            log_action(request.user, "institution.vat_updated", inst,
+                       after={"vat_status": inst.vat_status,
+                              "vat_number": inst.vat_number,
+                              "bp_number": inst.bp_number},
+                       request=request)
+            messages.success(request, "VAT settings saved.")
+            return redirect("institution_settings")
+        if action == "registration":
+            from accounts.registration import STAFF_POSITIONS
+
+            inst.public_registration = (
+                request.POST.get("public_registration") == "on"
+            )
+            chosen = set(request.POST.getlist("staff_positions"))
+            inst.staff_positions = [
+                code for code in STAFF_POSITIONS if code in chosen
+            ]
+            inst.save(update_fields=["public_registration", "staff_positions"])
+            log_action(
+                request.user,
+                "institution.registration_updated",
+                inst,
+                after={
+                    "public_registration": inst.public_registration,
+                    "staff_positions": inst.staff_positions,
+                },
+                request=request,
+            )
+            messages.success(request, "Public registration settings saved.")
             return redirect("institution_settings")
         if action == "module":
             code = request.POST.get("code", "")
@@ -102,12 +144,25 @@ def settings_view(request):
         {"field": field, "label": label, "value": terms.get(field, "")}
         for field, label in terminology_fields()
     ]
+    from accounts.registration import POSITION_ORDER, STAFF_POSITIONS
+
+    chosen_positions = set(inst.staff_positions or [])
+    staff_position_choices = [
+        {
+            "code": code,
+            "label": STAFF_POSITIONS[code].label,
+            "checked": code in chosen_positions,
+        }
+        for code in POSITION_ORDER
+    ]
     return render(request, "core/institution_settings.html", {
         "inst": inst,
         "switches": switches,
         "modules": ALL_MODULES,
         "terms": terms,
         "term_fields": term_fields,
+        "staff_position_choices": staff_position_choices,
+        "vat_status_choices": Institution.VatStatus.choices,
     })
 
 
@@ -304,3 +359,89 @@ def sensitive_log(request):
     inst = _institution(request)
     rows = SensitiveViewLog.objects.filter(institution=inst).select_related("actor")[:300]
     return render(request, "core/sensitive_log.html", {"inst": inst, "rows": rows})
+
+# ---------- global search ----------
+@login_required
+def global_search(request):
+    """One search box for the records staff look up most often.
+
+    Every result group is permission-filtered, so a bursar sees money and a
+    registrar sees applications without either seeing the other's records.
+    """
+    _require(request, "search.global")
+    query = request.GET.get("q", "").strip()
+    groups = []
+    if len(query) >= 2:
+        from django.db.models import Q
+
+        from academics.models import Course, Student
+        from accounts.models import User
+        from admissions.models import Application
+        from finance.models import Payment
+
+        if user_has_code(request.user, "students.view_all"):
+            rows = (Student.objects.select_related(
+                        "user", "programme", "school_class")
+                    .filter(Q(student_no__icontains=query)
+                            | Q(user__first_name__icontains=query)
+                            | Q(user__last_name__icontains=query)
+                            | Q(user__username__icontains=query))[:20])
+            groups.append({"title": "Students", "items": [{
+                "label": s.name,
+                "meta": f"{s.student_no} - {s.programme.name}",
+                "url": reverse("student_detail", args=[s.pk]),
+            } for s in rows]})
+
+        if (user_has_code(request.user, "admin.manage_users")
+                or user_has_code(request.user, "hr.manage")):
+            rows = (User.tenant_objects.select_related("primary_role")
+                    .filter(Q(first_name__icontains=query)
+                            | Q(last_name__icontains=query)
+                            | Q(username__icontains=query)
+                            | Q(email__icontains=query))[:20])
+            groups.append({"title": "Staff accounts", "items": [{
+                "label": u.get_full_name() or u.username,
+                "meta": f"{u.username} - {u.get_role_display()}",
+                "url": reverse("staff_detail", args=[u.pk]),
+            } for u in rows]})
+
+        if user_has_code(request.user, "academics.view_reports"):
+            rows = Course.objects.select_related("programme").filter(
+                Q(code__icontains=query) | Q(title__icontains=query))[:20]
+            groups.append({"title": "Courses", "items": [{
+                "label": f"{c.code} - {c.title}",
+                "meta": c.programme.name,
+                "url": reverse("course_roster", args=[c.pk]),
+            } for c in rows]})
+
+        if user_has_code(request.user, "finance.view_reports"):
+            rows = (Payment.objects.select_related("invoice__student__user")
+                    .filter(Q(receipt_no__icontains=query)
+                            | Q(reference__icontains=query)
+                            | Q(payer_name__icontains=query)
+                            | Q(invoice__student__user__first_name__icontains=query)
+                            | Q(invoice__student__user__last_name__icontains=query))[:20])
+            groups.append({"title": "Receipts", "items": [{
+                "label": f"{p.receipt_no} - {p.invoice.student.name}",
+                "meta": f"{p.get_method_display()} - {p.amount}",
+                "url": reverse("receipt", args=[p.pk]),
+            } for p in rows]})
+
+        if (is_enabled("admissions", getattr(request, "institution", None))
+                and (user_has_code(request.user, "admissions.manage")
+                     or user_has_code(request.user, "admissions.review"))):
+            rows = Application.objects.filter(
+                Q(reference__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(last_name__icontains=query))[:20]
+            groups.append({"title": "Applications", "items": [{
+                "label": f"{a.reference} - {a.name}",
+                "meta": a.get_status_display(),
+                "url": reverse("admissions:application_detail", args=[a.pk]),
+            } for a in rows]})
+
+    groups = [g for g in groups if g["items"]]
+    return render(request, "core/search.html", {
+        "query": query, "groups": groups,
+        "result_count": sum(len(g["items"]) for g in groups),
+    })

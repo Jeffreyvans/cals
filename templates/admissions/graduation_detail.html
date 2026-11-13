@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div><h1>Graduation — {{ student.name }}</h1><p class="muted">{{ student.student_no }} · {{ student.programme.name }}</p></div>
+  <span class="badge">{{ student.get_status_display }}</span>
+</div>
+
+<div class="cols">
+  <form method="post" action="{% url 'admissions:graduation_clearance' student.pk %}" class="inline wide">{% csrf_token %}
+    <h2>Clearance checklist</h2>
+    {{ clearance_form.as_p }}
+    <button class="btn">Save checklist</button>
+  </form>
+  <div class="card">
+    <h2>Status</h2>
+    <p>{% if clearance.is_clear %}<span class="msg success">Every item is clear.</span>{% else %}<span class="msg error">Outstanding: {{ clearance.outstanding|join:", " }}</span>{% endif %}</p>
+    <p class="muted">{% if clearance.cleared_at %}Cleared {{ clearance.cleared_at|date:"j F Y H:i" }}.{% endif %}{% if clearance.graduated_at %} Graduated {{ clearance.graduated_at|date:"j F Y H:i" }}.{% endif %}</p>
+    <form method="post" action="{% url 'admissions:graduation_graduate' student.pk %}">{% csrf_token %}
+      <button class="btn" {% if not clearance.is_clear %}disabled{% endif %}>Graduate student</button>
+    </form>
+  </div>
+</div>
+
+<h2>Issue a certificate</h2>
+<form method="post" action="{% url 'admissions:certificate_new' student.pk %}" class="inline wide">{% csrf_token %}{{ certificate_form.as_p }}<button class="btn ghost">Issue certificate</button></form>
+
+<h2>Certificates</h2>
+<table class="tbl">
+  <tr><th>Serial</th><th>Title</th><th>Award</th><th>Graduation date</th><th></th></tr>
+  {% for c in certificates %}<tr><td><a href="{% url 'admissions:certificate_detail' c.pk %}">{{ c.serial_no }}</a></td><td>{{ c.title }}</td><td>{{ c.award }}</td><td>{{ c.graduation_date|date:"d M Y" }}</td><td><a href="{% url 'admissions:certificate_pdf' c.pk %}">PDF</a></td></tr>
+  {% empty %}<tr><td colspan="5" class="muted">No certificates yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

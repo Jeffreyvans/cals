@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block content %}
+<h1>Income by fee item</h1>
+<p>{% include "finance/_export_links.html" with export_name="export_income_by_item" %}</p>
+<form method="get" class="inline"><label>From <input type="date" name="from" value="{{ raw_from }}"></label>
+<label>To <input type="date" name="to" value="{{ raw_to }}"></label><button class="btn">Apply</button></form>
+<table class="tbl"><tr><th>Fee item</th><th class="r">Invoiced</th></tr>
+{% for label, amount in rows %}<tr><td>{{ label }}</td><td class="r">{{ CUR }}{{ amount }}</td></tr>
+{% empty %}<tr><td colspan="2" class="muted">No invoices in this period.</td></tr>{% endfor %}</table>
+{% endblock %}

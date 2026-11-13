@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}{{ account.get_full_name|default:account.username }}{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ account.get_full_name|default:account.username }}</h1>
+    <p class="muted">
+      <code>{{ account.username }}</code>
+      {% if account.email %} &middot; {{ account.email }}{% endif %}
+      &middot; {% if account.role == "student" %}Student{% elif account.role == "parent" %}Parent{% else %}Staff{% endif %}
+      {% if account.primary_role %} &middot; {{ account.primary_role.name }}{% endif %}
+    </p>
+  </div>
+  <div class="row">
+    {% if may_touch %}<a class="btn" href="{% url 'user_edit' account.pk %}">Edit account</a>{% endif %}
+    <a class="btn ghost" href="{% url 'user_list' %}">Back to users</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="{% if account.is_active %}ok{% else %}warn{% endif %}">
+    <span>Status</span>
+    <b>{% if not account.is_active %}Inactive{% elif is_locked %}Locked{% else %}Active{% endif %}</b>
+  </div>
+  <div><span>Role</span><b>{% if account.primary_role %}{{ account.primary_role.name }}{% else %}{{ account.get_role_display }}{% endif %}</b></div>
+  <div><span>Last sign-in</span><b>{{ account.last_login|date:"j M Y, H:i"|default:"Never" }}</b></div>
+  <div><span>Created</span><b>{{ account.date_joined|date:"j M Y" }}</b></div>
+</div>
+
+{% if not account.is_active %}
+<div class="msg">This account is deactivated. Its invoices, results and audit history are kept.</div>
+{% elif is_locked %}
+<div class="msg error">This account is locked after too many failed sign-in attempts. An administrator can unlock it below.</div>
+{% elif account.must_change_password %}
+<div class="msg">This account must choose a new password at its next sign-in.</div>
+{% elif account.has_open_invitation %}
+<div class="msg">An invitation link is waiting to be used. It expires 72 hours after it was sent.</div>
+{% endif %}
+
+<div class="card">
+  <h2>Account details</h2>
+  <div class="tbl-wrap">
+  <table class="tbl">
+    <tbody>
+      <tr><th>Username</th><td><code>{{ account.username }}</code></td></tr>
+      <tr><th>Email</th><td>{{ account.email|default:"-" }}{% if account.email_verified %} <span class="badge ok">Verified</span>{% endif %}</td></tr>
+      <tr><th>Phone</th><td>{{ account.phone|default:"-" }}</td></tr>
+      <tr><th>Role</th><td>{% if account.primary_role %}{{ account.primary_role.name }} ({{ account.primary_role.code }}){% else %}{{ account.get_role_display }}{% endif %}</td></tr>
+      <tr><th>Access</th><td>{% if account.must_change_password %}Temporary password, change forced{% elif account.has_open_invitation %}Invitation email{% else %}Password set by the user{% endif %}</td></tr>
+      {% if student %}
+        <tr><th>Student number</th><td><code>{{ student.student_no }}</code></td></tr>
+        <tr><th>Programme</th><td>{{ student.programme|default:"-" }}</td></tr>
+        <tr><th>Class</th><td>{{ student.class_label|default:"-" }}</td></tr>
+        <tr><th>Status</th><td>{{ student.get_status_display }}</td></tr>
+        <tr><th>Guardian</th><td>{{ student.guardian_name|default:"-" }}{% if student.guardian_phone %} &middot; {{ student.guardian_phone }}{% endif %}</td></tr>
+      {% endif %}
+      {% if profile %}
+        <tr><th>Staff number</th><td>{{ profile.employee_no|default:"-" }}</td></tr>
+        <tr><th>Job title</th><td>{{ profile.job_title|default:"-" }}</td></tr>
+        <tr><th>Departments</th><td>{% for department in profile.departments.all %}{{ department.name }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</td></tr>
+        <tr><th>Started</th><td>{{ profile.date_joined|date:"j M Y"|default:"-" }}</td></tr>
+      {% endif %}
+      {% if account.duplicate_of %}
+        <tr><th>Duplicate of</th><td><a href="{% url 'user_detail' account.duplicate_of.pk %}">{{ account.duplicate_of.get_full_name|default:account.duplicate_of.username }}</a></td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% if may_touch %}
+<div class="card">
+  <h2>Actions</h2>
+  <div class="row">
+    {% if account.is_active %}
+      <form method="post" action="{% url 'user_action' account.pk %}" class="inline">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="deactivate">
+        <button class="btn ghost">Deactivate</button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'user_action' account.pk %}" class="inline">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reactivate">
+        <button class="btn">Reactivate</button>
+      </form>
+    {% endif %}
+    {% if is_locked %}
+      <form method="post" action="{% url 'user_action' account.pk %}" class="inline">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="unlock">
+        <button class="btn ghost">Unlock account</button>
+      </form>
+    {% endif %}
+    <form method="post" action="{% url 'user_action' account.pk %}" class="inline">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="reset">
+      <button class="btn ghost">Reset password</button>
+    </form>
+    {% if account.email %}
+      <form method="post" action="{% url 'user_action' account.pk %}" class="inline">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="resend_invitation">
+        <button class="btn ghost">Resend invitation</button>
+      </form>
+    {% endif %}
+  </div>
+  <p class="muted">A reset password is shown once on the next screen and must be changed at sign-in. Deactivating never deletes invoices, results or audit history.</p>
+
+  {% if student and not account.has_usable_password and not account.has_open_invitation %}
+    <form method="post" action="{% url 'user_action' account.pk %}" class="inline">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="link_login">
+      <label>Give this student a login
+        <select name="access_mode">
+          <option value="invitation">Send invitation email</option>
+          <option value="temporary_password">Create a temporary password</option>
+        </select>
+      </label>
+      <button class="btn ghost">Attach login</button>
+    </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Invitations</h2>
+  {% if invitations %}
+    <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Sent</th><th>Expires</th><th>State</th><th>Sent by</th></tr></thead>
+      <tbody>
+      {% for invitation in invitations %}
+        <tr>
+          <td>{{ invitation.created|date:"j M Y, H:i" }}</td>
+          <td>{{ invitation.expires_at|date:"j M Y, H:i" }}</td>
+          <td>{% if invitation.used_at %}<span class="badge">Used</span>{% elif invitation.is_expired %}<span class="badge warn">Expired</span>{% else %}<span class="badge ok">Open</span>{% endif %}</td>
+          <td>{{ invitation.invited_by.get_full_name|default:invitation.invited_by.username|default:"System" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  {% else %}
+    <p class="muted">No invitations have been sent to this account.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Recent changes</h2>
+  {% if audits %}
+    <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>When</th><th>Action</th><th>Who</th><th>Details</th></tr></thead>
+      <tbody>
+      {% for entry in audits %}
+        <tr>
+          <td>{{ entry.created|date:"j M Y, H:i" }}</td>
+          <td><code>{{ entry.action }}</code></td>
+          <td>{{ entry.actor_name }}</td>
+          <td class="muted">{{ entry.after|default:entry.before|default:"-" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  {% else %}
+    <p class="muted">No changes have been recorded for this account yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

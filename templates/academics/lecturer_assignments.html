@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block content %}
+<div class="head"><div><h1>Assignments</h1>
+<p class="muted">Set work for a course or subject and follow what comes back.</p></div>
+<a class="btn" href="{% url 'assignment_create' %}">New assignment</a></div>
+
+{% if groups %}
+<table class="tbl"><tr><th>Assignment</th><th>Course or subject</th><th>Due</th><th class="r">Students</th><th class="r">Submitted</th><th></th></tr>
+{% for group in groups %}
+<tr>
+  <td>{{ group.activity.title }}</td>
+  <td>{% if group.activity.course %}{{ group.activity.course }}{% elif group.activity.subject %}{{ group.activity.subject }}{% else %}—{% endif %}</td>
+  <td>{{ group.activity.due_date|date:"d M Y"|default:"—" }}</td>
+  <td class="r">{{ group.students }}</td>
+  <td class="r">{{ group.submissions }}</td>
+  <td><a class="btn ghost" href="{% url 'assignment_detail' group.activity.pk %}">Open</a></td>
+</tr>
+{% endfor %}</table>
+{% else %}
+<p class="muted">No assignments yet. Use “New assignment” to set the first one.</p>
+{% endif %}
+{% endblock %}

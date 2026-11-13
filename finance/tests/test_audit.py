@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -89,15 +90,17 @@ class MoneyLogEntryTests(BaseAudit):
         p.save(update_fields=["reference"])
         self.assertEqual(MoneyLog.objects.count(), 1)
 
-    def test_entries_survive_invoice_deletion(self):
+    def test_issued_invoice_cannot_be_deleted(self):
         inv = Invoice.objects.create(student=self.student, description="Trip",
                                      amount=Decimal("30.00"),
                                      due_date=date.today())
-        inv.delete()
+        with self.assertRaises(ValidationError):
+            inv.delete()
         entry = MoneyLog.objects.get(action="invoice")
-        self.assertIsNone(entry.invoice)
+        self.assertEqual(entry.invoice, inv)
         self.assertEqual(entry.student, self.student)
         self.assertEqual(entry.amount, Decimal("30.00"))
+        self.assertTrue(Invoice.objects.filter(pk=inv.pk).exists())
 
 
 class AuditLogViewTests(BaseAudit):

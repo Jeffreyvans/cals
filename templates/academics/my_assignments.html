@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block content %}
+<div class="head"><div><h1>My assignments</h1><p class="muted">Assignments your lecturers have given you.</p></div></div>
+{% for row in assignment_rows %}
+<div class="card">
+  <div class="head">
+    <div>
+      <h2>{{ row.activity.title }}</h2>
+      <p class="muted">{% if row.activity.course %}Course {{ row.activity.course.name }}{% elif row.activity.subject %}Subject {{ row.activity.subject.name }}{% endif %} · due {{ row.activity.due_date|date:"d M Y"|default:"—" }}</p>
+    </div>
+    <span class="badge">{% if row.submission %}Submitted{% else %}Pending{% endif %}</span>
+  </div>
+  <p>{{ row.activity.detail }}</p>
+  {% if row.submission %}
+  <p class="muted">Submitted {{ row.submission.submitted_at|date:"d M Y H:i" }}{% if row.submission.feedback %} · Teacher feedback: {{ row.submission.feedback }}{% endif %}</p>
+  {% endif %}
+  <p><a class="btn ghost" href="{% url 'assignment_submit' row.activity.pk %}">{% if row.submission %}Resubmit{% else %}Submit{% endif %}</a></p>
+</div>
+{% empty %}
+<div class="card"><p class="muted">No assignments yet. Your lecturers will add them here.</p></div>
+{% endfor %}
+{% endblock %}

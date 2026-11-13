@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div><h1>{{ certificate.title }}</h1><p class="muted">{{ certificate.serial_no }} · {{ certificate.get_kind_display }}</p></div>
+  <a class="btn" href="{% url 'admissions:certificate_pdf' certificate.pk %}">Download PDF</a>
+</div>
+<table class="tbl">
+  <tr><th>Student</th><td><a href="{% url 'admissions:lifecycle_detail' certificate.student.pk %}">{{ certificate.student.name }}</a> ({{ certificate.student.student_no }})</td></tr>
+  <tr><th>Programme</th><td>{{ certificate.student.programme.name }}</td></tr>
+  <tr><th>Award</th><td>{{ certificate.award }}</td></tr>
+  <tr><th>Graduation date</th><td>{{ certificate.graduation_date|date:"j F Y" }}</td></tr>
+  <tr><th>Issued</th><td>{{ certificate.issued_at|date:"j F Y H:i" }}{% if certificate.issued_by %} by {{ certificate.issued_by.get_full_name|default:certificate.issued_by.username }}{% endif %}</td></tr>
+  <tr><th>Revoked</th><td>{% if certificate.is_revoked %}Yes — {{ certificate.revoked_reason }}{% else %}No{% endif %}</td></tr>
+</table>
+<p><a class="btn ghost" href="{% url 'admissions:verify_certificate' certificate.token %}" target="_blank">Open public verification</a></p>
+{% endblock %}

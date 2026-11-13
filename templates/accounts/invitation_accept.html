@@ -1,0 +1,33 @@
+{% extends "public_base.html" %}
+{% block title %}Choose your password — EduSphere{% endblock %}
+{% block content %}
+<div class="page-shell narrow">
+  <div class="page-title">
+    <a class="back-link" href="{% url 'login' %}">&larr; Back to sign in</a>
+    <h1>Choose your password</h1>
+    <p>{{ account.institution.name }} created an account for you{% if account.email %} at {{ account.email }}{% endif %}. This link can be used once and expires 72 hours after it was sent.</p>
+  </div>
+  <div class="panel">
+    {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+    {% if invitation.is_open %}
+      <form method="post" class="form-stack" novalidate>
+        {% csrf_token %}
+        <div class="field">
+          <label for="password">New password</label>
+          <input type="password" name="password" id="password" autocomplete="new-password" required minlength="10">
+          <p class="help">At least 10 characters with capital and small letters and a number.</p>
+        </div>
+        <div class="field">
+          <label for="password_confirm">Repeat the password</label>
+          <input type="password" name="password_confirm" id="password_confirm" autocomplete="new-password" required minlength="10">
+        </div>
+        <div><button class="btn" type="submit">Save and sign in</button></div>
+      </form>
+    {% else %}
+      <div class="alert alert-error" role="alert">This invitation has already been used or has expired.</div>
+      <p style="margin-top: 1.2rem;">Ask {{ account.institution.name }} to send a new invitation, or use the password reset link on the sign-in page.</p>
+      <p><a class="btn" href="{% url 'password_reset' %}">Reset a password</a></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

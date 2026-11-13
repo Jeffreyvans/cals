@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block content %}
+<h1>Budgets</h1>
+<p><a class="btn" href="{% url 'budget_create' %}">New budget</a>
+{% include "finance/_export_links.html" with export_name="export_budgets" %}</p>
+<table class="tbl"><tr><th>Name</th><th>Department</th><th>Year</th><th class="r">Budget</th><th class="r">Spent</th><th class="r">Variance</th></tr>
+{% for v in variances %}<tr><td>{{ v.budget.name }}</td><td>{{ v.budget.department|default:"All" }}</td>
+<td>{{ v.budget.financial_year|default:"-" }}</td><td class="r">{{ CUR }}{{ v.budget.amount }}</td>
+<td class="r">{{ CUR }}{{ v.spent }}</td><td class="r">{{ CUR }}{{ v.variance }}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted">No budgets yet.</td></tr>{% endfor %}</table>
+{% endblock %}

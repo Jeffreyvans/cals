@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block content %}
+<div class="card" style="max-width:720px">
+  <h1>{{ activity.title }}</h1>
+  <p class="muted">{% if activity.course %}Course {{ activity.course.name }}{% elif activity.subject %}Subject {{ activity.subject.name }}{% endif %} · due {{ activity.due_date|date:"d M Y"|default:"—" }}</p>
+  <p>{{ activity.detail }}</p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn">Submit assignment</button>
+    <a class="btn ghost" href="{% url 'my_assignments' %}">Back</a>
+  </form>
+</div>
+{% endblock %}

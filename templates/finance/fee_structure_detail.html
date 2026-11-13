@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block content %}
+<h1>{{ structure.name }}</h1>
+<p class="muted">{{ structure.code }} · {{ structure.academic_year|default:"No year" }} · {{ structure.term|default:"No term" }}</p>
+<h2>Fee items</h2>
+<table class="tbl">
+<tr><th>Name</th><th>Kind</th><th class="r">Amount</th><th>Mandatory</th><th></th></tr>
+{% for item in items %}
+<tr><td>{{ item.name }}</td><td>{{ item.get_kind_display }}</td>
+<td class="r">{{ CUR }}{{ item.amount }}</td><td>{{ item.is_mandatory|yesno:"Yes,No" }}</td>
+<td><form method="post" action="{% url 'fee_item_delete' item.pk %}">{% csrf_token %}
+<button class="btn ghost">Remove</button></form></td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No items yet.</td></tr>{% endfor %}
+</table>
+<h2>Add item</h2>
+<form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn">Add item</button></form>
+{% endblock %}

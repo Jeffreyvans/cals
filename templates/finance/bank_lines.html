@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block content %}
+<h1>Bank reconciliation</h1>
+<p><a class="btn" href="{% url 'bank_import' %}">Import CSV</a>
+<form method="post" action="{% url 'bank_match' %}" class="inline">{% csrf_token %}
+<button class="btn ghost">Auto-match receipts</button></form></p>
+<p class="muted">{{ unmatched }} unmatched lines.</p>
+<table class="tbl"><tr><th>Date</th><th>Description</th><th>Reference</th><th class="r">Amount</th><th>Matched receipt</th></tr>
+{% for line in rows %}<tr><td>{{ line.date }}</td><td>{{ line.description }}</td><td>{{ line.reference }}</td>
+<td class="r">{{ CUR }}{{ line.amount }}</td><td>{{ line.matched_payment.receipt_no|default:"-" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No statement lines imported.</td></tr>{% endfor %}</table>
+{% endblock %}

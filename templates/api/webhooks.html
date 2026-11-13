@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Webhooks{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Webhooks</h1>
+    <p class="muted">Send signed event notifications to another system when a student, invoice, payment or application is created.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'api_keys' %}">API keys</a>
+</div>
+
+<h2>Add an endpoint</h2>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Name<input name="name" maxlength="100" placeholder="Finance system" required></label></p>
+  <p><label>URL<input name="url" maxlength="500" placeholder="https://example.org/hooks/edusphere" required></label></p>
+  <div class="scope-grid">
+    {% for code, label in events %}
+      <label class="check"><input type="checkbox" name="events" value="{{ code }}"> <code>{{ code }}</code> <span class="muted">{{ label }}</span></label>
+    {% endfor %}
+  </div>
+  <p class="muted">Ticking nothing subscribes the endpoint to every event.</p>
+  <button class="btn">Add endpoint</button>
+</form>
+
+<h2>Endpoints</h2>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Name</th><th>URL</th><th>Events</th><th>State</th><th>Created</th><th></th></tr></thead>
+  <tbody>
+  {% for endpoint in endpoints %}
+    <tr>
+      <td><a href="{% url 'api_webhook_detail' endpoint.pk %}">{{ endpoint.name }}</a></td>
+      <td><code>{{ endpoint.url }}</code></td>
+      <td>{% if endpoint.events %}{{ endpoint.events|join:", " }}{% else %}<span class="muted">all events</span>{% endif %}</td>
+      <td>{% if endpoint.is_active %}<span class="badge">active</span>{% else %}<span class="badge">paused</span>{% endif %}</td>
+      <td>{{ endpoint.created|date:"Y-m-d" }}</td>
+      <td class="r"><a class="btn ghost" href="{% url 'api_webhook_detail' endpoint.pk %}">Open</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No endpoints yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>How a receiver verifies a call</h2>
+<p class="muted">Each request carries <code>X-EduSphere-Signature: t=&lt;timestamp&gt;,v1=&lt;hmac&gt;</code>. Compute HMAC-SHA256 over <code>&lt;timestamp&gt;.&lt;raw body&gt;</code> with the endpoint secret and compare. Reject a timestamp older than a few minutes to stop replays.</p>
+{% endblock %}

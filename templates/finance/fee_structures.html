@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block content %}
+<h1>Fee structures</h1>
+<p><a class="btn" href="{% url 'fee_structure_create' %}">New fee structure</a>
+<a class="btn ghost" href="{% url 'generate_invoices' %}">Generate invoices</a></p>
+<table class="tbl">
+<tr><th>Code</th><th>Name</th><th>Year</th><th>Programme</th><th>Class</th><th>Term</th><th>Items</th></tr>
+{% for s in structures %}
+<tr><td><a href="{% url 'fee_structure_detail' s.pk %}">{{ s.code }}</a></td>
+<td>{{ s.name }}</td><td>{{ s.academic_year|default:"-" }}</td>
+<td>{{ s.programme|default:"All" }}</td><td>{{ s.school_class|default:"All" }}</td>
+<td>{{ s.term|default:"-" }}</td><td>{{ s.items.count }}</td></tr>
+{% empty %}<tr><td colspan="7" class="muted">No fee structures yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

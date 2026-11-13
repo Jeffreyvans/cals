@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'operations:hub' %}">Administration</a></p>
+<div class="head"><div><h1>{{ module.title }}</h1>
+<p class="muted">{{ module.description }}</p></div></div>
+
+<table class="tbl">
+  <tr><th>Register</th><th></th></tr>
+  {% for kind in kinds %}
+  <tr><td><b>{{ kind.title }}</b></td>
+    <td><a class="btn ghost" href="{{ kind.url }}">Open</a></td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

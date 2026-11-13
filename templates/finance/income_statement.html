@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block content %}
+<h1>Income statement</h1>
+<p>{% include "finance/_export_links.html" with export_name="export_income_statement" %}</p>
+<form method="get" class="inline"><label>From <input type="date" name="from" value="{{ request.GET.from }}"></label>
+<label>To <input type="date" name="to" value="{{ request.GET.to }}"></label><button class="btn">Apply</button></form>
+<h2>Income</h2>
+<table class="tbl">{% for account, amount in income %}<tr><td>{{ account.code }} {{ account.name }}</td><td class="r">{{ CUR }}{{ amount }}</td></tr>
+{% empty %}<tr><td class="muted">No income.</td><td></td></tr>{% endfor %}
+<tr><th>Total income</th><th class="r">{{ CUR }}{{ total_income }}</th></tr></table>
+<h2>Expenses</h2>
+<table class="tbl">{% for account, amount in expenses %}<tr><td>{{ account.code }} {{ account.name }}</td><td class="r">{{ CUR }}{{ amount }}</td></tr>
+{% empty %}<tr><td class="muted">No expenses.</td><td></td></tr>{% endfor %}
+<tr><th>Total expenses</th><th class="r">{{ CUR }}{{ total_expenses }}</th></tr></table>
+<p><b>Net: {{ CUR }}{{ net }}</b></p>
+{% endblock %}

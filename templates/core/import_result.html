@@ -4,14 +4,28 @@
 <div class="head">
   <div>
     <h1>Import finished</h1>
-    <p class="muted">{{ batch.filename }} &middot; {{ batch.get_kind_display }}.</p>
+    <p class="muted">{{ batch.filename }} &middot; {{ batch.get_kind_display }} &middot; {{ batch.get_access_mode_display }}.</p>
   </div>
 </div>
+
+{% if batch.undone_at %}
+<div class="msg">This import was undone on {{ batch.undone_at|date:"j M Y, H:i" }}. {{ batch.undone_count }} accounts were deactivated; accounts that had signed in were kept.</div>
+{% endif %}
 
 {% if batch.imported_count %}
 <div class="msg success">{{ batch.imported_count }} rows were written into {{ batch.institution.name }}.</div>
 {% else %}
 <div class="msg error">Nothing was written. Every row had a problem.</div>
+{% endif %}
+
+{% if has_credentials %}
+<div class="msg">
+  <strong>The usernames and any one-time passwords are ready.</strong>
+  <a href="{% url 'import_credentials' batch.pk %}">Download the results file</a>.
+  The passwords are removed from the system as soon as you download the file, so keep it safe.
+</div>
+{% elif batch.credentials_downloaded %}
+<div class="msg">The results file was downloaded. One-time passwords are no longer stored and cannot be shown again.</div>
 {% endif %}
 
 {% if errors %}
@@ -38,4 +52,12 @@
   <a class="btn ghost" href="{% url 'import_list' %}">All imports</a>
   <a class="btn ghost" href="{% url 'import_map' batch.pk %}">Try the file again</a>
 </div>
+
+{% if can_undo %}
+<form method="post" action="{% url 'import_undo' batch.pk %}" class="inline">
+  {% csrf_token %}
+  <button class="btn ghost">Undo accounts that have not signed in</button>
+</form>
+<p class="muted">Undo deactivates the accounts created by this import. It never deletes invoices, results or audit history. An account that has already signed in is left alone.</p>
+{% endif %}
 {% endblock %}

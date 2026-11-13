@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Registration requests{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Registration requests</h1>
+    <p class="muted">Staff who asked for an account from the public registration page. {% if pending_count %}<strong>{{ pending_count }}</strong> still waiting.{% endif %}</p>
+  </div>
+  <a class="btn ghost" href="{% url 'institution_settings' %}">Registration settings</a>
+</div>
+
+<form method="get" class="filters">
+  <label>Search<input type="search" name="q" value="{{ query }}" placeholder="Name, email or username"></label>
+  <label>Status
+    <select name="status">
+      <option value="">All statuses</option>
+      {% for code, label in statuses %}
+        <option value="{{ code }}" {% if current_status == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Position
+    <select name="position">
+      <option value="">All positions</option>
+      {% for position in positions %}
+        <option value="{{ position.code }}" {% if current_position == position.code %}selected{% endif %}>{{ position.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="btn">Filter</button>
+</form>
+
+{% if requests %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Name</th><th>Position</th><th>Email</th><th>Department</th><th>Status</th><th>Requested</th><th></th></tr></thead>
+      <tbody>
+      {% for reg_request in requests %}
+        <tr>
+          <td><a href="{% url 'registration_request_detail' reg_request.pk %}">{{ reg_request.full_name }}</a></td>
+          <td>{{ reg_request.position_label }}</td>
+          <td>{{ reg_request.email }}</td>
+          <td>{{ reg_request.department.name|default:"—" }}</td>
+          <td><span class="badge">{{ reg_request.get_status_display }}</span></td>
+          <td>{{ reg_request.created|date:"j M Y, H:i" }}</td>
+          <td class="r"><a class="btn ghost btn-sm" href="{% url 'registration_request_detail' reg_request.pk %}">Review</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty">
+    <h2>No requests found</h2>
+    <p>Requests from the public staff registration page will appear here. {% if query or current_status or current_position %}Try clearing the filters.{% endif %}</p>
+  </div>
+{% endif %}
+{% endblock %}

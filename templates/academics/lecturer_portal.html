@@ -4,4 +4,22 @@
 {% if subjects %}<h2>My subjects</h2>
 {% for s in subjects %}<a class="card link-card" href="{% url 'subject_roster' s.pk %}"><b>{{ s.code }} · {{ s.name }}</b><span class="muted">{{ s.get_level_display }} · {{ s.enrollments.count }} students</span></a>
 {% endfor %}{% endif %}
+
+<h2>My timetable{% if term %} · {{ term }}{% endif %}</h2>
+<p><a class="btn ghost" href="{% url 'my_timetable' %}">Open my timetable</a> <a class="btn ghost" href="{% url 'my_timetable_pdf' %}">Printable PDF</a></p>
+<table class="tbl"><tr><th>Day</th><th>Time</th><th>Lesson</th><th>Group</th><th>Venue</th></tr>
+{% for t in timetable %}<tr><td>{{ t.get_day_display }}</td><td>{{ t.start_time|time:"H:i" }} – {{ t.end_time|time:"H:i" }}</td><td>{{ t.title }}</td><td>{{ t.group }}</td><td>{{ t.venue|default:"—" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No lessons on the timetable yet.</td></tr>{% endfor %}</table>
+
+<h2>Assignments</h2>
+<p><a class="btn ghost" href="{% url 'lecturer_assignments' %}">Manage assignments</a></p>
+{% for a in assignments %}<div class="card"><b>{{ a.title }}</b> <span class="muted">{% if a.course %}{{ a.course }}{% elif a.subject %}{{ a.subject }}{% endif %} · due {{ a.due_date|date:"d M Y"|default:"—" }} · {{ a.submission_count }} submission{{ a.submission_count|pluralize }}</span></div>
+{% empty %}<p class="muted">You have not set any assignments yet.</p>{% endfor %}
+
+<h2>Coming up</h2>
+<ul class="event-list">
+{% for e in events %}<li><b>{{ e.starts_on|date:"d M Y" }}</b> · {{ e.title }} <span class="muted">{{ e.get_kind_display }}{% if e.school_class %} · {{ e.school_class.name }} only{% endif %}{% if e.detail %} · {{ e.detail }}{% endif %}</span></li>
+{% empty %}<li class="muted">No upcoming events.</li>{% endfor %}
+</ul>
+
 <h2>Announcements</h2>{% for a in announcements %}<div class="card"><b>{{ a.title }}</b><p>{{ a.body }}</p></div>{% endfor %}{% endblock %}

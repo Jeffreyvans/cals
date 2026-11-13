@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block content %}
+<h1>Discounts and bursaries</h1>
+<p><a class="btn" href="{% url 'discount_create' %}">New discount</a></p>
+<table class="tbl"><tr><th>Student</th><th>Name</th><th>Category</th><th class="r">Amount</th><th>Sponsor</th></tr>
+{% for d in rows %}<tr><td>{{ d.student.name }}</td><td>{{ d.name }}</td><td>{{ d.get_category_display }}</td>
+<td class="r">{{ CUR }}{{ d.amount }}</td><td>{{ d.sponsor|default:"-" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No discounts yet.</td></tr>{% endfor %}</table>
+{% endblock %}

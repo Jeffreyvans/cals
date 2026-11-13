@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ list_url }}">Library</a> &middot; <a href="{{ lookup_url }}">Quick lookup</a></p>
+<div class="head"><div><h1>QR code lookup</h1>
+<p class="muted">Scan a book label or type the code printed on it.</p></div></div>
+
+<form method="get" class="card">
+  <label for="code">QR code, token or ISBN</label>
+  <input id="code" name="code" value="{{ code }}" placeholder="Scan or type the code" autofocus>
+  <button class="btn">Find book</button>
+</form>
+
+{% if book %}
+<div class="card">
+  <div class="head"><div><h2>{{ book.title }}</h2>
+  <p class="muted">{{ book.author|default:"Unknown author" }} &middot; {{ book.get_category_display }}
+    &middot; Shelf {{ book.shelf|default:"-" }}</p></div>
+  <img src="{{ qr_image_url }}" alt="QR code for {{ book.title }}" width="120" height="120"></div>
+  <p><strong>ISBN:</strong> {{ book.isbn|default:"-" }} &middot;
+    <strong>Available:</strong> {{ book.copies_available }}/{{ book.copies_total }}</p>
+  {% if loans %}
+  <table class="tbl">
+    <tr><th>Student</th><th>Borrowed</th><th>Due</th><th>Status</th></tr>
+    {% for loan in loans %}
+    <tr><td>{{ loan.student }}</td><td>{{ loan.borrowed_on }}</td>
+      <td>{{ loan.due_on }}</td><td>{{ loan.get_status_display }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">No copies are currently out.</p>
+  {% endif %}
+</div>
+{% elif code %}
+<p class="muted">No book matches "{{ code }}".</p>
+{% endif %}
+{% endblock %}

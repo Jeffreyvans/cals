@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% block content %}
+<h1>My department</h1>
+<p class="muted">The staff, budgets and sub-departments you are connected to.</p>
+
+{% for d in departments %}
+<section class="card">
+  <div class="head"><div><h2>{{ d.name }}</h2>
+    <p class="muted">{{ d.code }}{% if d.head %} · Head: {{ d.head.get_full_name|default:d.head.username }}{% endif %}{% if d.parent %} · Part of {{ d.parent.name }}{% endif %}</p></div>
+  </div>
+
+  <h3>Staff</h3>
+  <table class="tbl"><tr><th>Name</th><th>Job title</th><th>Employee no.</th><th>Phone</th></tr>
+  {% for row in d.staff_rows %}<tr><td>{{ row.user.get_full_name|default:row.user.username }}</td><td>{{ row.job_title|default:"—" }}</td><td>{{ row.employee_no|default:"—" }}</td><td>{{ row.phone|default:"—" }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="muted">No staff profiles in this department yet.</td></tr>{% endfor %}</table>
+
+  <h3>Budgets</h3>
+  <table class="tbl"><tr><th>Budget</th><th>Year</th><th class="r">Budgeted</th><th class="r">Spent</th><th class="r">Variance</th></tr>
+  {% for row in d.budget_rows %}<tr><td>{{ row.budget.name }}</td><td>{{ row.budget.financial_year|default:"—" }}</td><td class="r">{{ CUR }}{{ row.budget.amount }}</td><td class="r">{{ CUR }}{{ row.spent }}</td><td class="r">{{ CUR }}{{ row.variance }}</td></tr>
+  {% empty %}<tr><td colspan="5" class="muted">No budget has been set for this department.</td></tr>{% endfor %}</table>
+
+  {% if d.child_rows %}<h3>Sub-departments</h3>
+  <p>{% for child in d.child_rows %}<span class="badge">{{ child.name }}</span> {% endfor %}</p>{% endif %}
+</section>
+{% empty %}
+<p class="muted">You are not linked to a department yet. Ask an administrator to add you to one.</p>
+{% endfor %}
+{% endblock %}

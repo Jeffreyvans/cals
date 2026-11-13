@@ -1,0 +1,46 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ hub_url }}">Boarding</a> &middot; <a href="{{ list_url }}">Boarders</a></p>
+<div class="head"><div><h1>Automatic room allocation</h1>
+<p class="muted">Place unallocated boarders into rooms with free beds, in hostel and room order.</p></div></div>
+
+<div class="card">
+  <p><strong>Waiting:</strong> {{ plan.assignments|length }} ready to place &middot;
+    <strong>No space:</strong> {{ plan.unplaced|length }}</p>
+  {% if plan.assignments %}
+  <form method="post">{% csrf_token %}
+    <button class="btn">Allocate {{ plan.assignments|length }} boarder{{ plan.assignments|length|pluralize }}</button>
+  </form>
+  {% else %}
+  <p class="muted">There are no unallocated boarders with a free room.</p>
+  {% endif %}
+</div>
+
+{% if plan.assignments %}
+<h2>Proposed allocation</h2>
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Boarder</th><th>Room</th><th>Hostel</th><th>Bed</th></tr>
+  {% for row in plan.assignments %}
+  <tr>
+    <td>{{ row.boarder.student }}</td>
+    <td>{{ row.room.name }}</td>
+    <td>{{ row.room.hostel }}</td>
+    <td>{{ row.bed }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% endif %}
+
+{% if plan.unplaced %}
+<h2>Waiting for space</h2>
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Boarder</th></tr>
+  {% for boarder in plan.unplaced %}
+  <tr><td>{{ boarder.student }}</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endif %}
+{% endblock %}

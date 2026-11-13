@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}API keys{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>API keys</h1>
+    <p class="muted">Keys let an external system read this institution's data through the REST API. A key acts as the account it belongs to and can only use that account's permissions.</p>
+  </div>
+  <div class="row">
+    <a class="btn ghost" href="{% url 'api_webhooks' %}">Webhooks</a>
+    <a class="btn ghost" href="{% url 'api_docs' %}" target="_blank" rel="noopener">API docs</a>
+  </div>
+</div>
+
+{% if raw_key %}
+<div class="card">
+  <h2>Copy this key now</h2>
+  <p class="muted">This is the only time the full key is shown. Store it in your integration's secret manager.</p>
+  <p><code class="key-reveal">{{ raw_key }}</code></p>
+</div>
+{% endif %}
+
+<h2>Issue a key</h2>
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="create">
+  <p><label>Name<input name="name" maxlength="100" placeholder="Payroll export"></label></p>
+  <p><label>Acts as
+    <select name="user">
+      {% for person in staff %}
+        <option value="{{ person.pk }}" {% if person.pk == request.user.pk %}selected{% endif %}>{{ person.get_full_name|default:person.username }} ({{ person.username }})</option>
+      {% endfor %}
+    </select></label></p>
+  <details class="scope-box">
+    <summary>Limit permissions (leave all unticked to use the account's full permissions)</summary>
+    {% for category, entries in categories %}
+      <h3>{{ category|title }}</h3>
+      <div class="scope-grid">
+        {% for code, description in entries %}
+          <label class="check"><input type="checkbox" name="scopes" value="{{ code }}"> <code>{{ code }}</code> <span class="muted">{{ description }}</span></label>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </details>
+  <button class="btn">Create key</button>
+</form>
+
+<h2>Existing keys</h2>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Name</th><th>Prefix</th><th>Account</th><th>Scope</th><th>Last used</th><th>State</th><th></th></tr></thead>
+  <tbody>
+  {% for key in keys %}
+    <tr>
+      <td>{{ key.name|default:"API key" }}</td>
+      <td><code>{{ key.prefix }}</code></td>
+      <td>{{ key.user.get_full_name|default:key.user.username }}</td>
+      <td>{% if key.scopes %}{{ key.scopes|length }} code(s){% else %}<span class="muted">full account</span>{% endif %}</td>
+      <td>{{ key.last_used|date:"Y-m-d H:i"|default:"never" }}</td>
+      <td>{% if key.is_active %}<span class="badge">active</span>{% else %}<span class="badge">revoked</span>{% endif %}</td>
+      <td class="r">
+        {% if key.is_active %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke">
+          <input type="hidden" name="key" value="{{ key.pk }}">
+          <button class="btn ghost">Revoke</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No keys yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Using a key</h2>
+<p class="muted">Send the key in the <code>Authorization</code> header. The API is under <code>/api/v1/</code>.</p>
+<pre class="code-block">curl -H "Authorization: Api-Key esk_..." {{ request.scheme }}://{{ request.get_host }}/api/v1/students/</pre>
+{% endblock %}

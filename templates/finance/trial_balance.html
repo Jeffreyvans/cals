@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block content %}
+<h1>Trial balance</h1>
+<p>{% include "finance/_export_links.html" with export_name="export_trial_balance" %}</p>
+<table class="tbl"><tr><th>Code</th><th>Account</th><th class="r">Debit</th><th class="r">Credit</th><th class="r">Balance</th></tr>
+{% for row in rows %}<tr><td>{{ row.account.code }}</td><td>{{ row.account.name }}</td>
+<td class="r">{{ CUR }}{{ row.debit }}</td><td class="r">{{ CUR }}{{ row.credit }}</td>
+<td class="r">{{ CUR }}{{ row.balance }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No journal entries yet.</td></tr>{% endfor %}
+<tr><th colspan="2">Total</th><th class="r">{{ CUR }}{{ total_debit }}</th><th class="r">{{ CUR }}{{ total_credit }}</th><th></th></tr>
+</table>
+{% endblock %}

@@ -1,3 +1,4 @@
+import uuid
 from collections import Counter
 from decimal import Decimal
 
@@ -33,12 +34,37 @@ DEFAULT_AWARD_RULES = {
 
 
 def balances_by_student():
-    """Return ({student_id: billed}, {student_id: paid}, {student_id: waived})
-    in three queries."""
-    from finance.models import Invoice, Payment, Waiver
+    """Bulk balances: ({student_id: billed}, {paid net of refunds}, {forgiven}).
+
+    ``forgiven`` combines waivers, discounts and applied credits so a list page
+    agrees with :meth:`Student.balance`.
+    """
+    from finance.models import (
+        CreditApplication,
+        Discount,
+        Invoice,
+        Payment,
+        Refund,
+        Waiver,
+    )
+
     billed = dict(Invoice.objects.values_list("student_id").annotate(t=Sum("amount")))
     paid = dict(Payment.objects.values_list("invoice__student_id").annotate(t=Sum("amount")))
+    refunded = dict(
+        Refund.objects.filter(status=Refund.Status.APPROVED)
+        .values_list("payment__invoice__student_id").annotate(t=Sum("amount")))
     waived = dict(Waiver.objects.values_list("invoice__student_id").annotate(t=Sum("amount")))
+    discounted = dict(
+        Discount.objects.values_list("student_id").annotate(t=Sum("amount")))
+    credited = dict(
+        CreditApplication.objects.values_list("invoice__student_id")
+        .annotate(t=Sum("amount")))
+    for student_id, amount in refunded.items():
+        paid[student_id] = paid.get(student_id, Decimal("0")) - amount
+    for student_id, amount in discounted.items():
+        waived[student_id] = waived.get(student_id, Decimal("0")) + amount
+    for student_id, amount in credited.items():
+        waived[student_id] = waived.get(student_id, Decimal("0")) + amount
     return billed, paid, waived
 
 
@@ -530,9 +556,13 @@ class CoursePrerequisite(TenantModel):
 class Student(TenantModel):
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
+        ENROLLED = "enrolled", "Enrolled"
         DEFERRED = "deferred", "Deferred"
-        GRADUATED = "graduated", "Graduated"
+        SUSPENDED = "suspended", "Suspended"
+        TRANSFERRED_OUT = "transferred_out", "Transferred out"
         WITHDRAWN = "withdrawn", "Withdrawn"
+        GRADUATED = "graduated", "Graduated"
+        ALUMNI = "alumni", "Alumni"
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="student")
     student_no = models.CharField(max_length=20, blank=True)
     programme = models.ForeignKey(Programme, on_delete=models.PROTECT, related_name="students")
@@ -549,6 +579,7 @@ class Student(TenantModel):
     date_of_birth = models.DateField(null=True, blank=True)
     guardian_name = models.CharField(max_length=120, blank=True)
     guardian_phone = models.CharField(max_length=30, blank=True)
+    photo = models.ImageField(upload_to="students/photos/", blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     created = models.DateTimeField(auto_now_add=True)
 
@@ -587,7 +618,9 @@ class Student(TenantModel):
         from finance.models import Waiver
         return Waiver.objects.filter(invoice__student=self).aggregate(t=Sum("amount"))["t"] or Decimal("0")
     @property
-    def balance(self): return self.total_billed - self.total_paid - self.total_waived
+    def balance(self):
+        from finance.services import student_balance
+        return student_balance(self)
     def __str__(self): return f"{self.student_no} {self.name}"
 
 
@@ -597,6 +630,8 @@ class Guardian(TenantModel):
                                related_name="wards")
     student = models.ForeignKey(Student, on_delete=models.CASCADE,
                                 related_name="guardian_links")
+    relationship = models.CharField(max_length=40, blank=True)
+    can_view_finance = models.BooleanField(default=True)
     linked = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -605,6 +640,9 @@ class Guardian(TenantModel):
 
     def __str__(self):
         return f"{self.parent.get_full_name() or self.parent.username} – {self.student.name}"
+
+
+GuardianLink = Guardian
 
 
 class GradeBand(TenantModel):
@@ -1000,6 +1038,53 @@ class ResultClearance(TenantModel):
         return f"{self.student} - {self.term}: {self.reason}"
 
 
+class DocumentVerification(TenantModel):
+    """A stable, unguessable token printed on a report card or transcript."""
+
+    class Kind(models.TextChoices):
+        REPORT_CARD = "report_card", "Report card"
+        TRANSCRIPT = "transcript", "Academic transcript"
+
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE,
+                                related_name="document_verifications")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    issued_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="document_verifications_issued")
+    issued_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-issued_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["student", "kind"],
+                                    name="uniq_document_verification_student_kind"),
+        ]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} for {self.student}"
+
+
+class AtRiskScore(TenantModel):
+    """One night's risk result for a student, kept so trends can be reviewed."""
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE,
+                                related_name="risk_scores")
+    computed_on = models.DateField()
+    score = models.PositiveSmallIntegerField(default=0)
+    reasons = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-computed_on", "-score"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["institution", "student", "computed_on"],
+                name="uniq_at_risk_student_day"),
+        ]
+
+    def __str__(self):
+        return f"{self.student} {self.score} on {self.computed_on}"
+
+
 class Activity(TenantModel):
     class Kind(models.TextChoices):
         ASSIGN = "assignment", "Assignment"
@@ -1009,20 +1094,97 @@ class Activity(TenantModel):
         PROJECT = "project", "Project"
         DISCIPLINE = "discipline", "Discipline note"
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="activities")
+    course = models.ForeignKey("Course", null=True, blank=True,
+                               on_delete=models.SET_NULL, related_name="activities")
+    subject = models.ForeignKey("Subject", null=True, blank=True,
+                                on_delete=models.SET_NULL, related_name="activities")
     kind = models.CharField(max_length=20, choices=Kind.choices)
     title = models.CharField(max_length=150)
     date = models.DateField()
-    detail = models.CharField(max_length=250, blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    detail = models.TextField(blank=True)
+    attachment = models.FileField(upload_to="activities/", blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL)
     class Meta:
         ordering = ["-date"]
 
+    @property
+    def is_assignment(self):
+        return self.kind == self.Kind.ASSIGN
+
+
+class Assignment(Activity):
+    class Meta:
+        proxy = True
+
+
+class AssignmentSubmission(TenantModel):
+    assignment = models.ForeignKey(Activity, on_delete=models.CASCADE,
+                                   related_name="submissions")
+    student = models.ForeignKey(Student, on_delete=models.CASCADE,
+                                related_name="assignment_submissions")
+    text = models.TextField(blank=True)
+    file = models.FileField(upload_to="assignments/submissions/", blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    feedback = models.TextField(blank=True)
+    mark = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    graded_at = models.DateTimeField(null=True, blank=True)
+    graded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.SET_NULL)
+
+    class Meta:
+        unique_together = ("assignment", "student")
+        ordering = ["-submitted_at"]
+
 
 class Attendance(TenantModel):
+    class Status(models.TextChoices):
+        PRESENT = "present", "Present"
+        LATE = "late", "Late"
+        ABSENT = "absent", "Absent"
+        EXCUSED = "excused", "Excused absence"
+
+    ATTENDED = (Status.PRESENT, Status.LATE)
+    MISSED = (Status.ABSENT, Status.EXCUSED)
+    LETTERS = {Status.PRESENT: "P", Status.LATE: "L",
+               Status.ABSENT: "A", Status.EXCUSED: "E"}
+
     enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name="attendance")
     date = models.DateField()
-    present = models.BooleanField(default=True)
+    present = models.BooleanField(default=True,
+        help_text="Kept in step with the status: present and late both count as attended.")
+    status = models.CharField(max_length=20, choices=Status.choices,
+                              default=Status.PRESENT)
+    reason = models.CharField(max_length=200, blank=True,
+        help_text="Why the student was absent, if known.")
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                     on_delete=models.SET_NULL)
+    guardians_notified = models.BooleanField(default=False, editable=False,
+        help_text="The parents have already been told about this absence.")
+
     class Meta:
         unique_together = ("enrollment", "date")
+
+    def save(self, *a, **kw):
+        if self.status in self.ATTENDED:
+            self.present = True
+        elif self.status in self.MISSED:
+            self.present = False
+        # ``update_or_create`` saves only the keys it was given, so a status
+        # change would otherwise leave the stored ``present`` flag behind.
+        update_fields = kw.get("update_fields")
+        if update_fields is not None and "status" in update_fields:
+            kw["update_fields"] = set(update_fields) | {"present"}
+        super().save(*a, **kw)
+
+    @property
+    def letter(self):
+        return self.LETTERS.get(self.status, "–")
+
+    @property
+    def attended(self):
+        return self.status in self.ATTENDED
 
     @classmethod
     def rates_by_term(cls, enrollments):
@@ -1030,22 +1192,30 @@ class Attendance(TenantModel):
         term_of = {e.pk: (e.term.name if e.term else "No term") for e in enrollments}
         out = {}
         for eid, present in cls.objects.filter(enrollment_id__in=term_of.keys()) \
-                                       .values_list("enrollment_id", "present"):
+                                        .values_list("enrollment_id", "present"):
             sessions, marked = out.setdefault(term_of[eid], [0, 0])
             out[term_of[eid]] = [sessions + 1, marked + (1 if present else 0)]
         return {t: (s, m) for t, (s, m) in out.items()}
 
     @classmethod
     def register(cls, enrollments):
-        """Return (dates, {enrollment_pk: {date: present}}) for a class register."""
+        """Return (dates, {enrollment_pk: {date: status}}) for a class register."""
         rows = cls.objects.filter(enrollment_id__in=[e.pk for e in enrollments]) \
-                          .values_list("enrollment_id", "date", "present")
+                          .values_list("enrollment_id", "date", "status")
         dates, grid = [], {}
-        for eid, d, p in rows:
+        for eid, d, status in rows:
             if d not in dates:
                 dates.append(d)
-            grid.setdefault(eid, {})[d] = p
+            grid.setdefault(eid, {})[d] = status
         return sorted(dates), grid
+
+    @classmethod
+    def absences(cls, enrollments, limit=10):
+        """The most recent absent or excused rows, newest first."""
+        return list(cls.objects.filter(enrollment_id__in=[e.pk for e in enrollments],
+                                       status__in=cls.MISSED)
+                       .select_related("enrollment__course", "enrollment__subject")
+                       .order_by("-date", "pk")[:limit])
 
 
 class Announcement(TenantModel):
@@ -1053,7 +1223,8 @@ class Announcement(TenantModel):
     body = models.TextField()
     audience = models.CharField(max_length=20, default="all",
         choices=[("all", "Everyone"), ("student", "Students"),
-                 ("lecturer", "Lecturers"), ("parent", "Parents")])
+                 ("lecturer", "Lecturers"), ("parent", "Parents"),
+                 ("staff", "Staff")])
     school_class = models.ForeignKey(SchoolClass, null=True, blank=True,
         on_delete=models.CASCADE, related_name="announcements",
         help_text="Optional: only this class sees the notice.")
@@ -1074,7 +1245,16 @@ class Announcement(TenantModel):
         if user.role in ("admin", "registrar", "bursar"):
             return cls.objects.all()
         if user.role == "lecturer":
-            return cls.objects.filter(audience__in=("all", "lecturer"))
+            q = Q(audience__in=("all", "lecturer", "staff"))
+            class_ids = []
+            try:
+                class_ids = list(user.subjects_taught.values_list("school_class_id", flat=True))
+                class_ids += list(user.courses.values_list("enrollments__student__school_class_id", flat=True))
+            except Exception:
+                pass
+            if class_ids:
+                q &= Q(school_class__isnull=True) | Q(school_class_id__in=set(c for c in class_ids if c))
+            return cls.objects.filter(q).distinct()
         if user.role == "student":
             q = Q(audience__in=("all", "student"))
             class_id = getattr(user, "student", None) and user.student.school_class_id
@@ -1090,7 +1270,78 @@ class Announcement(TenantModel):
             q = Q(audience__in=("all", "student", "parent"))
             q &= Q(school_class__isnull=True) | Q(school_class_id__in=class_ids)
             return cls.objects.filter(q)
+        if user.role in ("dean", "hod", "accountant"):
+            return cls.objects.filter(audience__in=("all", "staff"))
         return cls.objects.none()
+
+
+class CalendarEvent(TenantModel):
+    """One dated entry on the academic calendar: a holiday, exams, a meeting.
+
+    Events without a class are shown to the whole institution on the
+    dashboards and portals; an event with a class only reaches that class.
+    """
+
+    class Kind(models.TextChoices):
+        HOLIDAY = "holiday", "Holiday"
+        EXAM = "exam", "Exams"
+        MEETING = "meeting", "Meeting"
+        DEADLINE = "deadline", "Deadline"
+        EVENT = "event", "Event"
+
+    title = models.CharField(max_length=150)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.EVENT)
+    starts_on = models.DateField()
+    ends_on = models.DateField(null=True, blank=True,
+        help_text="Leave empty for a one-day event.")
+    detail = models.CharField(max_length=300, blank=True)
+    school_class = models.ForeignKey(SchoolClass, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="calendar_events",
+        help_text="Leave empty to show this event to the whole institution.")
+
+    class Meta:
+        ordering = ["starts_on", "pk"]
+
+    def clean(self):
+        super().clean()
+        if self.ends_on and self.starts_on and self.ends_on < self.starts_on:
+            raise ValidationError({"ends_on": "The event must end after it starts."})
+
+    @property
+    def when(self):
+        """The dates as one readable label, for example 4–8 May 2026."""
+        if self.ends_on and self.ends_on != self.starts_on:
+            return f"{self.starts_on:%d %b %Y} – {self.ends_on:%d %b %Y}"
+        return f"{self.starts_on:%d %b %Y}"
+
+    @classmethod
+    def upcoming(cls, user=None, limit=8, today=None):
+        """Events from today onward that this user may see, soonest first.
+
+        An event still running today (it started earlier and ends today or
+        later) is included. Students only see institution-wide events and
+        their own class's; parents see those of any linked child.
+        """
+        from django.utils import timezone
+
+        today = today or timezone.localdate()
+        qs = cls.objects.filter(
+            Q(ends_on__gte=today) | Q(ends_on__isnull=True, starts_on__gte=today))
+        if user is not None and user.is_authenticated:
+            if user.role == "student":
+                class_id = getattr(getattr(user, "student", None), "school_class_id", None)
+                qs = qs.filter(Q(school_class__isnull=True)
+                               | Q(school_class_id=class_id))
+            elif user.role == "parent":
+                class_ids = list(user.wards.values_list("student__school_class_id",
+                                                        flat=True)
+                                 .exclude(student__school_class_id=None))
+                qs = qs.filter(Q(school_class__isnull=True)
+                               | Q(school_class_id__in=class_ids))
+        return list(qs.select_related("school_class")[:limit])
+
+    def __str__(self):
+        return f"{self.starts_on:%Y-%m-%d} {self.title}"
 
 
 class ExamSitting(TenantModel):

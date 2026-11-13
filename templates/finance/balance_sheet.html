@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block content %}
+<h1>Balance sheet</h1>
+<p>{% include "finance/_export_links.html" with export_name="export_balance_sheet" %}</p>
+<h2>Assets</h2>
+<table class="tbl">{% for account, amount in assets %}<tr><td>{{ account.code }} {{ account.name }}</td><td class="r">{{ CUR }}{{ amount }}</td></tr>
+{% empty %}<tr><td class="muted">No assets.</td><td></td></tr>{% endfor %}
+<tr><th>Total assets</th><th class="r">{{ CUR }}{{ total_assets }}</th></tr></table>
+<h2>Liabilities</h2>
+<table class="tbl">{% for account, amount in liabilities %}<tr><td>{{ account.code }} {{ account.name }}</td><td class="r">{{ CUR }}{{ amount }}</td></tr>
+{% empty %}<tr><td class="muted">No liabilities.</td><td></td></tr>{% endfor %}
+<tr><th>Total liabilities</th><th class="r">{{ CUR }}{{ total_liabilities }}</th></tr></table>
+<h2>Equity</h2>
+<table class="tbl">{% for account, amount in equity %}<tr><td>{{ account.code }} {{ account.name }}</td><td class="r">{{ CUR }}{{ amount }}</td></tr>
+{% empty %}<tr><td class="muted">No equity.</td><td></td></tr>{% endfor %}
+<tr><th>Total equity</th><th class="r">{{ CUR }}{{ total_equity }}</th></tr></table>
+{% endblock %}

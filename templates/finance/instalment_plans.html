@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block content %}
+<h1>Instalment plans</h1>
+<p><a class="btn" href="{% url 'instalment_plan_create' %}">New plan</a>
+<a class="btn ghost" href="{% url 'overdue_instalments' %}">Overdue</a></p>
+<table class="tbl"><tr><th>Student</th><th>Name</th><th>Term</th><th class="r">Total</th><th>Active</th></tr>
+{% for p in rows %}<tr><td>{{ p.student.name }}</td><td><a href="{% url 'instalment_plan_detail' p.pk %}">{{ p.name }}</a></td>
+<td>{{ p.term|default:"-" }}</td><td class="r">{{ CUR }}{{ p.total_amount }}</td><td>{{ p.is_active|yesno:"Yes,No" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No plans yet.</td></tr>{% endfor %}</table>
+{% endblock %}

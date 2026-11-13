@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:gradebook' site.pk %}">Back to gradebook</a></p>
+<h1>Gradebook setup</h1>
+<p class="muted">Categories determine how the overall percentage is weighted.</p>
+
+<h2>Categories</h2>
+<table class="tbl"><tr><th>Name</th><th>Weight</th><th>Order</th></tr>
+{% for category in categories %}
+<tr><td>{{ category.name }}</td><td>{{ category.weight }}%</td><td>{{ category.order }}</td></tr>
+{% empty %}<tr><td colspan="3" class="muted">No categories yet.</td></tr>{% endfor %}</table>
+<form method="post" class="card" action="{% url 'lms:grade_category_create' site.pk %}">{% csrf_token %}
+{{ category_form.as_p }}
+<button class="btn">Add category</button>
+</form>
+
+<h2>Grade items</h2>
+<table class="tbl"><tr><th>Item</th><th>Category</th><th>Max score</th><th>Due</th><th>Published</th></tr>
+{% for item in items %}
+<tr><td>{{ item.title }}</td><td>{{ item.category.name }}</td><td>{{ item.max_score }}</td>
+<td>{{ item.due_date|date:"d M Y"|default:"-" }}</td><td>{% if item.is_published %}Yes{% else %}No{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No grade items yet.</td></tr>{% endfor %}</table>
+<form method="post" class="card" action="{% url 'lms:grade_item_create' site.pk %}">{% csrf_token %}
+{{ item_form.as_p }}
+<button class="btn">Add grade item</button>
+</form>
+{% endblock %}

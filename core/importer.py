@@ -18,6 +18,8 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from django.db import transaction
+
 MAX_ROWS = 5000
 MAX_BYTES = 5 * 1024 * 1024
 
@@ -48,8 +50,11 @@ STUDENT_FIELDS = [
     _field("student_no", "Student number", aliases=("student no", "student number", "admission number", "id")),
     _field("first_name", "First name", required=True, aliases=("first name", "given name", "firstname")),
     _field("last_name", "Last name", required=True, aliases=("last name", "surname", "family name")),
+    _field("email", "Email", aliases=("email", "email address", "student email")),
+    _field("phone", "Phone", aliases=("phone", "mobile", "student phone")),
     _field("username", "Login username", aliases=("username", "login", "user name")),
-    _field("programme", "Programme or level", aliases=("programme", "level", "course of study", "program")),
+    _field("programme", "Programme or level", required=True,
+           aliases=("programme", "level", "course of study", "program")),
     _field("school_class", "Class", aliases=("class", "form", "grade", "class name")),
     _field("stream", "Stream", aliases=("stream",)),
     _field("year_or_grade", "Year or grade", aliases=("year", "year/grade", "year or grade")),
@@ -70,8 +75,8 @@ STAFF_FIELDS = [
     _field("job_title", "Job title", aliases=("job title", "title", "position")),
     _field("department", "Department", aliases=("department", "dept")),
     _field("date_joined", "Date joined", kind=DATE, aliases=("date joined", "joined", "start date")),
-    _field("role", "Role", kind=CHOICE, aliases=("role", "user role"),
-           choices=("admin", "registrar", "bursar", "lecturer", "student", "parent")),
+    _field("role", "Role", aliases=("role", "user role"),
+           help_text="An institution role code or name."),
 ]
 
 COURSE_FIELDS = [
@@ -116,7 +121,7 @@ KINDS = {
         "label": "Staff",
         "permission": "admin.manage_users",
         "fields": STAFF_FIELDS,
-        "help": "One row per staff member. A login is created with a password that must be reset.",
+        "help": "One row per staff member. A login is created and the person is invited or given a temporary password.",
     },
     "courses": {
         "label": "Courses",
@@ -319,12 +324,14 @@ class Context:
         self.streams = {}
         self.users = {}
         self.years = {}
+        self.roles = {}
         self._loaded = False
 
     def load(self):
         if self._loaded:
             return
         from academics.models import AcademicYear, Programme, SchoolClass, Stream
+        from core.models import Role
 
         for row in Programme.all_objects.filter(institution=self.institution):
             self.programmes[row.code.strip().lower()] = row
@@ -335,6 +342,9 @@ class Context:
             self.streams[(row.school_class_id, row.name.strip().lower())] = row
         for row in AcademicYear.all_objects.filter(institution=self.institution):
             self.years[row.name.strip().lower()] = row
+        for row in Role.all_objects.filter(institution=self.institution):
+            self.roles[row.code.strip().lower()] = row
+            self.roles[row.name.strip().lower()] = row
         self._loaded = True
 
     def programme(self, name):
@@ -354,10 +364,27 @@ class Context:
         self.load()
         return self.years.get((name or "").strip().lower())
 
+    def role(self, name):
+        """An institution role, looked up by code or by name."""
+        self.load()
+        return self.roles.get((name or "").strip().lower())
+
     def taken_username(self, username):
         from accounts.models import User
 
-        return User.objects.filter(username=username).exists()
+        return User.objects.filter(username__iexact=username).exists()
+
+    def taken_email(self, email, exclude_pk=None):
+        from accounts.models import User
+
+        if not email:
+            return False
+        queryset = User.objects.filter(
+            institution=self.institution, email__iexact=email, is_active=True
+        )
+        if exclude_pk is not None:
+            queryset = queryset.exclude(pk=exclude_pk)
+        return queryset.exists()
 
 
 def validate(kind, rows, mapping, institution):
@@ -371,6 +398,7 @@ def validate(kind, rows, mapping, institution):
     context.load()
     seen_numbers = {}
     seen_usernames = {}
+    seen_emails = {}
     results = []
     for index, row in enumerate(rows, start=2):
         errors = []
@@ -388,7 +416,8 @@ def validate(kind, rows, mapping, institution):
                 continue
             values[field["key"]] = raw
         checker = CHECKERS[kind]
-        values, errors = checker(values, errors, context, seen_numbers, seen_usernames)
+        values, errors = checker(
+            values, errors, context, seen_numbers, seen_usernames, seen_emails)
         results.append({
             "row": index,
             "values": values,
@@ -398,7 +427,28 @@ def validate(kind, rows, mapping, institution):
     return results
 
 
-def _check_students(values, errors, context, seen_numbers, seen_usernames):
+def _valid_email(value):
+    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value or ""))
+
+
+def _check_email(values, errors, context, seen_emails):
+    email = (values.get("email") or "").strip().lower()
+    if not email:
+        return ""
+    if not _valid_email(email):
+        errors.append(f"'{values.get('email')}' is not an email address.")
+        return email
+    if email in seen_emails:
+        errors.append(f"Email '{email}' is used twice in this file.")
+    elif context.taken_email(email):
+        errors.append(
+            f"An account at this institution already uses the email '{email}'."
+        )
+    seen_emails[email] = True
+    return email
+
+
+def _check_students(values, errors, context, seen_numbers, seen_usernames, seen_emails):
     from academics.models import Student
     from accounts.models import User
 
@@ -408,17 +458,20 @@ def _check_students(values, errors, context, seen_numbers, seen_usernames):
         if student_no in seen_numbers:
             errors.append(f"Student number '{student_no}' is used twice in this file.")
         seen_numbers[student_no] = True
-        if Student.all_objects.filter(student_no=student_no).exists():
+        if Student.all_objects.filter(
+            institution=context.institution, student_no=student_no
+        ).exists():
             errors.append(f"Student number '{student_no}' is already used by another student.")
     if not username:
         username = re.sub(r"[^a-zA-Z0-9._-]", "", student_no) or f"student{len(seen_usernames) + 1}"
         values["username"] = username
     if username:
-        if username in seen_usernames:
+        if username.lower() in seen_usernames:
             errors.append(f"Username '{username}' is used twice in this file.")
-        elif User.objects.filter(username=username).exists():
+        elif User.objects.filter(username__iexact=username).exists():
             errors.append(f"Username '{username}' is already taken.")
-        seen_usernames[username] = True
+        seen_usernames[username.lower()] = True
+    values["email"] = _check_email(values, errors, context, seen_emails)
     if values.get("programme"):
         if context.programme(values["programme"]) is None:
             errors.append(f"Unknown programme '{values['programme']}'.")
@@ -440,27 +493,42 @@ def _check_students(values, errors, context, seen_numbers, seen_usernames):
     return values, errors
 
 
-def _check_staff(values, errors, context, seen_numbers, seen_usernames):
+def _check_staff(values, errors, context, seen_numbers, seen_usernames, seen_emails):
     from accounts.models import User
 
     username = values.get("username", "")
     if username:
-        if username in seen_usernames:
+        if username.lower() in seen_usernames:
             errors.append(f"Username '{username}' is used twice in this file.")
-        elif User.objects.filter(username=username).exists():
+        elif User.objects.filter(username__iexact=username).exists():
             errors.append(f"Username '{username}' is already taken.")
-        seen_usernames[username] = True
-    if values.get("email") and "@" not in values["email"]:
-        errors.append(f"'{values['email']}' is not an email address.")
+        seen_usernames[username.lower()] = True
+    values["email"] = _check_email(values, errors, context, seen_emails)
     if values.get("date_joined"):
         values["date_joined"] = parse_date(values["date_joined"], "Date joined", errors)
     if values.get("role"):
-        values["role"] = parse_choice(
-            values["role"], "Role", User.Role.values, errors, default=User.Role.LECTURER)
+        role = _staff_role(context, values["role"])
+        if role is None:
+            errors.append(f"Unknown role '{values['role']}'.")
+        elif role.code in ("student", "parent"):
+            errors.append(f"'{role.name}' is not a staff role.")
+        else:
+            values["role"] = role.code
     return values, errors
 
 
-def _check_courses(values, errors, context, seen_numbers, seen_usernames):
+def _staff_role(context, value):
+    """Resolve a role by code, name, or an older ``User.role`` value."""
+    from core.roles import LEGACY_ROLE_MAP
+
+    role = context.role(value)
+    if role is not None:
+        return role
+    key = (value or "").strip().lower()
+    return context.role(LEGACY_ROLE_MAP.get(key, key))
+
+
+def _check_courses(values, errors, context, seen_numbers, seen_usernames, seen_emails):
     from academics.models import Course
 
     code = values.get("code", "")
@@ -483,7 +551,7 @@ def _check_courses(values, errors, context, seen_numbers, seen_usernames):
     return values, errors
 
 
-def _check_subjects(values, errors, context, seen_numbers, seen_usernames):
+def _check_subjects(values, errors, context, seen_numbers, seen_usernames, seen_emails):
     from academics.models import Subject
 
     code = values.get("code", "")
@@ -505,7 +573,7 @@ def _check_subjects(values, errors, context, seen_numbers, seen_usernames):
     return values, errors
 
 
-def _check_fee_structures(values, errors, context, seen_numbers, seen_usernames):
+def _check_fee_structures(values, errors, context, seen_numbers, seen_usernames, seen_emails):
     from finance.models import FeeStructure
 
     code = values.get("structure_code", "")
@@ -532,32 +600,66 @@ CHECKERS = {
 
 
 # ---------- writing the rows ----------
-def run_import(kind, results, institution, user):
+def run_import(kind, results, institution, user, access_mode=None, batch=None):
     """Write the rows that passed the check.
 
     Returns (imported, errors). A row that fails while being written is
     reported like any other problem, so the user gets one list of errors.
+
+    When ``access_mode`` is given, accounts are created through the same
+    services as the Users area, so an invitation or a one-time password is
+    produced. Without it the historical import behaviour is kept: the login is
+    created with an unusable password. Each row is written in its own
+    transaction, so one broken row never rolls back the good ones.
     """
     from core.tenancy import use_institution
 
     imported = 0
     errors = []
+    created_ids = list(getattr(batch, "created_user_ids", []) or [])
+    credentials = list(getattr(batch, "credentials", []) or [])
     with use_institution(institution):
         for result in results:
             if result["errors"]:
                 errors.append({"row": result["row"], "messages": result["errors"]})
                 continue
             try:
-                _write_row(kind, result["values"], institution, user)
+                with transaction.atomic():
+                    info = _write_row(
+                        kind, result["values"], institution, user, access_mode)
                 imported += 1
+                if info:
+                    created_ids.append(info["user_id"])
+                    credentials.append(info)
             except Exception as exc:  # a row that breaks must not stop the file
                 errors.append({"row": result["row"], "messages": [str(exc)]})
+    if batch is not None:
+        batch.created_user_ids = created_ids
+        batch.credentials = credentials
+        batch.save(update_fields=["created_user_ids", "credentials"])
     return imported, errors
 
 
-def _write_row(kind, values, institution, user):
+def _write_row(kind, values, institution, user, access_mode=None):
     writer = WRITERS[kind]
+    if access_mode and kind in ("students", "staff"):
+        writer = ACCESS_WRITERS[kind]
+        return writer(values, institution, user, access_mode)
     writer(values, institution, user)
+    return None
+
+
+def _credential_info(account, student=None):
+    user = account.user
+    return {
+        "user_id": user.pk,
+        "username": user.username,
+        "email": user.email,
+        "name": user.get_full_name() or user.username,
+        "password": account.password or "",
+        "access_mode": account.access_mode,
+        "student_no": getattr(student, "student_no", ""),
+    }
 
 
 def _write_student(values, institution, user):
@@ -627,6 +729,132 @@ def _write_staff(values, institution, user):
             name__iexact=values["department"]).first()
         if department is not None:
             profile.departments.add(department)
+
+
+def _write_student_with_access(values, institution, user, access_mode):
+    """Create a student through the same service that admissions uses."""
+    from academics.models import Student
+    from admissions.services import create_student_record
+
+    context = Context(institution)
+    programme = context.programme(values.get("programme", ""))
+    if programme is None:
+        raise ValueError(f"Unknown programme '{values.get('programme', '')}'.")
+    school_class = (
+        context.school_class(values.get("school_class", ""))
+        if values.get("school_class") else None
+    )
+    stream = (
+        context.stream(school_class, values.get("stream", ""))
+        if values.get("stream") else None
+    )
+    result = create_student_record(
+        institution,
+        first_name=values.get("first_name", ""),
+        last_name=values.get("last_name", ""),
+        email=values.get("email", ""),
+        phone=values.get("phone", ""),
+        username=values.get("username", ""),
+        programme=programme,
+        school_class=school_class,
+        stream=stream,
+        year_or_grade=values.get("year_or_grade", "") or "1",
+        date_of_birth=values.get("date_of_birth"),
+        guardian_name=values.get("guardian_name", ""),
+        guardian_phone=values.get("guardian_phone", ""),
+        student_no=values.get("student_no", ""),
+        access_mode=access_mode,
+        actor=user,
+        status=values.get("status") or Student.Status.ACTIVE,
+    )
+    return _credential_info(result["account"], result["student"])
+
+
+def _write_staff_with_access(values, institution, user, access_mode):
+    """Create a staff login, profile and role through the Users services."""
+    from accounts.user_admin import check_role_allowed, legacy_role_for, provision_user
+    from core.models import Department, Role, StaffProfile
+
+    context = Context(institution)
+    role = context.role(values.get("role", ""))
+    if role is None and values.get("role"):
+        role = Role.all_objects.filter(
+            institution=institution, code=values["role"]
+        ).first()
+    if role is not None:
+        check_role_allowed(user, role)
+    account = provision_user(
+        institution,
+        first_name=values.get("first_name", ""),
+        last_name=values.get("last_name", ""),
+        email=values.get("email", ""),
+        phone=values.get("phone", ""),
+        username=values.get("username", ""),
+        role=role,
+        access_mode=access_mode,
+        actor=user,
+    )
+    profile = StaffProfile.objects.create(
+        institution=institution,
+        user=account.user,
+        employee_no=values.get("employee_no", "")[:30],
+        job_title=values.get("job_title", "")[:120],
+        phone=values.get("phone", "")[:30],
+        date_joined=values.get("date_joined"),
+    )
+    if values.get("department"):
+        department = Department.all_objects.filter(
+            institution=institution, name__iexact=values["department"]
+        ).first()
+        if department is not None:
+            profile.departments.add(department)
+    if role is not None:
+        account.user.role = legacy_role_for(role)
+        account.user.save(update_fields=["role"])
+    return _credential_info(account)
+
+
+def undo_import(batch, actor=None, request=None):
+    """Deactivate the accounts of a batch that nobody has signed in to yet.
+
+    A login that has been used is left alone, and no financial, academic or
+    audit history is ever deleted: undo deactivates, it does not erase.
+    """
+    from django.utils import timezone
+
+    from accounts.models import User
+    from accounts.user_admin import deactivate_user
+    from core.audit import log_action
+
+    undone = 0
+    skipped = []
+    for user_id in batch.created_user_ids or []:
+        account = User.objects.filter(
+            pk=user_id, institution=batch.institution
+        ).first()
+        if account is None:
+            continue
+        if account.last_login is not None or not account.is_active:
+            skipped.append(account.username)
+            continue
+        deactivate_user(
+            account,
+            actor=actor,
+            request=request,
+            reason=f"Undo of import {batch.pk}",
+        )
+        undone += 1
+    batch.undone_at = timezone.now()
+    batch.undone_count = undone
+    batch.save(update_fields=["undone_at", "undone_count"])
+    log_action(
+        actor,
+        "import.undone",
+        batch,
+        request=request,
+        after={"undone": undone, "skipped": len(skipped)},
+    )
+    return undone, skipped
 
 
 def _write_course(values, institution, user):
@@ -701,4 +929,9 @@ WRITERS = {
     "courses": _write_course,
     "subjects": _write_subject,
     "fee_structures": _write_fee_structure,
+}
+
+ACCESS_WRITERS = {
+    "students": _write_student_with_access,
+    "staff": _write_staff_with_access,
 }

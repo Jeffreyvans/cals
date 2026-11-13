@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ title }}</h1>
+    {% if subtitle %}<p class="muted">{{ subtitle }}</p>{% endif %}
+  </div>
+  {% if back %}<a class="btn ghost" href="{{ back }}">Cancel</a>{% endif %}
+</div>
+
+<form method="post" class="form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="msg error" role="alert">{{ form.non_field_errors|striptags }}</div>
+  {% endif %}
+  {{ form.as_p }}
+  <div class="row">
+    <button class="btn">Save</button>
+    {% if back %}<a class="btn ghost" href="{{ back }}">Cancel</a>{% endif %}
+  </div>
+</form>
+{% endblock %}

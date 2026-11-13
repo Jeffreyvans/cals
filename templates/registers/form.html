@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ cancel_url }}">{{ module.title }} / {{ kind.title }}</a></p>
+<h1>{% if instance %}Edit{% else %}Add{% endif %} {{ kind.title|lower }}</h1>
+<form method="post" enctype="multipart/form-data" class="card">{% csrf_token %}
+{{ form.as_p }}
+<button class="btn">Save</button>
+<a class="btn ghost" href="{{ cancel_url }}">Cancel</a>
+</form>
+{% endblock %}

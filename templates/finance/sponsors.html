@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block content %}
+<h1>Sponsors</h1>
+<p><a class="btn" href="{% url 'sponsor_create' %}">New sponsor</a></p>
+<table class="tbl"><tr><th>Name</th><th>Type</th><th>Contact</th><th>Students</th><th>Active</th></tr>
+{% for s in rows %}<tr><td><a href="{% url 'sponsor_detail' s.pk %}">{{ s.name }}</a></td>
+<td>{{ s.get_type_display }}</td><td>{{ s.contact_name }}</td><td>{{ s.sponsorships.count }}</td>
+<td>{{ s.is_active|yesno:"Yes,No" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No sponsors yet.</td></tr>{% endfor %}</table>
+{% endblock %}

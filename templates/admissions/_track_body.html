@@ -1,0 +1,38 @@
+<div class="public-wrap">
+  <p class="muted">{{ INSTITUTION }}</p>
+  <div class="card">
+    <div class="head">
+      <div>
+        <h1>{{ application.name }}</h1>
+        <p class="muted">Reference {{ application.reference }} · submitted {{ application.submitted_at|date:"j F Y" }}</p>
+      </div>
+      <span class="badge">{{ application.get_status_display }}</span>
+    </div>
+    <table class="tbl">
+      <tr><th>Applying for</th><td>{{ application.applied_for }}</td></tr>
+      <tr><th>Email</th><td>{{ application.email }}</td></tr>
+      <tr><th>Phone</th><td>{{ application.phone|default:"—" }}</td></tr>
+      {% if application.interview_at %}<tr><th>Interview / test</th><td>{{ application.interview_at|date:"j F Y H:i" }}{% if application.interview_location %} · {{ application.interview_location }}{% endif %}</td></tr>{% endif %}
+      <tr><th>Eligibility</th><td>{% if application.eligible is None %}{{ application.eligibility_note }}{% elif application.eligible %}<span class="badge">Meets the requirement</span>{% else %}<span class="msg error">Does not meet the requirement</span>{% endif %}</td></tr>
+      {% if application.decision_note %}<tr><th>Note from the office</th><td>{{ application.decision_note }}</td></tr>{% endif %}
+    </table>
+  </div>
+
+  {% if offer %}
+  <div class="card">
+    <h2>Your offer</h2>
+    <p>{{ offer.offer_no }} · {{ offer.get_status_display }}</p>
+    <table class="tbl">
+      <tr><th>Deadline</th><td>{{ offer.acceptance_deadline|date:"j F Y" }}</td></tr>
+      <tr><th>Deposit</th><td>{{ CUR }}{{ offer.deposit_amount }}</td></tr>
+    </table>
+    <p>
+      <a class="btn" href="{% url 'admissions:offer_letter' application.tracking_token %}">Download offer letter</a>
+      {% if offer.status == "pending" %}<a class="btn" href="{% url 'admissions:offer_accept' application.tracking_token %}">Accept the offer</a>{% endif %}
+    </p>
+    {% if offer.status == "accepted" %}<p class="msg success">Your place is confirmed. Check your email for your login details.</p>{% endif %}
+  </div>
+  {% endif %}
+
+  <p class="muted">The link on this page is private. Anyone with it can see the status of this application.</p>
+</div>

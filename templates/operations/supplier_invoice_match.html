@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ cancel_url }}">Supplier invoices</a></p>
+<h1>Match {{ invoice.number }}</h1>
+<div class="card">
+  <p><strong>Supplier:</strong> {{ invoice.supplier }}</p>
+  <p><strong>Purchase order:</strong> {{ invoice.order|default:"-" }}</p>
+  <p><strong>Goods received:</strong> {{ invoice.receipt|default:"-" }}</p>
+  <p><strong>Invoice amount:</strong> {{ invoice.amount }}</p>
+  <p><strong>Expected total:</strong> {{ expected }}</p>
+  <p><strong>Variance:</strong> {{ variance }}</p>
+  {% if invoice.match_note %}<p class="muted">{{ invoice.match_note }}</p>{% endif %}
+  {% if can_manage %}
+    {% if invoice.status == "pending" or invoice.status == "disputed" %}
+    <form method="post">{% csrf_token %}
+      <button class="btn">Match invoice</button>
+      <a class="btn ghost" href="{{ cancel_url }}">Cancel</a>
+    </form>
+    {% else %}
+    <p class="muted">This invoice is {{ invoice.get_status_display|lower }}.</p>
+    {% endif %}
+  {% else %}
+  <p class="muted">Your role can view this invoice but not match it.</p>
+  {% endif %}
+</div>
+{% endblock %}

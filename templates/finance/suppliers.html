@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block content %}
+<h1>Suppliers</h1>
+<p><a class="btn" href="{% url 'supplier_create' %}">New supplier</a></p>
+<table class="tbl"><tr><th>Name</th><th>Code</th><th>Contact</th><th>Phone</th><th>Active</th></tr>
+{% for s in rows %}<tr><td>{{ s.name }}</td><td>{{ s.code }}</td><td>{{ s.contact_name }}</td>
+<td>{{ s.phone }}</td><td>{{ s.is_active|yesno:"Yes,No" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No suppliers yet.</td></tr>{% endfor %}</table>
+{% endblock %}

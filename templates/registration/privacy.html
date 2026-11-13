@@ -1,0 +1,47 @@
+{% extends "public_base.html" %}
+{% block title %}Privacy notice — EduSphere{% endblock %}
+{% block description %}How EduSphere handles personal information for institutions, students, staff and parents.{% endblock %}
+{% block content %}
+<div class="page-shell narrow">
+  <div class="page-title">
+    <a class="back-link" href="{% url 'login' %}">&larr; Back</a>
+    <h1>Privacy notice</h1>
+    <p>This notice explains the personal information EduSphere handles and the choices people have.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Who controls your information</h2>
+    <p class="sub">Your institution decides what is collected and why. EduSphere provides the system that stores and processes it. Questions about a student or staff record should go to your institution's office first.</p>
+  </div>
+
+  <div class="panel">
+    <h2>What we collect</h2>
+    <p class="sub">Account details (name, username, email or phone), admission and student records, class and attendance records, assessment marks, fee and payment records, and the messages an institution chooses to send. Counselling and health records are restricted and visible only to the roles an institution allows.</p>
+  </div>
+
+  <div class="panel">
+    <h2>How it is used</h2>
+    <p class="sub">To run admissions, teaching, attendance, assessment, finance and communication for the institution; to keep an audit trail of sensitive actions; and to meet the institution's legal and regulatory duties.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Who can see it</h2>
+    <p class="sub">Access follows the role permissions set by the institution. Records are isolated per institution, and sensitive registers write a log each time they are opened. We do not sell personal information.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Keeping it safe</h2>
+    <p class="sub">Passwords are stored as one-way hashes. Forms are protected against cross-site request forgery, access checks run on every screen and API call, and backups are documented. No system can promise perfect security, so tell your institution immediately if you think an account has been misused.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Your choices</h2>
+    <p class="sub">Ask your institution to see, correct or remove your information, or to explain how it is used. Some records must be kept for academic, financial or legal reasons even after an account is closed. You can also ask for a copy of your personal information.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Contact</h2>
+    <p class="sub">Email <a href="mailto:vanhuvaonejeffrey@gmail.com">vanhuvaonejeffrey@gmail.com</a> or call <a href="tel:+263774573765">+263 774 573 765</a>. For a student or staff record, contact the institution that holds it.</p>
+  </div>
+</div>
+{% endblock %}

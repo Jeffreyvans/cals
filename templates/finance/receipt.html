@@ -3,5 +3,13 @@
 <table class="tbl"><tr><td>Student</td><td>{{ s.name }} ({{ s.student_no }})</td></tr><tr><td>For</td><td>{{ p.invoice.description }}</td></tr>
 <tr><td>Amount received</td><td><b>{{ CUR }}{{ p.amount }}</b></td></tr><tr><td>Method</td><td>{{ p.get_method_display }}{% if p.reference %} · {{ p.reference }}{% endif %}</td></tr>
 <tr><td>Date</td><td>{{ p.paid_on }}</td></tr><tr><td>Received by</td><td>{{ p.received_by_name }}</td></tr>
-<tr><td>Balance on this invoice</td><td>{{ CUR }}{{ p.invoice.balance }}</td></tr></table>
+<tr><td>Balance on this invoice</td><td>{{ CUR }}{{ p.invoice.balance }}</td></tr>
+{% if fiscal.verification_code %}<tr><td>ZIMRA verification</td><td><b>{{ fiscal.verification_code }}</b></td></tr>{% endif %}
+</table>
+{% if fiscal.verification_code %}
+<div class="fiscal-qr">
+  <img src="{% url 'fiscalisation:qr' fiscal.pk %}" alt="ZIMRA verification QR code" width="140" height="140">
+  <p class="muted">Fiscal day {{ fiscal.fiscal_day.fiscal_day_no }} · Receipt {{ fiscal.receipt_counter }}</p>
+</div>
+{% endif %}
 <button class="btn noprint" onclick="print()">Print receipt</button></div>{% endblock %}

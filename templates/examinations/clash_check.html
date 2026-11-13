@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ hub_url }}">Examinations</a></p>
+<div class="head"><div><h1>Exam clash check</h1>
+<p class="muted">Venue, invigilator and candidate clashes across {% if exam %}{{ exam.name }}{% else %}all sittings{% endif %}.</p></div>
+<a class="btn ghost" href="{{ export_url }}">Export candidates (CSV)</a></div>
+
+<form method="get" class="card">
+  <label for="exam">Sitting</label>
+  <select id="exam" name="exam">
+    <option value="">All sittings</option>
+    {% for sitting in exams %}
+    <option value="{{ sitting.pk }}"{% if exam and exam.pk == sitting.pk %} selected{% endif %}>{{ sitting }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn">Check</button>
+  {% if exam %}<a class="btn ghost" href="{{ request.path }}">Clear</a>{% endif %}
+</form>
+
+{% if issues %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Kind</th><th>Paper</th><th>Problem</th></tr>
+  {% for issue in issues %}
+  <tr>
+    <td><span class="badge">{{ issue.kind }}</span></td>
+    <td>{{ issue.paper }}</td>
+    <td>{{ issue.message }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No clashes found.</p>
+{% endif %}
+{% endblock %}

@@ -13,15 +13,35 @@
 <form method="post" class="inline wide">
   {% csrf_token %}<input type="hidden" name="action" value="details">
   <p><label>Institution name<input name="name" value="{{ inst.name }}" required></label></p>
+  <p><label>Tagline<input name="tagline" value="{{ inst.tagline }}" maxlength="200" placeholder="Learn. Serve. Lead."></label></p>
+  <p><label>About<textarea name="about" rows="4" placeholder="A short paragraph shown on your public institution page.">{{ inst.about }}</textarea></label></p>
   <p><label>Currency symbol<input name="currency" value="{{ inst.currency }}" maxlength="10"></label></p>
   <p><label>Time zone<input name="timezone" value="{{ inst.timezone }}" maxlength="64"></label></p>
   <p><label>Language<input name="language" value="{{ inst.language }}" maxlength="10"></label></p>
   <p><label>Contact email<input name="contact_email" type="email" value="{{ inst.contact_email }}"></label></p>
   <p><label>Contact phone<input name="contact_phone" value="{{ inst.contact_phone }}"></label></p>
   <p><label>Address<textarea name="address" rows="2">{{ inst.address }}</textarea></label></p>
-  <p><label>Primary colour<input name="primary_color" value="{{ inst.primary_color }}" placeholder="#12403c"></label></p>
-  <p><label>Accent colour<input name="accent_color" value="{{ inst.accent_color }}" placeholder="#e8a317"></label></p>
+  <p><label>Primary colour<input name="primary_color" value="{{ inst.primary_color }}" placeholder="#1E3A8A"></label></p>
+  <p><label>Accent colour<input name="accent_color" value="{{ inst.accent_color }}" placeholder="#3B82F6"></label></p>
+  <p class="muted">The tagline and About text appear on your public page at <code>/i/{{ inst.slug }}/</code>. The primary and accent colours are used in the signed-in app, receipts and documents; the public pages stay in the platform's brown theme.</p>
   <button class="btn">Save details</button>
+</form>
+
+<h2>VAT and tax registration</h2>
+<p class="muted">A school that is not VAT-registered never charges VAT. When this institution is registered, dated VAT rates apply to standard-rated fees and fiscal documents can be sent to ZIMRA.</p>
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="vat">
+  <p><label>VAT status
+    <select name="vat_status">
+      {% for value, label in vat_status_choices %}
+      <option value="{{ value }}" {% if inst.vat_status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select></label></p>
+  <p><label>VAT number<input name="vat_number" value="{{ inst.vat_number }}" maxlength="40"></label></p>
+  <p><label>ZIMRA BP number<input name="bp_number" value="{{ inst.bp_number }}" maxlength="40"></label></p>
+  <p><label>Reporting currency<input name="base_currency" value="{{ inst.base_currency }}" maxlength="10"></label></p>
+  <p><label>Registered address<textarea name="vat_address" rows="2">{{ inst.vat_address }}</textarea></label></p>
+  <button class="btn">Save VAT settings</button>
 </form>
 
 <h2>The words this institution uses</h2>
@@ -38,6 +58,28 @@
     <p><label>{{ field.label }}<input name="{{ field.field }}" value="{{ field.value }}" maxlength="30"></label></p>
   {% endfor %}
   <button class="btn">Save words</button>
+</form>
+
+<h2>Public registration</h2>
+<p class="muted">When this is on, the institution appears on the public registration page. Students can activate a portal account when their admission details match, and staff can request an account for an administrator to approve.</p>
+<form method="post">
+  {% csrf_token %}<input type="hidden" name="action" value="registration">
+  <label class="check">
+    <input type="checkbox" name="public_registration" {% if inst.public_registration %}checked{% endif %}>
+    Allow students and staff to register from the public site
+  </label>
+  <h3>Staff positions this institution accepts</h3>
+  <p class="muted">Administrator, principal and other leadership roles are never offered on the public form.</p>
+  <div class="check-grid">
+    {% for position in staff_position_choices %}
+      <label class="check">
+        <input type="checkbox" name="staff_positions" value="{{ position.code }}" {% if position.checked %}checked{% endif %}>
+        {{ position.label }}
+      </label>
+    {% endfor %}
+  </div>
+  <p><button class="btn">Save registration settings</button>
+    <a class="btn ghost" href="{% url 'registration_requests' %}">Review registration requests</a></p>
 </form>
 
 <h2>Modules</h2>

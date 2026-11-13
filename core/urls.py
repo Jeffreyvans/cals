@@ -1,16 +1,32 @@
 from django.urls import path
 
-from . import approvals, import_views, org, views, wizard_views
+from . import (
+    approvals,
+    import_views,
+    module_directory,
+    org,
+    public_views,
+    views,
+    wizard_views,
+)
 
 urlpatterns = [
+    path("learn/", public_views.learn_index, name="learn_index"),
+    path("i/<slug:slug>/", public_views.institution_page, name="institution_public"),
+    path("services/", module_directory.module_directory, name="module_directory"),
     path("setup/", wizard_views.setup_wizard, name="setup_wizard"),
     path("setup/done/", wizard_views.setup_done, name="setup_done"),
     path("imports/", import_views.import_list, name="import_list"),
     path("imports/new/", import_views.import_start, name="import_start"),
+    path("imports/template/<str:kind>.csv", import_views.import_template,
+         name="import_template"),
     path("imports/<int:pk>/map/", import_views.import_map, name="import_map"),
     path("imports/<int:pk>/preview/", import_views.import_preview, name="import_preview"),
     path("imports/<int:pk>/run/", import_views.import_run, name="import_run"),
     path("imports/<int:pk>/result/", import_views.import_result, name="import_result"),
+    path("imports/<int:pk>/credentials.csv", import_views.import_credentials,
+         name="import_credentials"),
+    path("imports/<int:pk>/undo/", import_views.import_undo, name="import_undo"),
     path("imports/<int:pk>/errors.csv", import_views.import_errors, name="import_errors"),
     path("settings/institution/", views.settings_view, name="institution_settings"),
     path("settings/roles/", views.role_list, name="role_list"),
@@ -19,6 +35,7 @@ urlpatterns = [
     path("settings/roles/<int:pk>/", views.role_detail, name="role_detail"),
     path("settings/roles/<int:pk>/delete/", views.role_delete, name="role_delete"),
     path("settings/departments/", org.department_list, name="department_list"),
+    path("department/", org.department_portal, name="department_portal"),
     path("settings/departments/new/", org.department_create, name="department_create"),
     path("settings/departments/<int:pk>/", org.department_detail, name="department_detail"),
     path("settings/departments/<int:pk>/delete/", org.department_delete, name="department_delete"),
@@ -30,6 +47,7 @@ urlpatterns = [
     path("settings/workflows/<int:pk>/delete/", approvals.workflow_delete, name="workflow_delete"),
     path("approvals/", approvals.approvals, name="approvals"),
     path("approvals/<int:pk>/", approvals.approval_detail, name="approval_detail"),
+    path("search/", views.global_search, name="global_search"),
     path("notifications/", views.notifications, name="notifications"),
     path("audit/", views.audit_log, name="audit_trail"),
     path("audit/export/", views.audit_export, name="audit_trail_export"),

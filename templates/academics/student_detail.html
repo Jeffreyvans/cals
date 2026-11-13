@@ -10,7 +10,7 @@
 <td class="r">{{ i.balance }}</td>
 <td>{% for p in i.payments.all %}<a href="{% url 'receipt' p.pk %}">{{ p.receipt_no }}</a> {% endfor %}</td>
 <td>{% if user.role == 'bursar' or user.role == 'admin' %}<a href="{% url 'waive' i.pk %}">Waive</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="muted">No invoices yet.</td></tr>{% endfor %}</table>{% endif %}
-<h2>Courses and subjects</h2><p><a class="btn ghost" href="{% url 'course_registration' s.pk %}">Course registration</a> <a class="btn ghost" href="{% url 'student_report' s.pk %}">Open report card</a></p><table class="tbl"><tr><th>Course or subject</th><th>Term</th><th>Mark</th><th>Grade</th></tr>
+<h2>Courses and subjects</h2><p><a class="btn ghost" href="{% url 'course_registration' s.pk %}">Course registration</a> <a class="btn ghost" href="{% url 'student_report' s.pk %}">Open report card</a> <a class="btn ghost" href="{% url 'student_report_pdf' s.pk %}">Report card PDF</a> <a class="btn ghost" href="{% url 'student_transcript_pdf' s.pk %}">Transcript PDF</a></p><table class="tbl"><tr><th>Course or subject</th><th>Term</th><th>Mark</th><th>Grade</th></tr>
 {% for e in enrollments %}<tr><td>{{ e.label }}</td><td>{{ e.term }}</td><td>{{ e.mark|default_if_none:"—" }}</td><td>{{ e.grade }}</td></tr>{% empty %}<tr><td colspan="4" class="muted">Not enrolled in anything yet. Use the form below.</td></tr>{% endfor %}</table>
 {% if user.role == 'registrar' or user.role == 'admin' %}<form method="post" action="{% url 'enroll' s.pk %}" class="inline">{% csrf_token %}{{ enroll_form.as_p }}<button class="btn ghost">Enroll</button></form>{% endif %}
 <h2>Parent / guardian account</h2>

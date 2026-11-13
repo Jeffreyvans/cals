@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ cancel_url }}">Back</a></p>
+<h1>{{ title }}</h1>
+<div class="card">
+  <p><strong>{{ object }}</strong></p>
+  <p class="muted">{{ message }}</p>
+  <form method="post">{% csrf_token %}
+    <button class="btn">{{ confirm_label }}</button>
+    <a class="btn ghost" href="{{ cancel_url }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

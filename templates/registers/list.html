@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ hub_url }}">{{ module.title }}</a></p>
+<div class="head"><div><h1>{{ kind.title }}</h1>
+<p class="muted">{{ total }} record{{ total|pluralize }} in {{ module.title|lower }}.</p></div>
+{% if can_create %}<a class="btn" href="{{ create_url }}">Add {{ kind.title|lower }}</a>{% endif %}</div>
+
+<form method="get" class="card">
+  <label for="q">Search</label>
+  <input id="q" name="q" value="{{ query }}" placeholder="Type a name, reference or note">
+  <button class="btn">Search</button>
+  {% if query %}<a class="btn ghost" href="{{ request.path }}">Clear</a>{% endif %}
+  <a class="btn ghost" href="{{ api_url }}">JSON</a>
+</form>
+
+{% if rows %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr>{% for column in columns %}<th>{{ column }}</th>{% endfor %}<th></th></tr>
+  {% for row in rows %}
+  <tr>
+    {% for cell in row.cells %}<td>{{ cell }}</td>{% endfor %}
+    <td class="actions">
+      {% if row.action_url %}<a class="btn ghost" href="{{ row.action_url }}">{{ row.action_label }}</a>{% endif %}
+      <a class="btn ghost" href="{{ row.detail_url }}">Open</a>
+      <a class="btn ghost" href="{{ row.edit_url }}">Edit</a>
+      <form method="post" action="{{ row.delete_url }}" style="display:inline">{% csrf_token %}
+        <button class="link">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No records yet.</p>
+{% endif %}
+{% endblock %}

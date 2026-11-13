@@ -1,0 +1,88 @@
+{% extends "public_base.html" %}
+{% block title %}Student registration — EduSphere{% endblock %}
+{% block description %}Activate your student portal using the registration number from your admission letter.{% endblock %}
+{% block content %}
+<div class="page-shell narrow">
+  <div class="page-title">
+    <a class="back-link" href="{% url 'register_choice' %}">&larr; Choose another path</a>
+    <h1>Student registration</h1>
+    <p>Use the registration number on your admission letter, your surname and your date of birth. If the three details match, your portal opens immediately.</p>
+  </div>
+
+  {% if rate_limited %}
+    <div class="panel">
+      <div class="alert alert-error" role="alert">Too many attempts from this connection. Please wait 15 minutes and try again, or contact your school's registrar.</div>
+    </div>
+  {% elif activated %}
+    <div class="panel">
+      <div class="alert alert-ok" role="status">
+        Your account is ready{% if student.name %} — welcome, {{ student.name }}{% endif %}. You can sign in with the username and password you just chose.
+      </div>
+      {% if verification_sent %}
+        <p class="sub" style="margin-top: 1rem;">We sent a link to confirm your email address. You can still sign in while you look for it.</p>
+      {% endif %}
+      <p style="margin-top: 1.2rem;"><a class="btn" href="{% url 'login' %}">Sign in</a></p>
+    </div>
+  {% elif existing_account %}
+    <div class="panel">
+      <div class="alert" role="status">A login already exists for this student. Each student has one account.</div>
+      <p style="margin-top: 1.1rem;">
+        <a class="btn" href="{% url 'login' %}">Sign in</a>
+        <a class="btn btn-ghost" href="{% url 'password_reset' %}">Reset your password</a>
+      </p>
+    </div>
+  {% else %}
+    <div class="panel">
+      <h2>Match your admission record</h2>
+      <p class="sub">All fields are required. Your details are checked against this institution only.</p>
+
+      {% if generic_error %}
+        <div class="alert alert-error" role="alert" style="margin-top: 1rem;">{{ generic_error }}</div>
+        {% if contact_url %}
+          <p style="margin-top: 0.9rem;"><a class="btn btn-ghost btn-sm" href="{{ contact_url }}">Contact the institution</a></p>
+        {% endif %}
+      {% endif %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert" style="margin-top: 1rem;">{{ form.non_field_errors|striptags }}</div>
+      {% endif %}
+
+      {% if not has_institutions and not institution %}
+        <div class="alert" role="status" style="margin-top: 1rem;">No institution is open for public registration yet. Contact your registrar to ask when it will open.</div>
+      {% else %}
+        <form method="post" class="form-stack" novalidate>
+          {% csrf_token %}
+          {% include "registration/_field.html" with field=form.institution %}
+          {% include "registration/_field.html" with field=form.registration_number %}
+          {% include "registration/_field.html" with field=form.surname %}
+          {% include "registration/_field.html" with field=form.date_of_birth %}
+          {% include "registration/_field.html" with field=form.contact %}
+          {% include "registration/_field.html" with field=form.username %}
+          {% include "registration/_field.html" with field=form.password %}
+          {{ form.website }}
+          <div>
+            <button class="btn" type="submit">Activate my account</button>
+          </div>
+        </form>
+      {% endif %}
+    </div>
+
+    {% if institution %}
+      <div class="institution-contact">
+        <strong>{{ institution.name }}</strong><br>
+        {% if institution.contact_phone %}Phone: {{ institution.contact_phone }}<br>{% endif %}
+        {% if institution.contact_email %}Email: {{ institution.contact_email }}<br>{% endif %}
+        {% if institution.address %}{{ institution.address }}{% endif %}
+        {% if not institution.contact_phone and not institution.contact_email %}
+          Contact the registrar to confirm your admission details.
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="panel">
+      <h2>Your privacy</h2>
+      <p class="sub">We never say which detail failed a match, because that would tell someone whether a registration number exists. Failed attempts are logged for the institution and throttled. Read our <a href="{% url 'privacy_notice' %}">privacy notice</a>.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

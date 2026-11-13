@@ -1,1 +1,10 @@
-{% extends "base.html" %}{% block content %}<h1>No access</h1><p>Your role doesn't have permission to open this page. Go back to <a href="{% url 'dashboard' %}">your home page</a>.</p>{% endblock %}
+{% extends "base.html" %}
+{% block title %}No access{% endblock %}
+{% block content %}
+<div class="card empty-state">
+  <span class="empty-icon" aria-hidden="true"><svg class="ico"><use href="#i-lock"/></svg></span>
+  <h1>No access</h1>
+  <p class="muted">Your role doesn't have permission to open this page. Head back to your home page and continue from there.</p>
+  <a class="btn" href="{% url 'dashboard' %}">Back to your home page</a>
+</div>
+{% endblock %}

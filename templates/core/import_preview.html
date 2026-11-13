@@ -8,6 +8,21 @@
   </div>
 </div>
 
+{% if needs_access_mode %}
+<form method="post" class="filters">
+  {% csrf_token %}
+  <label>How these people get access
+    <select name="access_mode">
+      {% for code, label in access_modes %}
+        <option value="{{ code }}" {% if batch.access_mode == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="btn ghost">Use this access mode</button>
+  <span class="muted">Current: {{ batch.get_access_mode_display }}. A person without an email always gets a temporary password.</span>
+</form>
+{% endif %}
+
 {% if broken %}
 <div class="msg error" role="alert">
   <strong>{{ broken }} rows will be left out.</strong>

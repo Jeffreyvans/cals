@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block content %}
+<div class="noprint"><button class="btn" onclick="window.print()">Print day report</button>
+<a class="btn ghost" href="{% url 'fiscalisation:dashboard' %}">Back</a></div>
+<h1>Fiscal day report</h1>
+{% if fiscal_day %}
+<p class="muted">{{ INSTITUTION }} · fiscal day {{ fiscal_day.fiscal_day_no }} · {{ fiscal_day.day }} · {{ fiscal_day.get_status_display }}</p>
+<table class="tbl">
+<tr><th>Document</th><th>Type</th><th>Counter</th><th>Status</th><th>Verification code</th><th class="r">Amount</th></tr>
+{% for s in submissions %}
+<tr><td>{{ s.document_number }}</td><td>{{ s.get_document_type_display }}</td>
+<td>{{ s.receipt_counter }}</td><td>{{ s.get_status_display }}</td>
+<td>{{ s.verification_code|default:"—" }}</td>
+<td class="r">{{ s.response.amount|default:"" }}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted">Nothing fiscalised on this day.</td></tr>{% endfor %}
+</table>
+{% else %}
+<p class="muted">No fiscal day to report on.</p>
+{% endif %}
+{% endblock %}

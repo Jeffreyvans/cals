@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ hub_url }}">Transport</a></p>
+<div class="head"><div><h1>Pick-up list</h1>
+<p class="muted">Students on a route, in stop order, for the driver and conductor.</p></div>
+<a class="btn ghost" href="{{ export_url }}">Export CSV</a></div>
+
+<form method="get" class="card">
+  <label for="route">Route</label>
+  <select id="route" name="route">
+    {% for option in routes %}
+    <option value="{{ option.pk }}" {% if route and option.pk == route.pk %}selected{% endif %}>{{ option }}</option>
+    {% endfor %}
+  </select>
+  <label for="direction">Direction</label>
+  <select id="direction" name="direction">
+    <option value="morning" {% if direction == "morning" %}selected{% endif %}>Morning pick-up</option>
+    <option value="afternoon" {% if direction == "afternoon" %}selected{% endif %}>Afternoon drop-off</option>
+  </select>
+  <button class="btn">Show list</button>
+</form>
+
+{% if route %}
+<h2>{{ route }} &middot; {{ direction|title }}</h2>
+{% if rows %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Stop</th><th>Time</th><th>Student</th><th>Guardian phone</th><th>Vehicle</th></tr>
+  {% for row in rows %}
+  <tr>
+    <td>{{ row.stop }}</td>
+    <td>{% if row.time %}{{ row.time|time:"H:i" }}{% else %}-{% endif %}</td>
+    <td>{{ row.student }}</td>
+    <td>{{ row.guardian_phone|default:"-" }}</td>
+    <td>{{ row.vehicle|default:"-" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No active students are assigned to this route.</p>
+{% endif %}
+{% else %}
+<p class="muted">Add a route before printing a pick-up list.</p>
+{% endif %}
+{% endblock %}

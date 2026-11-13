@@ -22,6 +22,8 @@ PERMISSIONS = [
     ("finance.manage_fee_structures", "Create and edit fee structures", "finance"),
     ("finance.view_reports", "See finance reports and exports", "finance"),
     ("finance.view_ledger", "See the ledger and trial balance", "finance"),
+    ("finance.manage_tax", "Manage VAT rates and tax settings", "finance"),
+    ("finance.manage_fiscalisation", "Submit documents to ZIMRA FDMS", "finance"),
     ("academics.enter_marks", "Enter marks for own classes", "academics"),
     ("academics.moderate_marks", "Moderate marks before release", "academics"),
     ("academics.approve_results", "Approve results for release", "academics"),
@@ -41,8 +43,10 @@ PERMISSIONS = [
     ("library.manage", "Manage the library catalogue", "library"),
     ("library.borrow", "Borrow and return books", "library"),
     ("health.view_records", "See health records", "health"),
+    ("health.view_safe_alerts", "See the teacher-safe health alerts", "health"),
     ("health.manage", "Record clinic visits and medication", "health"),
-    ("counselling.view_notes", "See counselling notes", "counselling"),
+    ("counselling.view_notes", "See own counselling notes", "counselling"),
+    ("counselling.view_all_notes", "See every counsellor's notes", "counselling"),
     ("counselling.manage", "Record counselling sessions", "counselling"),
     ("hr.manage", "Manage staff files and contracts", "hr"),
     ("hr.approve_leave", "Approve leave requests", "hr"),
@@ -78,6 +82,10 @@ PERMISSIONS = [
     ("admin.workflow_approve", "Approve workflow requests", "admin"),
     ("admin.manage_workflows", "Edit approval workflows and their steps", "admin"),
     ("admin.dashboard_school", "See school-wide dashboards", "admin"),
+    ("search.global", "Use global search", "search"),
+    ("reports.view_dashboards", "View role dashboards", "reports"),
+    ("reports.view_at_risk", "View at-risk students", "reports"),
+    ("messages.send", "Send messages", "messages"),
 ]
 
 PERMISSION_CODES = [code for code, _desc, _cat in PERMISSIONS]

@@ -1,0 +1,18 @@
+{% extends "public_base.html" %}
+{% block title %}Request sent — EduSphere{% endblock %}
+{% block content %}
+<div class="page-shell narrow">
+  <div class="page-title">
+    <h1>Your request has been sent.</h1>
+    <p>{% if name %}Thank you, {{ name }}.{% else %}Thank you.{% endif %} {{ message }}</p>
+  </div>
+  <div class="panel">
+    <h2>While you wait</h2>
+    <p class="sub">You cannot sign in until an administrator approves the request. If your institution needs more information, they will use the email or phone number you gave.</p>
+    <p style="margin-top: 1.2rem;">
+      <a class="btn btn-ghost" href="{% url 'login' %}">Back to sign in</a>
+      <a class="btn btn-ghost" href="{% url 'register_choice' %}">Register someone else</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

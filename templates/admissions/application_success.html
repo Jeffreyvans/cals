@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Application received — {{ INSTITUTION }}{% endblock %}
+{% block content %}
+<div class="public-wrap">
+  <div class="card">
+    <h1>Application received</h1>
+    <p>Thank you, {{ application.name }}. Your reference is <b>{{ application.reference }}</b>.</p>
+    <p class="msg success">We have emailed you a private link to follow the application. Keep it safe.</p>
+    <p><a class="btn" href="{% url 'admissions:track_application' application.tracking_token %}">Track this application</a></p>
+    <p class="muted">{{ application.applied_for }} · submitted {{ application.submitted_at|date:"j F Y" }}</p>
+  </div>
+</div>
+{% endblock %}
+{% block bare %}
+<div class="public-wrap">
+  <p class="muted">{{ INSTITUTION }}</p>
+  <div class="card">
+    <h1>Application received</h1>
+    <p>Thank you, {{ application.name }}. Your reference is <b>{{ application.reference }}</b>.</p>
+    <p class="msg success">We have emailed you a private link to follow the application. Keep it safe.</p>
+    <p><a class="btn" href="{% url 'admissions:track_application' application.tracking_token %}">Track this application</a></p>
+    <p class="muted">{{ application.applied_for }} · submitted {{ application.submitted_at|date:"j F Y" }}</p>
+  </div>
+</div>
+{% endblock %}

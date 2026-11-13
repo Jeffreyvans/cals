@@ -75,19 +75,51 @@ class Institution(models.Model):
         COLLEGE = "college", "College / university"
         VOCATIONAL = "vocational", "Vocational institute"
 
+    class VatStatus(models.TextChoices):
+        EXEMPT = "exempt", "Not registered (exempt)"
+        REGISTERED = "registered", "VAT registered"
+
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=100, unique=True)
     type = models.CharField(max_length=20, choices=Type.choices, default=Type.COLLEGE)
+    tagline = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="A short line shown under the name on the public institution page.",
+    )
+    about = models.TextField(
+        blank=True,
+        help_text="A short description shown on the public institution page.",
+    )
     logo = models.ImageField(upload_to="institutions/logos/", blank=True)
     primary_color = models.CharField(max_length=20, blank=True)
     accent_color = models.CharField(max_length=20, blank=True)
     currency = models.CharField(max_length=10, default="$")
+    # The reporting currency every other currency is converted into.
+    base_currency = models.CharField(max_length=10, default="USD")
+    # ZIMRA registration. A school that is not registered never charges VAT.
+    vat_status = models.CharField(max_length=20, choices=VatStatus.choices,
+                                  default=VatStatus.EXEMPT)
+    vat_number = models.CharField(max_length=40, blank=True)
+    bp_number = models.CharField(max_length=40, blank=True,
+                                 help_text="ZIMRA Business Partner (BP) number.")
+    vat_address = models.TextField(blank=True,
+                                   help_text="The address shown on tax documents.")
     timezone = models.CharField(max_length=64, default="Africa/Harare")
     language = models.CharField(max_length=10, default="en")
     address = models.TextField(blank=True)
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=30, blank=True)
     settings = models.JSONField(default=dict, blank=True)
+    public_registration = models.BooleanField(
+        default=False,
+        help_text="Allow students and staff to register from the public site.",
+    )
+    staff_positions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Staff positions this institution accepts for public registration.",
+    )
     is_active = models.BooleanField(default=True)
     created = models.DateTimeField(auto_now_add=True)
 
@@ -103,10 +135,24 @@ class Institution(models.Model):
 
         return terminology_for(self)
 
+    def initials(self):
+        """Up to two initials, used when the institution has no logo."""
+        parts = [part for part in self.name.split() if part]
+        if not parts:
+            return "?"
+        letters = "".join(part[0] for part in parts[:2])
+        return letters.upper()
+
     def enabled_modules(self):
         from core.modules import enabled_modules
 
         return enabled_modules(self)
+
+    def allowed_staff_positions(self):
+        """The staff positions this institution accepts for registration."""
+        from accounts.registration import allowed_staff_positions
+
+        return allowed_staff_positions(self)
 
 
 class InstitutionModule(models.Model):
@@ -244,6 +290,10 @@ class ImportBatch(TenantModel):
         IMPORTED = "imported", "Imported"
         FAILED = "failed", "Nothing imported"
 
+    class AccessMode(models.TextChoices):
+        INVITATION = "invitation", "Send invitation email"
+        TEMPORARY_PASSWORD = "temporary_password", "Temporary password"
+
     institution = models.ForeignKey(
         Institution, on_delete=models.CASCADE, related_name="import_batches")
     kind = models.CharField(max_length=30, choices=Kind.choices)
@@ -257,6 +307,17 @@ class ImportBatch(TenantModel):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="import_batches")
+    access_mode = models.CharField(
+        max_length=30, choices=AccessMode.choices, default=AccessMode.INVITATION)
+    # The accounts written by this batch. The ids let an administrator undo a
+    # batch that nobody has signed in to yet.
+    created_user_ids = models.JSONField(default=list, blank=True)
+    # One-time credentials for the results file. They are cleared as soon as
+    # the file is downloaded, so a password is never kept after its first view.
+    credentials = models.JSONField(default=list, blank=True)
+    credentials_downloaded = models.BooleanField(default=False)
+    undone_at = models.DateTimeField(null=True, blank=True)
+    undone_count = models.PositiveIntegerField(default=0)
     created = models.DateTimeField(auto_now_add=True, db_index=True)
     finished = models.DateTimeField(null=True, blank=True)
 
@@ -448,6 +509,10 @@ class OutboundMessage(TenantModel):
     recipient = models.CharField(max_length=120)
     subject = models.CharField(max_length=150, blank=True)
     body = models.TextField()
+    html_body = models.TextField(
+        blank=True,
+        help_text="Optional rich version of the body, sent alongside the plain text.",
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
     provider = models.CharField(max_length=40, blank=True)
     provider_response = models.TextField(blank=True)

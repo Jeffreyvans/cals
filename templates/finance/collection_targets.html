@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block content %}
+<div class="noprint"><button class="btn" onclick="window.print()">Print report</button>
+{% include "finance/_export_links.html" with export_name="export_collection_targets" %}
+<a class="btn" href="{% url 'collection_target_create' %}">New target</a></div>
+<h1>Collection vs target</h1>
+<p class="muted">Payments received inside each target's period, compared with the goal.</p>
+<table class="tbl"><tr><th>Target</th><th>Period</th><th>Department</th><th class="r">Goal</th><th class="r">Collected</th><th class="r">Variance</th><th class="r">Progress</th><th></th></tr>
+{% for row in rows %}<tr>
+<td>{{ row.target.name }}{% if row.target.financial_year %} <span class="muted">{{ row.target.financial_year }}</span>{% endif %}</td>
+<td>{{ row.target.start_date|date:"d M Y" }} – {{ row.target.end_date|date:"d M Y" }}</td>
+<td>{{ row.target.department|default:"All" }}</td>
+<td class="r">{{ CUR }}{{ row.target.amount }}</td>
+<td class="r">{{ CUR }}{{ row.collected }}</td>
+<td class="r">{{ CUR }}{{ row.variance }}</td>
+<td class="r">{{ row.percent }}%</td>
+<td class="noprint"><form method="post" action="{% url 'collection_target_delete' row.target.pk %}">{% csrf_token %}<button class="link">Remove</button></form></td>
+</tr>{% empty %}<tr><td colspan="8" class="muted">No collection targets yet.</td></tr>{% endfor %}</table>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block content %}
+<h1>Generate term invoices</h1>
+<form method="post">{% csrf_token %}{{ form.as_p }}
+<button class="btn ghost" name="action" value="preview">Preview</button>
+<button class="btn" name="action" value="confirm">Create invoices</button></form>
+{% if result %}
+<div class="stats"><div><b>{{ result.created }}</b>Created</div>
+<div><b>{{ CUR }}{{ result.total }}</b>Value</div></div>
+<table class="tbl">
+<tr><th>Student</th><th>Fee item</th><th class="r">Amount</th><th>Status</th></tr>
+{% for row in result.rows %}
+<tr><td>{{ row.student.name }}</td><td>{{ row.item.name }}</td>
+<td class="r">{{ CUR }}{{ row.amount }}</td>
+<td>{% if row.already %}Already invoiced{% else %}Will create{% endif %}</td></tr>
+{% empty %}<tr><td colspan="4" class="muted">No eligible students.</td></tr>{% endfor %}
+</table>
+{% endif %}
+{% endblock %}

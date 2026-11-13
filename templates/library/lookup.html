@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{{ list_url }}">Library</a></p>
+<div class="head"><div><h1>Quick book lookup</h1>
+<p class="muted">Scan or type an ISBN, title, author or shelf.</p></div></div>
+
+<form method="get" class="card">
+  <label for="q">Search</label>
+  <input id="q" name="q" value="{{ query }}" placeholder="ISBN, title, author or shelf" autofocus>
+  <button class="btn">Find</button>
+</form>
+
+{% if books %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Title</th><th>Author</th><th>ISBN</th><th>Shelf</th><th>Available</th></tr>
+  {% for book in books %}
+  <tr>
+    <td>{{ book.title }}</td>
+    <td>{{ book.author|default:"-" }}</td>
+    <td>{{ book.isbn|default:"-" }}</td>
+    <td>{{ book.shelf|default:"-" }}</td>
+    <td>{{ book.copies_available }}/{{ book.copies_total }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% elif query %}
+<p class="muted">No books match "{{ query }}".</p>
+{% endif %}
+{% endblock %}

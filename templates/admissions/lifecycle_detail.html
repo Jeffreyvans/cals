@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div><h1>{{ student.name }}</h1><p class="muted">{{ student.student_no }} · {{ student.programme.name }} · {{ student.class_label }}</p></div>
+  <span class="badge">{{ student.get_status_display }}</span>
+</div>
+<p>
+  <a class="btn ghost" href="{% url 'admissions:graduation_detail' student.pk %}">Graduation and certificates</a>
+  <a class="btn ghost" href="{% url 'admissions:id_cards' %}">Identity cards</a>
+  <a class="btn ghost" href="{% url 'admissions:lifecycle_list' %}">Back to students</a>
+</p>
+
+<div class="cols">
+  <form method="post" action="{% url 'admissions:lifecycle_transition' student.pk %}" class="inline wide">{% csrf_token %}
+    <h2>Change status</h2>{{ transition_form.as_p }}<button class="btn">Save status</button>
+  </form>
+  <form method="post" action="{% url 'admissions:student_transfer' student.pk %}" class="inline wide">{% csrf_token %}
+    <h2>Record a transfer</h2>{{ transfer_form.as_p }}<button class="btn ghost">Record transfer</button>
+  </form>
+</div>
+
+<h2>Transitions</h2>
+<table class="tbl">
+  <tr><th>When</th><th>From</th><th>To</th><th>Reason</th><th>By</th></tr>
+  {% for t in transitions %}<tr><td>{{ t.effective_date|date:"d M Y" }}</td><td>{{ t.get_from_state_display }}</td><td>{{ t.get_to_state_display }}</td><td>{{ t.reason }}</td><td>{{ t.actor.get_full_name|default:t.actor.username|default:"—" }}</td></tr>
+  {% empty %}<tr><td colspan="5" class="muted">No lifecycle changes yet.</td></tr>{% endfor %}
+</table>
+
+<h2>Transfers</h2>
+<table class="tbl">
+  <tr><th>Direction</th><th>Institution</th><th>Reference</th><th>Effective</th><th>Reason</th></tr>
+  {% for t in transfers %}<tr><td>{{ t.get_direction_display }}</td><td>{{ t.other_institution }}</td><td>{{ t.reference|default:"—" }}</td><td>{{ t.effective_date|date:"d M Y" }}</td><td>{{ t.reason }}</td></tr>
+  {% empty %}<tr><td colspan="5" class="muted">No transfers recorded.</td></tr>{% endfor %}
+</table>
+
+<h2>Documents and card</h2>
+<p>{% if card %}Card {{ card.card_no }} · valid until {{ card.valid_until|date:"j F Y" }}{% else %}No identity card issued.{% endif %}</p>
+<table class="tbl">
+  <tr><th>Certificate</th><th>Award</th><th>Serial</th><th>Issued</th></tr>
+  {% for c in certificates %}<tr><td>{{ c.title }}</td><td>{{ c.award }}</td><td><a href="{% url 'admissions:certificate_detail' c.pk %}">{{ c.serial_no }}</a></td><td>{{ c.issued_at|date:"d M Y" }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="muted">No certificates issued.</td></tr>{% endfor %}
+</table>
+{% endblock %}

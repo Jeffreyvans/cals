@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block content %}
+<h1>Statement: {{ s.name }}</h1>
+<p class="muted">{{ s.student_no }} · {{ s.programme|default:"-" }} · {{ s.class_label }}</p>
+<p><a class="btn" href="{% url 'student_statement_pdf' s.pk %}">Download PDF</a></p>
+<div class="stats"><div><b>{{ CUR }}{{ balance }}</b>Balance</div>
+<div><b>{{ CUR }}{{ credit }}</b>Credit</div></div>
+<table class="tbl"><tr><th>Date</th><th>Description</th><th class="r">Billed</th><th class="r">Paid</th><th class="r">Balance</th></tr>
+{% for i in invoices %}<tr><td>{{ i.created|date:"d M Y" }}</td><td>{{ i.description }}</td>
+<td class="r">{{ CUR }}{{ i.amount }}</td><td class="r">{{ CUR }}{{ i.paid }}</td>
+<td class="r">{{ CUR }}{{ i.balance }}</td></tr>
+{% empty %}<tr><td colspan="5" class="muted">No invoices yet.</td></tr>{% endfor %}</table>
+{% endblock %}

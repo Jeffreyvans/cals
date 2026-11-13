@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:course_site' site.pk %}">Back to {{ site.display_title }}</a></p>
+<div class="head"><div><h1>Gradebook</h1>
+<p class="muted">{{ site.display_title }}</p></div>
+{% if manage %}<a class="btn ghost" href="{% url 'lms:gradebook_setup' site.pk %}">Set up gradebook</a>{% endif %}</div>
+
+{% if data.rows %}
+<table class="tbl"><tr><th>Student</th>{% for item in data.items %}<th>{{ item.title }} <span class="muted">({{ item.max_score }})</span></th>{% endfor %}<th class="r">Overall</th></tr>
+{% for row in data.rows %}
+<tr><td>{{ row.student.name }}</td>
+{% for cell in row.cells %}
+<td>{% if manage %}
+<form method="post" action="{% url 'lms:grade_entry' site.pk %}" class="inline">{% csrf_token %}
+<input type="hidden" name="item" value="{{ cell.item.pk }}">
+<input type="hidden" name="student" value="{{ row.student.pk }}">
+<input type="number" step="0.01" min="0" max="{{ cell.item.max_score }}" name="score" value="{{ cell.score|default_if_none:'' }}" class="tiny">
+<button class="link">Save</button>
+</form>
+{% else %}{{ cell.score|default_if_none:"-" }}{% endif %}</td>
+{% endfor %}
+<td class="r">{{ row.overall|default_if_none:"-" }}{% if row.overall is not None %}%{% endif %}</td></tr>
+{% endfor %}</table>
+{% else %}
+<p class="muted">No gradebook data yet.</p>
+{% endif %}
+
+{% if manage %}
+<h2>Category performance</h2>
+<table class="tbl"><tr><th>Student</th>{% for category in data.categories %}<th>{{ category.name }} <span class="muted">({{ category.weight }}%)</span></th>{% endfor %}</tr>
+{% for row in data.rows %}<tr><td>{{ row.student.name }}</td>
+{% for cell in row.categories %}<td>{{ cell.percentage|default_if_none:"-" }}{% if cell.percentage is not None %}%{% endif %}</td>{% endfor %}</tr>{% endfor %}</table>
+{% endif %}
+{% endblock %}

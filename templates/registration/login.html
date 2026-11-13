@@ -1,8 +1,418 @@
-{% extends "base.html" %}{% block bare %}
-<div class="login"><div class="login-art"><h1>{{ INSTITUTION }}</h1><p>Fees, courses and results in one place.</p></div>
-<form method="post" class="login-form">{% csrf_token %}<h2>Sign in</h2>
-{% if form.errors %}<div class="msg error">Wrong username or password. Try again.</div>{% endif %}
-<label>Username<input name="username" autofocus required></label>
-<label>Password<input name="password" type="password" required></label>
-<button class="btn">Sign in</button><p class="muted">Students, lecturers and office staff use the same page. You'll land on your own portal.</p></form></div>
-{% endblock %}
+{% load static media %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="EduSphere runs admissions, student records, fees, results, attendance, timetables and parent communication for schools and colleges in one place.">
+  <meta name="theme-color" content="#5d4037">
+  <title>EduSphere — Run your school or college in one place</title>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="EduSphere">
+  <meta property="og:title" content="EduSphere — Run your school or college in one place">
+  <meta property="og:description" content="Admissions, student records, fees, results, attendance, timetables and parent communication in one calm system.">
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/landing/hero-classroom-1040.jpg' %}">
+  <meta name="twitter:card" content="summary_large_image">
+  <script>
+    /* Apply a remembered theme before paint so the page never flashes. */
+    (function () {
+      try {
+        var key = "edusphere.public.theme";
+        var choice = window.localStorage.getItem(key);
+        if (choice === "dark" || choice === "light") {
+          document.documentElement.setAttribute("data-theme", choice);
+        }
+      } catch (error) { /* storage blocked: fall back to the system setting */ }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/public.css' %}">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<svg class="visually-hidden" aria-hidden="true" focusable="false" width="0" height="0">
+  <symbol id="p-logo" viewBox="0 0 24 24"><path d="M2.5 9 12 4.5 21.5 9 12 13.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 11.2V16c0 1.6 2.7 3 6 3s6-1.4 6-3v-4.8M21.5 9v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="p-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v5.5c0 5-3.4 8.4-8 9.5-4.6-1.1-8-4.5-8-9.5V6Z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m9 12 2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="p-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M16 5.2a3.2 3.2 0 0 1 0 6.1M17.5 14.5A5.5 5.5 0 0 1 21 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="p-cash" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6 9v6M18 9v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="p-award" viewBox="0 0 24 24"><circle cx="12" cy="9" r="5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m8.5 13-1.3 8 4.8-2.6 4.8 2.6-1.3-8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+  <symbol id="p-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M14 14h2M8 18h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="p-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5ZM4 5.5v16M8 7h8M8 11h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="p-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7M5 9v11h14V9M9.5 20v-6h5v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="p-chart" viewBox="0 0 24 24"><path d="M3 20h18M6.5 20v-8M12 20V4M17.5 20v-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="p-user-plus" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M18 8v6M15 11h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="p-phone" viewBox="0 0 24 24"><path d="M6.5 3.5 9 8l-2 2a14 14 0 0 0 7 7l2-2 4.5 2.5V20a2 2 0 0 1-2.2 2A17.5 17.5 0 0 1 2 5.7 2 2 0 0 1 4 3.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+  <symbol id="p-mail" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m3.5 7 8.5 6 8.5-6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="p-whatsapp" viewBox="0 0 24 24"><path d="M20.5 11.5a8.5 8.5 0 0 1-12.6 7.4L3.5 20.5l1.6-4.4A8.5 8.5 0 1 1 20.5 11.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 8.2c.3-.2.7 0 .9.4l.7 1.4c.1.3 0 .6-.2.8l-.6.5c.5 1.2 1.4 2.1 2.6 2.6l.5-.6c.2-.2.5-.3.8-.2l1.4.7c.4.2.6.6.4.9-.5 1-1.5 1.6-2.6 1.4-2.7-.6-5-2.9-5.6-5.6-.2-1.1.4-2.1 1.4-2.6Z" fill="currentColor"/></symbol>
+  <symbol id="p-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m8 12 2.5 2.5L16 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="p-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18M12 3c2.5 2.4 3.8 5.4 3.8 9S14.5 18.6 12 21c-2.5-2.4-3.8-5.4-3.8-9S9.5 5.4 12 3Z" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+  <symbol id="p-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+</svg>
+
+<header class="site-head" data-site-head>
+  <div class="wrap">
+    <a class="wordmark" href="{% url 'login' %}" aria-label="EduSphere home">
+      <span class="wordmark-mark" aria-hidden="true"><svg><use href="#p-logo"/></svg></span>
+      <span>EduSphere<small>School management</small></span>
+    </a>
+    <button class="nav-toggle" type="button" data-nav-toggle aria-controls="siteNav" aria-expanded="false" aria-label="Open menu">
+      <svg aria-hidden="true"><use href="#p-menu"/></svg>
+    </button>
+    <nav class="site-nav" id="siteNav" aria-label="Main navigation">
+      <a href="#features">Features</a>
+      <a href="#who">Who it is for</a>
+      <a href="#how">How it works</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="head-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Switch to dark theme">
+        <svg class="icon-moon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>
+        <svg class="icon-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></svg>
+      </button>
+      <a class="btn btn-ghost btn-sm" href="{% url 'login' %}">Sign in</a>
+      <a class="btn btn-marigold btn-sm" href="{% url 'register_choice' %}">Register</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div class="hero-copy reveal">
+        <h1 id="hero-title">Run your school or college in one place.</h1>
+        <p class="lede">Admissions, student records, fees, results, attendance, timetables and parents — together in one calm system, built for busy offices and slow connections.</p>
+        <ul class="hero-points" aria-label="What EduSphere covers">
+          <li>Fees and receipts</li>
+          <li>Results and report cards</li>
+          <li>Attendance</li>
+          <li>Parent portal</li>
+        </ul>
+      </div>
+
+      <div class="hero-grid">
+        <div class="signin-card reveal reveal-2" id="signin">
+          <h2>Sign in</h2>
+          <p class="sub">Staff, lecturers, students and parents use the same door. You land in your own workspace.</p>
+          {% if form.errors %}
+            <div class="alert alert-error" role="alert">Wrong username or password. Try again.</div>
+          {% endif %}
+          <form method="post" action="{% url 'login' %}" class="signin-form">
+            {% csrf_token %}
+            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+            <div class="field">
+              <label for="id_username">Username</label>
+              <input id="id_username" name="username" type="text" autocomplete="username" required autofocus placeholder="e.g. admin" value="{{ form.username.value|default:'' }}">
+            </div>
+            <div class="field">
+              <label for="id_password">Password</label>
+              <input id="id_password" name="password" type="password" autocomplete="current-password" required placeholder="Your password">
+            </div>
+            <div class="form-row">
+              <span class="help">Your account is personal. Do not share it.</span>
+              <a href="{% url 'password_reset' %}">Forgot password?</a>
+            </div>
+            <button class="btn btn-block" type="submit">Sign in</button>
+          </form>
+          <p class="signin-foot">New here? <a href="{% url 'register_choice' %}">Register for an account</a></p>
+        </div>
+
+        <div class="hero-media reveal reveal-2">
+          {% static 'img/landing/hero-classroom-1040.jpg' as hero_jpg %}
+          {% if hero_jpg|static_exists %}
+            <picture class="media">
+              <source type="image/webp" srcset="{% static 'img/landing/hero-classroom-640.webp' %} 640w, {% static 'img/landing/hero-classroom-1040.webp' %} 1040w" sizes="(max-width: 1000px) 100vw, 56vw">
+              <img src="{{ hero_jpg }}" srcset="{% static 'img/landing/hero-classroom-640.jpg' %} 640w, {{ hero_jpg }} 1040w" sizes="(max-width: 1000px) 100vw, 56vw" width="1040" height="780" alt="Students working together at desks in a bright classroom." fetchpriority="high" decoding="async">
+            </picture>
+          {% else %}
+            <div class="media media-placeholder" role="img" aria-label="A bright classroom of students learning together."></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="trust section-tight" aria-label="Why schools choose EduSphere">
+    <div class="wrap">
+      <div class="trust-grid">
+        <div class="trust-item">
+          <svg aria-hidden="true"><use href="#p-globe"/></svg>
+          <div><strong>Works on a phone</strong><span>Fast pages that stay usable on slow connections.</span></div>
+        </div>
+        <div class="trust-item">
+          <svg aria-hidden="true"><use href="#p-cash"/></svg>
+          <div><strong>USD and ZiG</strong><span>Fees, receipts and reports in the currencies you use.</span></div>
+        </div>
+        <div class="trust-item">
+          <svg aria-hidden="true"><use href="#p-users"/></svg>
+          <div><strong>Role-based access</strong><span>Every person sees only the work their role allows.</span></div>
+        </div>
+        <div class="trust-item">
+          <svg aria-hidden="true"><use href="#p-shield"/></svg>
+          <div><strong>Secure records</strong><span>Audit trails, permission checks and tenant isolation.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">What EduSphere does</span>
+        <h2 id="features-title">The everyday work of a school, in one system.</h2>
+        <p>Each part is switched on only if your institution needs it. Nothing is hidden behind jargon.</p>
+      </div>
+      <div class="card-grid">
+        <article class="card">
+          <span class="card-icon" aria-hidden="true"><svg><use href="#p-user-plus"/></svg></span>
+          <h3>Student records and admissions</h3>
+          <p>Take applications, review them, issue offers and keep one clean student file from admission to graduation.</p>
+        </article>
+        <article class="card">
+          <span class="card-icon" aria-hidden="true"><svg><use href="#p-cash"/></svg></span>
+          <h3>Fees and receipts with balances</h3>
+          <p>Build fee structures, generate invoices, receive payments and see every student's balance and receipt.</p>
+        </article>
+        <article class="card">
+          <span class="card-icon" aria-hidden="true"><svg><use href="#p-award"/></svg></span>
+          <h3>Results and report cards</h3>
+          <p>Enter marks, moderate and release them, then print branded report cards and transcripts.</p>
+        </article>
+        <article class="card">
+          <span class="card-icon" aria-hidden="true"><svg><use href="#p-calendar"/></svg></span>
+          <h3>Attendance and timetables</h3>
+          <p>Mark registers in seconds, spot absences, and keep class and teacher timetables in step.</p>
+        </article>
+        <article class="card">
+          <span class="card-icon" aria-hidden="true"><svg><use href="#p-users"/></svg></span>
+          <h3>Parent portal</h3>
+          <p>Parents switch between their children, see results, attendance and fees, and pay online.</p>
+        </article>
+        <article class="card">
+          <span class="card-icon" aria-hidden="true"><svg><use href="#p-book"/></svg></span>
+          <h3>Lecturer and teacher tools</h3>
+          <p>Course sites, assignments, quizzes, gradebooks and mark entry in the same place as the timetable.</p>
+        </article>
+        <article class="card">
+          <span class="card-icon" aria-hidden="true"><svg><use href="#p-home"/></svg></span>
+          <h3>Library, boarding and transport</h3>
+          <p>Loans and fines, hostel rolls and exeats, bus routes and pick-up lists — without separate spreadsheets.</p>
+        </article>
+        <article class="card">
+          <span class="card-icon" aria-hidden="true"><svg><use href="#p-chart"/></svg></span>
+          <h3>Reports and dashboards</h3>
+          <p>Collections, debtors, enrolment, attendance and at-risk students in plain charts a head can act on.</p>
+        </article>
+        <article class="card">
+          <span class="card-icon" aria-hidden="true"><svg><use href="#p-shield"/></svg></span>
+          <h3>Admin, HR and compliance</h3>
+          <p>Leave, payroll, procurement, estates, policies and governance records round out the office.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="who" aria-labelledby="who-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Who it is for</span>
+        <h2 id="who-title">Built for the way your institution works.</h2>
+        <p>The words change with the institution — Class or Programme, Pupil or Student — so the screens sound familiar.</p>
+      </div>
+      <div class="audience-grid">
+        <article class="audience">
+          {% static 'img/landing/audience-primary-960.jpg' as primary_jpg %}
+          {% if primary_jpg|static_exists %}
+            <picture class="media">
+              <source type="image/webp" srcset="{% static 'img/landing/audience-primary-480.webp' %} 480w, {% static 'img/landing/audience-primary-960.webp' %} 960w" sizes="(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 25vw">
+              <img src="{{ primary_jpg }}" srcset="{% static 'img/landing/audience-primary-480.jpg' %} 480w, {{ primary_jpg }} 960w" sizes="(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 25vw" width="960" height="639" alt="Young primary school children in a classroom." loading="lazy" decoding="async">
+            </picture>
+          {% else %}
+            <div class="media media-placeholder" role="img" aria-label="Primary school children in a classroom."></div>
+          {% endif %}
+          <div class="audience-body"><h3>Primary schools</h3><p>Simple records, class lists, attendance, fees and parent messages.</p></div>
+        </article>
+        <article class="audience">
+          {% static 'img/landing/audience-secondary-960.jpg' as secondary_jpg %}
+          {% if secondary_jpg|static_exists %}
+            <picture class="media">
+              <source type="image/webp" srcset="{% static 'img/landing/audience-secondary-480.webp' %} 480w, {% static 'img/landing/audience-secondary-960.webp' %} 960w" sizes="(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 25vw">
+              <img src="{{ secondary_jpg }}" srcset="{% static 'img/landing/audience-secondary-480.jpg' %} 480w, {{ secondary_jpg }} 960w" sizes="(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 25vw" width="960" height="592" alt="Secondary school students at work in a classroom." loading="lazy" decoding="async">
+            </picture>
+          {% else %}
+            <div class="media media-placeholder" role="img" aria-label="Secondary school students in a classroom."></div>
+          {% endif %}
+          <div class="audience-body"><h3>Secondary schools</h3><p>Timetables, subject marks, report cards, boarding and exam entries.</p></div>
+        </article>
+        <article class="audience">
+          {% static 'img/landing/audience-college-960.jpg' as college_jpg %}
+          {% if college_jpg|static_exists %}
+            <picture class="media">
+              <source type="image/webp" srcset="{% static 'img/landing/audience-college-480.webp' %} 480w, {% static 'img/landing/audience-college-960.webp' %} 960w" sizes="(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 25vw">
+              <img src="{{ college_jpg }}" srcset="{% static 'img/landing/audience-college-480.jpg' %} 480w, {{ college_jpg }} 960w" sizes="(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 25vw" width="960" height="480" alt="College students learning together on campus." loading="lazy" decoding="async">
+            </picture>
+          {% else %}
+            <div class="media media-placeholder" role="img" aria-label="College students on campus."></div>
+          {% endif %}
+          <div class="audience-body"><h3>Colleges and universities</h3><p>Programmes, course registration, credit limits, GPA and transcripts.</p></div>
+        </article>
+        <article class="audience">
+          {% static 'img/landing/audience-vocational-960.jpg' as vocational_jpg %}
+          {% if vocational_jpg|static_exists %}
+            <picture class="media">
+              <source type="image/webp" srcset="{% static 'img/landing/audience-vocational-480.webp' %} 480w, {% static 'img/landing/audience-vocational-960.webp' %} 960w" sizes="(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 25vw">
+              <img src="{{ vocational_jpg }}" srcset="{% static 'img/landing/audience-vocational-480.jpg' %} 480w, {{ vocational_jpg }} 960w" sizes="(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 25vw" width="960" height="720" alt="Vocational students practising a trade in a workshop." loading="lazy" decoding="async">
+            </picture>
+          {% else %}
+            <div class="media media-placeholder" role="img" aria-label="Vocational students in a workshop."></div>
+          {% endif %}
+          <div class="audience-body"><h3>Vocational institutes</h3><p>Practical assessments, attachments, workshops and industry partners.</p></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">How it works</span>
+        <h2 id="how-title">Start small, then grow into every department.</h2>
+        <p>The setup wizard creates your year, classes, roles and first administrator. You can switch modules on as you need them.</p>
+      </div>
+      <ol class="steps">
+        <li class="step"><h3>Set up your institution</h3><p>Name, branding, academic year, terms, currency and the modules you use.</p></li>
+        <li class="step"><h3>Add students and staff</h3><p>Import a spreadsheet or add people one at a time. Roles decide what each person can see.</p></li>
+        <li class="step"><h3>Collect fees and record results</h3><p>Issue invoices, receive payments, enter marks and release results when they are ready.</p></li>
+        <li class="step"><h3>Keep parents informed</h3><p>Parents sign in to see results, attendance, balances and notices — and to pay online.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="roles-title">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">For every role</span>
+        <h2 id="roles-title">A workspace that fits the job.</h2>
+      </div>
+      <div class="role-grid">
+        <article class="role"><h3>Administrators</h3><p>Users, roles, settings, audit trail and every module, without hunting through menus.</p></article>
+        <article class="role"><h3>Bursars and accounts</h3><p>Fee structures, invoices, receipts, debtors, statements and the ledger.</p></article>
+        <article class="role"><h3>Registrars</h3><p>Admissions, enrolment, transfers, graduation and the student record.</p></article>
+        <article class="role"><h3>Lecturers and teachers</h3><p>Timetable, rosters, attendance, assignments, marks and gradebooks.</p></article>
+        <article class="role"><h3>Students</h3><p>Registration, timetable, results, balance, receipts and learning materials.</p></article>
+        <article class="role"><h3>Parents</h3><p>Their children's results, attendance, fees and school notices in one place.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="security" aria-labelledby="security-title">
+    <div class="wrap">
+      <span class="eyebrow">Secure and reliable</span>
+      <h2 id="security-title">Records are private by default.</h2>
+      <p>EduSphere is built for one institution at a time. Permission checks run on every screen and every API call, and sensitive views are logged.</p>
+      <ul class="security-points">
+        <li><strong>Data protection</strong><span>Tenant isolation, restricted registers and consent-aware sharing.</span></li>
+        <li><strong>Audit trail</strong><span>Money, marks, users and roles leave a dated record of who did what.</span></li>
+        <li><strong>Backups</strong><span>Documented backup and restore steps so a bad day does not become a lost term.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" id="contact" aria-labelledby="contact-title">
+    <div class="wrap">
+      <div class="contact-grid">
+        <div>
+          <span class="eyebrow">Talk to us</span>
+          <h2 id="contact-title">Tell us about your institution.</h2>
+          <p style="margin-top: 0.9rem; color: var(--muted);">Ask a question, arrange a walkthrough, or tell us what your office needs. We answer in plain English.</p>
+          <ul class="contact-list">
+            <li><a href="tel:+263774573765"><svg aria-hidden="true"><use href="#p-phone"/></svg>+263 774 573 765</a></li>
+            <li><a href="https://wa.me/263774573765" rel="noopener"><svg aria-hidden="true"><use href="#p-whatsapp"/></svg>WhatsApp us</a></li>
+            <li><a href="mailto:vanhuvaonejeffrey@gmail.com"><svg aria-hidden="true"><use href="#p-mail"/></svg>vanhuvaonejeffrey@gmail.com</a></li>
+          </ul>
+        </div>
+        <div class="contact-card">
+          <h2 style="font-size: 1.35rem;">Send a message</h2>
+          {% if contact_sent %}
+            <div class="alert alert-ok" role="status">Thank you — your message has been sent. We will reply as soon as we can.</div>
+          {% elif contact_rate_limited %}
+            <div class="alert alert-error" role="alert">Too many messages from this connection. Please try again later, or use the phone number.</div>
+          {% endif %}
+          <form method="post" action="{% url 'login' %}#contact" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="form" value="contact">
+            {{ contact_form.website }}
+            {% if contact_form.non_field_errors %}
+              <div class="alert alert-error" role="alert">{{ contact_form.non_field_errors|striptags }}</div>
+            {% endif %}
+            <div class="two">
+              <div class="field">
+                <label for="{{ contact_form.name.id_for_label }}">Your name</label>
+                {{ contact_form.name }}
+                {% for error in contact_form.name.errors %}<p class="field-message">{{ error }}</p>{% endfor %}
+              </div>
+              <div class="field">
+                <label for="{{ contact_form.email.id_for_label }}">Email address</label>
+                {{ contact_form.email }}
+                {% for error in contact_form.email.errors %}<p class="field-message">{{ error }}</p>{% endfor %}
+              </div>
+            </div>
+            <div class="field">
+              <label for="{{ contact_form.phone.id_for_label }}">Phone number <span class="help">(optional)</span></label>
+              {{ contact_form.phone }}
+              {% for error in contact_form.phone.errors %}<p class="field-message">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="field">
+              <label for="{{ contact_form.message.id_for_label }}">How can we help?</label>
+              {{ contact_form.message }}
+              {% for error in contact_form.message.errors %}<p class="field-message">{{ error }}</p>{% endfor %}
+            </div>
+            <button class="btn" type="submit">Send message</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="wordmark" href="{% url 'login' %}">
+          <span class="wordmark-mark" aria-hidden="true"><svg><use href="#p-logo"/></svg></span>
+          <span>EduSphere</span>
+        </a>
+        <p>One place to run admissions, academics, attendance, fees and communication for your institution.</p>
+      </div>
+      <div>
+        <h3 style="font-size: 0.92rem;">Explore</h3>
+        <ul class="foot-links" style="margin-top: 0.7rem;">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#who">Who it is for</a></li>
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size: 0.92rem;">Get started</h3>
+        <ul class="foot-links" style="margin-top: 0.7rem;">
+          <li><a href="{% url 'login' %}">Sign in</a></li>
+          <li><a href="{% url 'register_choice' %}">Register</a></li>
+          <li><a href="{% url 'privacy_notice' %}">Privacy notice</a></li>
+          <li><a href="tel:+263774573765">+263 774 573 765</a></li>
+          <li><a href="mailto:vanhuvaonejeffrey@gmail.com">vanhuvaonejeffrey@gmail.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>&copy; {% now "Y" %} EduSphere. All rights reserved.</span>
+      <span>Built for schools and colleges in Zimbabwe and beyond.</span>
+    </div>
+  </div>
+</footer>
+
+<script src="{% static 'js/landing.js' %}" defer></script>
+</body>
+</html>

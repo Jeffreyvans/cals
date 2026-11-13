@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block content %}
+<h1>Entry requirements</h1>
+<p class="muted">The eligibility check compares an applicant's results with these rules. Leave a rule out to review that programme by hand.</p>
+<table class="tbl">
+  <tr><th>Programme</th><th>Minimum passes</th><th>Minimum grade</th><th>Required subjects</th><th>Minimum average</th><th></th></tr>
+  {% for p, r in programmes %}
+  <tr>
+    <td>{{ p.name }}</td>
+    <td>{{ r.minimum_subjects|default:"—" }}</td>
+    <td>{{ r.minimum_grade|default:"—" }}</td>
+    <td>{{ r.required_subjects|default:"—" }}</td>
+    <td>{{ r.minimum_average|default:"—" }}</td>
+    <td><a href="{% url 'admissions:entry_requirement_edit' p.pk %}">{% if r %}Edit{% else %}Add{% endif %}</a></td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="muted">No programmes yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,37 @@
+{# Brown HTML email shell. Every colour is one of the defined brown palette
+   values, written inline because email clients do not read stylesheets. #}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}EduSphere{% endblock %}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#faf4ec; color:#2b1a12; font-family:Figtree, 'Segoe UI', Helvetica, Arial, sans-serif;">
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0;">{% block preheader %}{% endblock %}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#faf4ec;">
+    <tr>
+      <td align="center" style="padding:28px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:560px; background-color:#efe2d3; border:1px solid #dcc8b6; border-radius:18px;">
+          <tr>
+            <td style="padding:20px 26px; background-color:#3e2723; border-radius:18px 18px 0 0;">
+              <span style="color:#faf4ec; font-size:18px; font-weight:700; letter-spacing:0.2px;">EduSphere</span>
+              {% block brand %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:26px; color:#2b1a12; font-size:16px; line-height:1.6;">
+              {% block content %}{% endblock %}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 26px 26px; color:#6f4a36; font-size:13px; line-height:1.5; border-top:1px solid #dcc8b6;">
+              {% block footer %}This message was sent by EduSphere on behalf of your institution. If you were not expecting it, you can ignore it.{% endblock %}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

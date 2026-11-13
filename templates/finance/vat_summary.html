@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% block content %}
+<div class="noprint"><button class="btn" onclick="window.print()">Print report</button>
+{% include "finance/_export_links.html" with export_name="export_vat_summary" %}</div>
+<h1>VAT summary</h1>
+<p class="muted">Output VAT charged on invoices against input VAT carried by expenses. An institution that is not VAT-registered shows no output VAT.</p>
+{% if institution %}
+<p class="muted">VAT status: <b>{{ institution.get_vat_status_display }}</b>{% if institution.vat_number %} · VAT no. {{ institution.vat_number }}{% endif %}{% if institution.bp_number %} · BP {{ institution.bp_number }}{% endif %}</p>
+{% endif %}
+<form method="get" class="inline">
+<label>From <input type="date" name="from" value="{{ raw_from }}"></label>
+<label>To <input type="date" name="to" value="{{ raw_to }}"></label>
+<button class="btn">Apply</button>
+<a class="btn ghost" href="{% url 'vat_summary' %}">All time</a>
+</form>
+<div class="stats">
+<div><b>{{ CUR }}{{ output_vat }}</b>Output VAT</div>
+<div><b>{{ CUR }}{{ input_vat }}</b>Input VAT</div>
+<div><b>{{ CUR }}{{ net_vat }}</b>Net VAT payable</div>
+</div>
+
+<h2>Output VAT (sales)</h2>
+<table class="tbl"><tr><th>Document</th><th>Date</th><th>Party</th><th class="r">Net</th><th class="r">Rate</th><th class="r">VAT</th></tr>
+{% for r in output_rows %}<tr><td>{{ r.document }}</td><td>{{ r.date }}</td><td>{{ r.party }}</td>
+<td class="r">{{ CUR }}{{ r.net }}</td><td class="r">{{ r.rate }}%</td><td class="r">{{ CUR }}{{ r.vat }}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted">No output VAT in this period.</td></tr>{% endfor %}
+<tr><td colspan="5" class="r"><b>Total output VAT</b></td><td class="r"><b>{{ CUR }}{{ output_vat }}</b></td></tr></table>
+
+<h2>Input VAT (purchases)</h2>
+<table class="tbl"><tr><th>Document</th><th>Date</th><th>Supplier</th><th class="r">Net</th><th class="r">Rate</th><th class="r">VAT</th></tr>
+{% for r in input_rows %}<tr><td>{{ r.document }}</td><td>{{ r.date }}</td><td>{{ r.party }}</td>
+<td class="r">{{ CUR }}{{ r.net }}</td><td class="r">{{ r.rate }}%</td><td class="r">{{ CUR }}{{ r.vat }}</td></tr>
+{% empty %}<tr><td colspan="6" class="muted">No input VAT in this period.</td></tr>{% endfor %}
+<tr><td colspan="5" class="r"><b>Total input VAT</b></td><td class="r"><b>{{ CUR }}{{ input_vat }}</b></td></tr></table>
+{% endblock %}

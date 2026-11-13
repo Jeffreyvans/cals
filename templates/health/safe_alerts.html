@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'health:hub' %}">{{ module_title }}</a></p>
+<div class="head"><div><h1>Teacher-safe health alerts</h1>
+<p class="muted">Only the notes a nurse has cleared to share with teachers.</p></div></div>
+
+{% if profiles %}
+<div style="overflow-x:auto">
+<table class="tbl">
+  <tr><th>Student</th><th>Class</th><th>Note</th><th>Emergency contact</th></tr>
+  {% for profile in profiles %}
+  <tr>
+    <td>{{ profile.student }}</td>
+    <td>{{ profile.student.school_class|default:"-" }}</td>
+    <td>{{ profile.teacher_note|default:"-" }}</td>
+    <td>{{ profile.emergency_contact|default:"-" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No health notes have been shared with teachers.</p>
+{% endif %}
+{% endblock %}

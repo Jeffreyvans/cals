@@ -17,11 +17,32 @@
         <option value="{{ key }}">{{ spec.label }}</option>
       {% endfor %}
     </select></label></p>
+  <p><label>How new users get access
+    <select name="access_mode">
+      <option value="invitation">Send invitation email (single-use link, 72 hours)</option>
+      <option value="temporary_password">Create a temporary password for each person (shown once)</option>
+    </select>
+    <span class="helptext">Only used by the staff and student imports. A person without an email always gets a temporary password.</span></label></p>
   <p><label>File
     <input type="file" name="file" accept=".csv,.xlsx,.xlsm" required>
     <span class="helptext">5 MB at the most. The first row holds the column names.</span></label></p>
   <div class="row"><button class="btn">Upload and check the columns</button></div>
 </form>
+
+<h3>Start from a template</h3>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Import</th><th>Template</th></tr></thead>
+  <tbody>
+  {% for key, spec in kinds %}
+    <tr>
+      <td>{{ spec.label }}</td>
+      <td><a href="{% url 'import_template' key %}">Download the {{ spec.label|lower }} template</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
 
 <h3>How an import works</h3>
 <ol class="steps">

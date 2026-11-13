@@ -1,0 +1,13 @@
+<div class="public-wrap">
+  <p class="muted">{{ INSTITUTION }}</p>
+  <h1>Apply for a place</h1>
+  <p class="muted">Complete this form and we will send you a private link to follow your application. No account is needed.</p>
+  {% if rate_limited %}<div class="msg error">Too many applications have been sent from this address. Please try again later.</div>{% endif %}
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.as_p }}
+    <button class="btn">Send application</button>
+  </form>
+  <p class="muted">Already applied? Use the private link in your acknowledgement email.</p>
+</div>

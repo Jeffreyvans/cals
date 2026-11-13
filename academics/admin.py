@@ -5,7 +5,7 @@ from core.admin import TenantAdminMixin, TenantModelAdmin
 from . import models as m
 
 for model in (m.Programme, m.Course, m.Enrollment, m.Activity, m.Attendance,
-              m.Announcement):
+              m.Announcement, m.CalendarEvent):
     admin.site.register(model, TenantModelAdmin)
 
 

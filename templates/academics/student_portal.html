@@ -3,19 +3,42 @@
 <div class="bal {% if s.balance > 0 %}owing{% else %}clear{% endif %}"><small>You owe</small><b>{{ CUR }}{{ s.balance }}</b><small>Paid {{ CUR }}{{ s.total_paid }} of {{ CUR }}{{ s.total_billed }}{% if s.total_waived %} · {{ CUR }}{{ s.total_waived }} waived{% endif %}</small></div></div>
 
 <h2>My timetable</h2>
+<p><a class="btn ghost" href="{% url 'my_student_timetable_pdf' %}">Printable timetable PDF</a></p>
 <table class="tbl"><tr><th>Day</th><th>Time</th><th>Lesson</th><th>Teacher</th><th>Venue</th></tr>
 {% for t in timetable %}<tr><td>{{ t.get_day_display }}</td><td>{{ t.start_time|time:"H:i" }} – {{ t.end_time|time:"H:i" }}</td><td>{{ t.title }}</td><td>{{ t.lecturer.get_full_name|default:t.lecturer.username }}</td><td>{{ t.venue|default:"—" }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">No lessons on your timetable yet. Ask your lecturer or the registrar.</td></tr>{% endfor %}</table>
 
 <h2>My courses and results</h2><table class="tbl"><tr><th>Course or subject</th><th>Term</th><th>Mark</th><th>Grade</th></tr>
 {% for e in enrollments %}<tr><td>{{ e.label }}</td><td>{{ e.term }}</td><td>{% if e.result_state == 'shown' %}{{ e.mark|default_if_none:"—" }}{% else %}{{ e.result_note }}{% endif %}</td><td>{% if e.result_state == 'shown' %}{{ e.grade }}{% else %}—{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No courses yet. Ask your lecturer or the registrar to enrol you.</td></tr>{% endfor %}</table>
-<p><a class="btn ghost" href="{% url 'my_registration' %}">Register for courses</a> <a class="btn ghost" href="{% url 'my_report' %}">Open my report card</a> <a class="btn ghost" href="{% url 'my_exam_card' %}">My exam card</a></p>
+<p><a class="btn ghost" href="{% url 'my_registration' %}">Register for courses</a> <a class="btn ghost" href="{% url 'my_report' %}">Open my report card</a> <a class="btn ghost" href="{% url 'my_report_pdf' %}">Report card PDF</a> <a class="btn ghost" href="{% url 'my_transcript_pdf' %}">Transcript PDF</a> <a class="btn ghost" href="{% url 'my_exam_card' %}">My exam card</a> <a class="btn ghost" href="{% url 'admissions:my_id_card_pdf' %}">Download my ID card</a></p>
 
 <h2>My attendance</h2><table class="tbl"><tr><th>Term</th><th class="r">Sessions</th><th class="r">Present</th><th class="r">Rate</th></tr>
 {% for term, sessions, present, pct in attendance %}<tr><td>{{ term }}</td><td class="r">{{ sessions }}</td><td class="r">{{ present }}</td><td class="r">{% if pct %}{{ pct }}%{% else %}—{% endif %}</td></tr>
 {% empty %}<tr><td colspan="4" class="muted">No attendance recorded yet. Your teacher records it in class.</td></tr>{% endfor %}</table>
+{% if absences %}
+<h3>Recent absences</h3>
+<table class="tbl"><tr><th>Date</th><th>Lesson</th><th>Status</th><th>Reason</th></tr>
+{% for a in absences %}<tr><td>{{ a.date|date:"d M Y" }}</td><td>{{ a.enrollment.label }}</td><td>{{ a.get_status_display }}</td><td>{{ a.reason|default:"—" }}</td></tr>{% endfor %}</table>
+{% endif %}
 
-<h2>Payments</h2><table class="tbl"><tr><th>Invoice</th><th class="r">Balance</th><th>Receipts</th></tr>
-{% for i in invoices %}<tr><td>{{ i.description }}</td><td class="r">{{ i.balance }}{% if i.waived %} <span class="muted">({{ CUR }}{{ i.waived }} waived)</span>{% endif %}</td><td>{% for p in i.payments.all %}<a href="{% url 'receipt' p.pk %}">{{ p.receipt_no }}</a> {% endfor %}</td></tr>{% empty %}<tr><td colspan="3" class="muted">No invoices yet.</td></tr>{% endfor %}</table>
+<h2>Payments</h2><table class="tbl"><tr><th>Invoice</th><th class="r">Balance</th><th>Receipts</th><th></th></tr>
+{% for i in invoices %}<tr><td>{{ i.description }}</td><td class="r">{{ i.balance }}{% if i.waived %} <span class="muted">({{ CUR }}{{ i.waived }} waived)</span>{% endif %}</td><td>{% for p in i.payments.all %}<a href="{% url 'receipt' p.pk %}">{{ p.receipt_no }}</a> {% endfor %}</td><td>{% if finance_on and i.balance > 0 %}<a class="btn ghost" href="{% url 'pay_online' i.pk %}">Pay online</a>{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="muted">No invoices yet.</td></tr>{% endfor %}</table>
+
+<h2>My assignments</h2>
+<table class="tbl"><tr><th>Assignment</th><th class="r">Due</th><th>Status</th><th></th></tr>
+{% for row in assignment_rows %}
+<tr>
+  <td>{{ row.activity.title }}{% if row.activity.course %} <span class="muted">({{ row.activity.course.name }})</span>{% endif %}{% if row.activity.subject %} <span class="muted">({{ row.activity.subject.name }})</span>{% endif %}</td>
+  <td class="r">{{ row.activity.due_date|date:"d M Y"|default:"—" }}</td>
+  <td>{% if row.submission %}<span class="badge">Submitted</span>{% else %}<span class="muted">Pending</span>{% endif %}</td>
+  <td><a class="btn ghost" href="{% url 'assignment_submit' row.activity.pk %}">{% if row.submission %}Resubmit{% else %}Submit{% endif %}</a></td>
+</tr>
+{% empty %}<tr><td colspan="4" class="muted">No assignments yet. Your lecturers will add them here.</td></tr>{% endfor %}
+</table>
 
 <h2>Activities</h2>{% for a in activities %}<div class="card"><b>{{ a.title }}</b> <span class="muted">{{ a.get_kind_display }} · {{ a.date }}</span></div>{% empty %}<p class="muted">Nothing recorded yet.</p>{% endfor %}
+<h2>Coming up</h2>
+<ul class="event-list">
+{% for e in events %}<li><b>{{ e.starts_on|date:"d M Y" }}</b> · {{ e.title }} <span class="muted">{{ e.get_kind_display }}{% if e.detail %} · {{ e.detail }}{% endif %}</span></li>
+{% empty %}<li class="muted">No upcoming events.</li>{% endfor %}
+</ul>
 <h2>Notices</h2>{% for a in announcements %}<div class="card"><b>{{ a.title }}</b><p>{{ a.body }}</p></div>{% empty %}<p class="muted">No notices yet.</p>{% endfor %}{% endblock %}

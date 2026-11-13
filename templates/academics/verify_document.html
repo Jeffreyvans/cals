@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Verify document · {{ INSTITUTION }}{% endblock %}{% block bare %}
+<div class="public-wrap">
+  <p class="muted">{{ INSTITUTION }}</p>
+  <div class="card">
+    <h1>Document verified</h1>
+    <p class="msg success">This is a genuine {{ document.get_kind_display|lower }} issued by {{ document.institution.name }}.</p>
+    <table class="tbl">
+      <tr><th>Document</th><td>{{ document.get_kind_display }}</td></tr>
+      <tr><th>Student</th><td>{{ document.student.name }}</td></tr>
+      <tr><th>Student number</th><td>{{ document.student.student_no }}</td></tr>
+      <tr><th>Issued</th><td>{{ document.issued_at|date:"j F Y" }}</td></tr>
+      {% if document.issued_by %}<tr><th>Issued by</th><td>{{ document.issued_by.get_full_name|default:document.issued_by.username }}</td></tr>{% endif %}
+    </table>
+  </div>
+  <p class="muted">Verification confirms that this document was issued by the institution. It does not display marks or financial information.</p>
+</div>
+{% endblock %}

@@ -314,7 +314,7 @@ def seed_demo(institution, prefix="", mode=None, set_password=True,
                 for i, present in enumerate(pattern):
                     Attendance.objects.get_or_create(
                         enrollment=enrollment, date=date.today() - timedelta(days=8 - i),
-                        defaults={"present": present})
+                        defaults={"status": "present" if present else "absent"})
 
         ExamSitting.enter(term1, Student.objects.filter(status="active"))
         ExamSitting.objects.filter(term=term1).update(venue="Hall A")

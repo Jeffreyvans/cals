@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:assignment_detail' assignment.pk %}">Back to {{ assignment.title }}</a></p>
+<h1>Grade {{ submission.student.name }}</h1>
+<p class="muted">Submitted {{ submission.submitted_at|date:"d M Y H:i" }}{% if submission.is_late %} &middot; late{% endif %}</p>
+{% if submission.text %}<div class="card">{{ submission.text|linebreaks }}</div>{% endif %}
+{% if submission.file %}<p><a href="{{ submission.file.url }}">Download submission</a></p>{% endif %}
+
+<form method="post" class="card">{% csrf_token %}
+{{ form.as_p }}
+{% if rubric %}
+<h2>{{ rubric.title }}</h2>
+{% for criterion in criteria %}
+<p><label>{{ criterion.description }} <span class="muted">(max {{ criterion.max_points }})</span>
+<input type="number" step="0.01" min="0" max="{{ criterion.max_points }}" name="criterion_{{ criterion.pk }}" value="{{ criterion.saved_score.points|default_if_none:'' }}"></label></p>
+{% endfor %}
+{% endif %}
+<button class="btn">Save grade</button>
+</form>
+{% endblock %}

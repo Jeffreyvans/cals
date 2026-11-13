@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lms:forum_detail' forum.pk %}">Back to {{ forum.title }}</a></p>
+<div class="head"><div><h1>{{ thread.title }}</h1>
+<p class="muted">Started by {{ thread.author.get_full_name|default:thread.author.username }} on {{ thread.created|date:"d M Y H:i" }}</p></div>
+{% if manage %}
+<form method="post" action="{% url 'lms:thread_moderate' thread.pk %}">{% csrf_token %}
+<button class="btn ghost" name="action" value="pin">{% if thread.is_pinned %}Unpin{% else %}Pin{% endif %}</button>
+<button class="btn ghost" name="action" value="lock">{% if thread.is_locked %}Unlock{% else %}Lock{% endif %}</button>
+<button class="btn ghost" name="action" value="approve">{% if thread.is_approved %}Hide{% else %}Approve{% endif %}</button>
+</form>
+{% endif %}</div>
+<div class="card">{{ thread.body|linebreaks }}</div>
+
+<h2>Replies</h2>
+{% for post in posts %}
+<div class="card"><b>{{ post.author.get_full_name|default:post.author.username }}</b> <span class="muted">{{ post.created|date:"d M Y H:i" }}</span>
+{% if post.is_flagged %}<span class="badge">Flagged</span>{% endif %}
+<p>{{ post.body|linebreaksbr }}</p>
+{% if manage %}<form method="post" action="{% url 'lms:post_moderate' post.pk %}">{% csrf_token %}
+<button class="btn ghost" name="action" value="approve">{% if post.is_approved %}Hide{% else %}Approve{% endif %}</button>
+<button class="btn ghost" name="action" value="flag">{% if post.is_flagged %}Unflag{% else %}Flag{% endif %}</button>
+</form>{% endif %}</div>
+{% empty %}<p class="muted">No replies yet.</p>{% endfor %}
+
+{% if not thread.is_locked or manage %}
+<h2>Reply</h2>
+<form method="post" class="card" action="{% url 'lms:post_create' thread.pk %}">{% csrf_token %}
+{{ post_form.as_p }}
+<button class="btn">Post reply</button>
+</form>
+{% else %}<p class="muted">This discussion is locked.</p>{% endif %}
+{% endblock %}

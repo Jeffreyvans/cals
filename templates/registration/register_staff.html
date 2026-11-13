@@ -1,0 +1,62 @@
+{% extends "public_base.html" %}
+{% block title %}Staff registration — EduSphere{% endblock %}
+{% block description %}Request a staff account at your institution. An administrator reviews every request.{% endblock %}
+{% block content %}
+<div class="page-shell">
+  <div class="page-title">
+    <a class="back-link" href="{% url 'register_choice' %}">&larr; Choose another path</a>
+    <h1>Request a staff account</h1>
+    <p>An administrator at your institution reviews every request. Your account stays inactive until it is approved, and you will be emailed when there is a decision.</p>
+  </div>
+
+  {% if rate_limited %}
+    <div class="panel">
+      <div class="alert alert-error" role="alert">Too many requests from this connection. Please wait an hour and try again.</div>
+    </div>
+  {% else %}
+    <div class="panel">
+      <h2>Your details</h2>
+      <p class="sub">Use your work email address. Choose a position from the list your institution accepts.</p>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert" style="margin-top: 1rem;">{{ form.non_field_errors|striptags }}</div>
+      {% endif %}
+
+      {% if not has_institutions and not institution %}
+        <div class="alert" role="status" style="margin-top: 1rem;">No institution is open for public registration yet. Ask your administrator when staff requests will open.</div>
+      {% else %}
+        {{ position_map|json_script:"position-map" }}
+        <form method="post" class="form-stack" novalidate data-position-form>
+          {% csrf_token %}
+          <div class="form-grid">
+            <div class="full">{% include "registration/_field.html" with field=form.institution %}</div>
+            {% include "registration/_field.html" with field=form.full_name %}
+            {% include "registration/_field.html" with field=form.email %}
+            {% include "registration/_field.html" with field=form.phone %}
+            {% include "registration/_field.html" with field=form.position %}
+            {% include "registration/_field.html" with field=form.department %}
+            {% include "registration/_field.html" with field=form.staff_no %}
+            {% include "registration/_field.html" with field=form.username %}
+            {% include "registration/_field.html" with field=form.password %}
+            <div class="full">{% include "registration/_field.html" with field=form.message %}</div>
+          </div>
+          {{ form.website }}
+          <div>
+            <button class="btn" type="submit">Send my request</button>
+          </div>
+        </form>
+      {% endif %}
+    </div>
+
+    <div class="panel">
+      <h2>What happens next</h2>
+      <ul class="steps-mini">
+        <li>An administrator sees your request in their inbox and on the registration requests page.</li>
+        <li>They may approve you for the position you chose, approve a different position, or reject the request with a reason.</li>
+        <li>You get an email when the decision is made. Only then can you sign in.</li>
+      </ul>
+      <p class="sub" style="margin-top: 1rem;">Administrator, principal and other leadership roles are never available on the public form. Those are appointed inside the institution.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

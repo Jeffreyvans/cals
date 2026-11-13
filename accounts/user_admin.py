@@ -1,0 +1,841 @@
+"""Administrator account management: create, invite, reset and deactivate.
+
+The public registration path creates requests. This module is the other path:
+an administrator (or somebody the administrator has given permission to) adds a
+person directly. Every write is tenant-scoped and audited, and an account is
+never given a role above the role of the person doing the adding.
+"""
+
+from __future__ import annotations
+
+import re
+import secrets
+import string
+from dataclasses import dataclass
+from datetime import timedelta
+
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.db.models import Q
+from django.urls import reverse
+from django.utils import timezone
+
+from core.audit import log_action
+from core.models import Department, Role, StaffProfile
+from core.notifications import queue_message, render_email_html, send_message
+from core.roles import LEGACY_ROLE_MAP
+from core.tenancy import use_institution
+
+from .models import User, UserInvitation
+from .validators import validate_strong_password
+
+ACTION_RATE_LIMIT = 30
+ACTION_RATE_WINDOW = 60 * 60
+
+PASSWORD_ALPHABET = string.ascii_letters + string.digits + "!@#$%&*+-?"
+
+
+@dataclass
+class ProvisionedAccount:
+    user: User
+    access_mode: str
+    password: str = ""
+    invitation: UserInvitation | None = None
+
+
+# ---------- capabilities ----------
+
+
+def role_code_for(user):
+    """The data role of a user, falling back to the legacy role column."""
+    primary = getattr(user, "primary_role", None)
+    if primary is not None:
+        return primary.code
+    return LEGACY_ROLE_MAP.get(getattr(user, "role", ""), "")
+
+
+def is_institution_admin(user):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return bool(
+        getattr(user, "is_superuser", False)
+        or getattr(user, "role", "") == User.Role.ADMIN
+        or role_code_for(user) == "institution_admin"
+    )
+
+
+def can_manage_users(user):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return is_institution_admin(user) or user.has_code("admin.manage_users")
+
+
+def can_add_staff(user):
+    """Administrators, and an HR officer who has been given the permission."""
+    if is_institution_admin(user):
+        return True
+    return bool(
+        can_manage_users(user)
+        and role_code_for(user) in ("hr_officer", "institution_admin")
+    )
+
+
+def can_add_student(user):
+    """Administrators, registrars and anybody with the student-create right."""
+    if is_institution_admin(user):
+        return True
+    if role_code_for(user) == "registrar":
+        return True
+    return user.has_code("students.create")
+
+
+def can_manage_staff_records(user):
+    return is_institution_admin(user) or can_add_staff(user)
+
+
+# ---------- role safety ----------
+
+
+def legacy_role_for(role):
+    """The legacy ``User.role`` value that matches a data role."""
+    if role is None:
+        return User.Role.STAFF
+    if role.code == "institution_admin":
+        return User.Role.ADMIN
+    for legacy, code in LEGACY_ROLE_MAP.items():
+        if code == role.code:
+            if legacy == "accountant":
+                return User.Role.ACCOUNTANT
+            return legacy
+    return User.Role.STAFF
+
+
+def _role_permission_codes(role):
+    return set(
+        role.role_permissions.values_list("permission__code", flat=True)
+    )
+
+
+def assignable_roles(user):
+    """Roles this person may give somebody else.
+
+    Nobody can grant a role with a permission they do not hold themselves, and
+    only an institution administrator can create another administrator.
+    """
+    if not can_manage_users(user):
+        return Role.all_objects.none()
+    roles = Role.all_objects.filter(institution=user.institution_id).order_by("name")
+    if is_institution_admin(user):
+        return roles
+    mine = set(user.permission_codes())
+    safe_ids = []
+    for role in roles.exclude(code="institution_admin"):
+        if _role_permission_codes(role) <= mine:
+            safe_ids.append(role.pk)
+    return roles.filter(pk__in=safe_ids)
+
+
+def check_role_allowed(actor, role):
+    if role is None:
+        raise ValidationError("Choose a role for this account.")
+    if role.institution_id != getattr(actor, "institution_id", None):
+        raise ValidationError("Choose a role from this institution.")
+    if role.code == "institution_admin" and not is_institution_admin(actor):
+        raise ValidationError("Only an institution administrator can create another administrator.")
+    if not is_institution_admin(actor):
+        mine = set(actor.permission_codes())
+        if not _role_permission_codes(role) <= mine:
+            raise ValidationError(
+                "You cannot grant a role with more permissions than your own."
+            )
+
+
+# ---------- names, usernames and passwords ----------
+
+
+def normalize_username(value):
+    return re.sub(r"[^a-zA-Z0-9._-]", "", str(value or "").strip())[:30]
+
+
+def unique_username(base, email=""):
+    base = normalize_username(base)
+    if not base and email:
+        base = normalize_username(email.split("@")[0])
+    base = base or "user"
+    candidate = base[:30]
+    suffix = 0
+    while User.objects.filter(username__iexact=candidate).exists():
+        suffix += 1
+        candidate = f"{base[:25]}{suffix}"
+    return candidate
+
+
+def normalized_email(value):
+    return str(value or "").strip().lower()
+
+
+def generate_temporary_password(length=14):
+    """A strong one-time password that is easy to read out loud."""
+    required = (
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.digits),
+        secrets.choice("!@#$%&*+-?"),
+    )
+    rest = [secrets.choice(PASSWORD_ALPHABET) for _ in range(max(4, length - 4))]
+    characters = list(required) + rest
+    secrets.SystemRandom().shuffle(characters)
+    return "".join(characters)
+
+
+def action_rate_limited(actor, scope, limit=ACTION_RATE_LIMIT, window=ACTION_RATE_WINDOW):
+    return cache.get(_rate_key(actor, scope), 0) >= limit
+
+
+def record_action(actor, scope, window=ACTION_RATE_WINDOW):
+    key = _rate_key(actor, scope)
+    cache.set(key, cache.get(key, 0) + 1, window)
+
+
+def _rate_key(actor, scope):
+    return f"edusphere.useradmin.{scope}.{getattr(actor, 'pk', 'anon')}"
+
+
+# ---------- email ----------
+
+
+def _send_email(user, subject, body, related_object=None, html_body=""):
+    if not user.email:
+        return None
+    message = queue_message(
+        "email",
+        user.email,
+        body,
+        subject=subject,
+        institution=user.institution,
+        related_object=related_object or user,
+        html_body=html_body,
+    )
+    send_message(message)
+    return message
+
+
+def _invitation_link(invitation, request=None):
+    path = reverse("accept_invitation", args=[invitation.token])
+    if request is not None:
+        return request.build_absolute_uri(path)
+    return path
+
+
+def _invitation_body(user, invitation, request=None):
+    institution = user.institution
+    return (
+        f"Hello {user.get_full_name() or user.username},\n\n"
+        f"{institution.name} has created an account for you on EduSphere.\n\n"
+        f"Username: {user.username}\n"
+        f"Choose your password here: {_invitation_link(invitation, request)}\n\n"
+        "The link can be used once and expires in 72 hours. If it expires, "
+        "ask the institution to send a new invitation.\n"
+    )
+
+
+def _invitation_html(user, invitation, request=None):
+    return render_email_html(
+        "emails/invitation.html",
+        {
+            "user": user,
+            "institution": user.institution,
+            "link": _invitation_link(invitation, request),
+        },
+    )
+
+
+def create_invitation(user, actor=None, request=None, send=True):
+    """Create a fresh invitation and email it. Previous open links are closed."""
+    UserInvitation.objects.filter(user=user, used_at__isnull=True).update(
+        used_at=timezone.now()
+    )
+    invitation = UserInvitation.objects.create(
+        user=user,
+        invited_by=actor if getattr(actor, "is_authenticated", False) else None,
+        expires_at=timezone.now() + timedelta(hours=UserInvitation.LIFETIME_HOURS),
+    )
+    if send:
+        _send_email(
+            user,
+            f"Your {user.institution.name} account",
+            _invitation_body(user, invitation, request),
+            related_object=invitation,
+            html_body=_invitation_html(user, invitation, request),
+        )
+    return invitation
+
+
+def send_account_created_notice(user):
+    if not user.email:
+        return None
+    return _send_email(
+        user,
+        f"Your {user.institution.name} account has been created",
+        (
+            f"Hello {user.get_full_name() or user.username},\n\n"
+            f"An account has been created for you at {user.institution.name}.\n"
+            f"Username: {user.username}\n\n"
+            "If you were given a temporary password, sign in and change it. "
+            "If not, use the invitation link that was sent separately.\n"
+        ),
+    )
+
+
+def send_role_changed_notice(user, role):
+    return _send_email(
+        user,
+        f"Your role at {user.institution.name} has changed",
+        (
+            f"Hello {user.get_full_name() or user.username},\n\n"
+            f"Your role is now {role.name}. The change applies the next time "
+            "you open a page.\n"
+        ),
+    )
+
+
+def send_password_reset_notice(user):
+    return _send_email(
+        user,
+        f"Your {user.institution.name} password was reset",
+        (
+            f"Hello {user.get_full_name() or user.username},\n\n"
+            "An administrator reset your password. Sign in with the temporary "
+            "password you were given and choose a new one.\n\n"
+            "If you did not expect this, contact the institution.\n"
+        ),
+    )
+
+
+# ---------- creating an account ----------
+
+
+@transaction.atomic
+def provision_user(
+    institution,
+    *,
+    first_name,
+    last_name,
+    email="",
+    phone="",
+    username="",
+    role=None,
+    access_mode="invitation",
+    actor=None,
+    request=None,
+):
+    """Create a login in one of the two access modes.
+
+    Invitation: an unusable password plus a one-time 72-hour link.
+    Temporary password: a strong random password shown once to the administrator
+    and a forced change at the next sign-in.
+
+    An invitation to a person without an email falls back to a temporary
+    password, because there is nowhere to send the link.
+    """
+    email = normalized_email(email)
+    if not username:
+        # Prefer the email local part, then the first name, so a student added
+        # without an email still gets a recognisable login.
+        username = email.split("@")[0] if email else str(first_name or "").strip().lower()
+    username = unique_username(username, email)
+    role = role or Role.all_objects.filter(
+        institution=institution, code="lecturer"
+    ).first()
+
+    if access_mode not in ("invitation", "temporary_password"):
+        raise ValidationError("Choose how the new user gets access.")
+    if access_mode == "invitation" and not email:
+        access_mode = "temporary_password"
+
+    if email and User.objects.filter(
+        institution=institution, email__iexact=email, is_active=True
+    ).exists():
+        raise ValidationError(
+            "An account at this institution already uses that email address."
+        )
+
+    user = User(
+        username=username,
+        email=email,
+        first_name=str(first_name or "").strip()[:150],
+        last_name=str(last_name or "").strip()[:150],
+        phone=str(phone or "").strip()[:30],
+        role=legacy_role_for(role),
+        primary_role=role,
+        institution=institution,
+        is_active=True,
+        must_change_password=access_mode == "temporary_password",
+    )
+
+    password = ""
+    invitation = None
+    if access_mode == "temporary_password":
+        password = generate_temporary_password()
+        user.set_password(password)
+    else:
+        user.set_unusable_password()
+
+    user.save()
+
+    if access_mode == "invitation":
+        invitation = create_invitation(user, actor=actor, request=request)
+    elif email:
+        send_account_created_notice(user)
+
+    log_action(
+        actor,
+        "user.created",
+        instance=user,
+        request=request,
+        after={
+            "username": user.username,
+            "role": getattr(role, "code", ""),
+            "access_mode": access_mode,
+        },
+    )
+    return ProvisionedAccount(
+        user=user,
+        access_mode=access_mode,
+        password=password,
+        invitation=invitation,
+    )
+
+
+@transaction.atomic
+def add_staff_member(
+    institution,
+    *,
+    full_name,
+    email,
+    phone="",
+    role,
+    departments=(),
+    job_title="",
+    staff_no="",
+    start_date=None,
+    access_mode="invitation",
+    actor=None,
+    request=None,
+):
+    """Create the login, staff profile and role assignment together."""
+    actor_institution = getattr(actor, "institution_id", None)
+    if actor_institution is not None and actor_institution != institution.pk:
+        raise ValidationError("You cannot add staff to another institution.")
+    check_role_allowed(actor, role)
+    full_name = " ".join(str(full_name or "").split())
+    if not full_name:
+        raise ValidationError("Enter the person's full name.")
+    email = normalized_email(email)
+    if not email:
+        raise ValidationError("Enter an email address, or use a temporary password.")
+
+    department_ids = [d.pk for d in departments if d is not None]
+    for department in Department.all_objects.filter(pk__in=department_ids):
+        if department.institution_id != institution.pk:
+            raise ValidationError("Choose departments from this institution.")
+
+    first_name, _, last_name = full_name.partition(" ")
+    with use_institution(institution):
+        account = provision_user(
+            institution,
+            first_name=first_name,
+            last_name=last_name or first_name,
+            email=email,
+            phone=phone,
+            role=role,
+            access_mode=access_mode,
+            actor=actor,
+            request=request,
+        )
+        profile = StaffProfile.objects.create(
+            institution=institution,
+            user=account.user,
+            employee_no=str(staff_no or "").strip()[:30],
+            job_title=str(job_title or "").strip()[:120],
+            phone=str(phone or "").strip()[:30],
+            date_joined=start_date,
+        )
+        if department_ids:
+            profile.departments.set(
+                Department.all_objects.filter(
+                    institution=institution, pk__in=department_ids
+                )
+            )
+        log_action(
+            actor,
+            "staff.created",
+            instance=profile,
+            request=request,
+            after={"user": account.user.pk, "employee_no": profile.employee_no},
+        )
+        return account
+
+
+# ---------- changing accounts ----------
+
+
+def _is_admin_account(user):
+    return user.role == User.Role.ADMIN or role_code_for(user) == "institution_admin"
+
+
+def active_administrators(institution, exclude=None):
+    # Use the unfiltered manager: this check may run on a system path where the
+    # current institution has not been set, and a missed administrator would
+    # let the last admin be deactivated.
+    queryset = User.objects.filter(
+        institution=institution,
+        is_active=True,
+    ).filter(
+        Q(role=User.Role.ADMIN) | Q(primary_role__code="institution_admin")
+    )
+    if exclude is not None:
+        queryset = queryset.exclude(pk=exclude.pk)
+    return queryset
+
+
+def ensure_not_last_administrator(user):
+    if not _is_admin_account(user):
+        return
+    if not active_administrators(user.institution, exclude=user).exists():
+        raise ValidationError(
+            "This is the last active administrator. Add another administrator first."
+        )
+
+
+@transaction.atomic
+def update_user(user, *, first_name, last_name, email, phone, actor=None, request=None):
+    if user.institution_id != getattr(actor, "institution_id", None):
+        raise ValidationError("That account belongs to another institution.")
+    email = normalized_email(email)
+    if email and User.objects.filter(
+        institution=user.institution, email__iexact=email, is_active=True
+    ).exclude(pk=user.pk).exists():
+        raise ValidationError("Another account already uses that email address.")
+    before = {
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "phone": user.phone,
+    }
+    user.first_name = str(first_name or "").strip()[:150]
+    user.last_name = str(last_name or "").strip()[:150]
+    user.email = email
+    user.phone = str(phone or "").strip()[:30]
+    user.save(update_fields=["first_name", "last_name", "email", "phone"])
+    log_action(actor, "user.updated", instance=user, before=before, request=request,
+               after={"first_name": user.first_name, "last_name": user.last_name,
+                      "email": user.email, "phone": user.phone})
+    return user
+
+
+def _same_institution(actor, user):
+    """True when the actor may act on this account.
+
+    Services are also called by admissions and by the import runner, where the
+    actor is always set. A system call without an actor is allowed; a real
+    actor is never allowed to reach another institution's rows.
+    """
+    actor_institution = getattr(actor, "institution_id", None)
+    if actor_institution is None:
+        return True
+    return user.institution_id == actor_institution
+
+
+@transaction.atomic
+def change_user_role(user, role, actor=None, request=None):
+    if not _same_institution(actor, user):
+        raise ValidationError("That account belongs to another institution.")
+    check_role_allowed(actor, role)
+    if (
+        user.pk == getattr(actor, "pk", None)
+        and _is_admin_account(user)
+        and role.code != "institution_admin"
+    ):
+        raise ValidationError("You cannot remove your own administrator role.")
+    was_admin = _is_admin_account(user)
+    will_be_admin = role.code == "institution_admin"
+    if was_admin and not will_be_admin:
+        ensure_not_last_administrator(user)
+    before = {"role": getattr(user.primary_role, "code", "") or user.role}
+    user.primary_role = role
+    user.role = legacy_role_for(role)
+    user.save(update_fields=["primary_role", "role"])
+    log_action(
+        actor,
+        "user.role_changed",
+        instance=user,
+        before=before,
+        after={"role": role.code},
+        request=request,
+    )
+    send_role_changed_notice(user, role)
+    return user
+
+
+@transaction.atomic
+def deactivate_user(user, actor=None, request=None, reason=""):
+    if not _same_institution(actor, user):
+        raise ValidationError("That account belongs to another institution.")
+    if user.pk == getattr(actor, "pk", None):
+        raise ValidationError("You cannot deactivate your own account.")
+    ensure_not_last_administrator(user)
+    if not user.is_active:
+        return user
+    user.is_active = False
+    user.deactivated_at = timezone.now()
+    UserInvitation.objects.filter(user=user, used_at__isnull=True).update(
+        used_at=timezone.now()
+    )
+    user.save(update_fields=["is_active", "deactivated_at"])
+    log_action(
+        actor,
+        "user.deactivated",
+        instance=user,
+        after={"reason": str(reason or "")[:500]},
+        request=request,
+    )
+    return user
+
+
+@transaction.atomic
+def reactivate_user(user, actor=None, request=None):
+    if not _same_institution(actor, user):
+        raise ValidationError("That account belongs to another institution.")
+    user.is_active = True
+    user.deactivated_at = None
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.save(update_fields=["is_active", "deactivated_at", "failed_login_count", "locked_until"])
+    log_action(actor, "user.reactivated", instance=user, request=request)
+    return user
+
+
+@transaction.atomic
+def unlock_user(user, actor=None, request=None):
+    if not _same_institution(actor, user):
+        raise ValidationError("That account belongs to another institution.")
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.save(update_fields=["failed_login_count", "locked_until"])
+    log_action(actor, "user.unlocked", instance=user, request=request)
+    return user
+
+
+@transaction.atomic
+def reset_password(user, actor=None, request=None):
+    """Set a one-time password, force a change and return it to the caller."""
+    if not _same_institution(actor, user):
+        raise ValidationError("That account belongs to another institution.")
+    if action_rate_limited(actor, "reset"):
+        raise ValidationError("Too many password resets. Wait a few minutes and try again.")
+    password = generate_temporary_password()
+    user.set_password(password)
+    user.must_change_password = True
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.save(update_fields=["password", "must_change_password",
+                             "failed_login_count", "locked_until"])
+    record_action(actor, "reset")
+    log_action(actor, "user.password_reset", instance=user, request=request)
+    send_password_reset_notice(user)
+    return password
+
+
+@transaction.atomic
+def resend_invitation(user, actor=None, request=None):
+    if not _same_institution(actor, user):
+        raise ValidationError("That account belongs to another institution.")
+    if action_rate_limited(actor, "invite"):
+        raise ValidationError("Too many invitations. Wait a few minutes and try again.")
+    if not user.email:
+        raise ValidationError("This account has no email address. Use a temporary password.")
+    invitation = create_invitation(user, actor=actor, request=request)
+    record_action(actor, "invite")
+    log_action(actor, "user.invitation_resent", instance=user, request=request)
+    return invitation
+
+
+@transaction.atomic
+def accept_invitation(invitation, password, request=None):
+    """Set the password for a valid invitation. Returns the user."""
+    if not invitation.is_open:
+        raise ValidationError("This invitation has already been used or has expired.")
+    try:
+        validate_strong_password(password, username=invitation.user.username,
+                                 email=invitation.user.email)
+    except ValidationError as exc:
+        raise ValidationError(exc.messages) from exc
+    user = invitation.user
+    user.set_password(password)
+    user.must_change_password = False
+    user.is_active = True
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.save(update_fields=["password", "must_change_password", "is_active",
+                             "failed_login_count", "locked_until"])
+    invitation.used_at = timezone.now()
+    invitation.save(update_fields=["used_at"])
+    log_action(user, "user.invitation_accepted", instance=user, request=request)
+    return user
+
+
+# ---------- linking and duplicates ----------
+
+
+@transaction.atomic
+def attach_login(student, actor=None, request=None, access_mode="invitation"):
+    """Give an existing student record a usable login."""
+    if student.institution_id != getattr(actor, "institution_id", None):
+        raise ValidationError("That student belongs to another institution.")
+    user = student.user
+    if user is None:
+        raise ValidationError("That student record has no login to attach.")
+    if user.is_active and user.has_usable_password() and not user.must_change_password:
+        raise ValidationError("That student already has a working login.")
+    user.is_active = True
+    user.save(update_fields=["is_active"])
+    log_action(actor, "user.login_linked", instance=user, request=request)
+    if access_mode == "temporary_password":
+        password = reset_password(user, actor=actor, request=request)
+        return ProvisionedAccount(user=user, access_mode="temporary_password", password=password)
+    invitation = resend_invitation(user, actor=actor, request=request)
+    return ProvisionedAccount(user=user, access_mode="invitation", invitation=invitation)
+
+
+@transaction.atomic
+def link_parent(parent, student, relationship="", can_view_finance=True,
+                actor=None, request=None):
+    from academics.models import Guardian
+
+    if parent.institution_id != student.institution_id:
+        raise ValidationError("The parent and student must be in the same institution.")
+    if parent.institution_id != getattr(actor, "institution_id", None):
+        raise ValidationError("Choose a parent and student from this institution.")
+    link, created = Guardian.objects.get_or_create(
+        parent=parent,
+        student=student,
+        defaults={
+            "relationship": str(relationship or "").strip()[:40],
+            "can_view_finance": bool(can_view_finance),
+        },
+    )
+    if not created:
+        link.relationship = str(relationship or "").strip()[:40]
+        link.can_view_finance = bool(can_view_finance)
+        link.save(update_fields=["relationship", "can_view_finance"])
+    log_action(actor, "user.parent_linked", instance=link, request=request,
+               after={"parent": parent.pk, "student": student.pk})
+    return link
+
+
+@transaction.atomic
+def flag_duplicate(user, primary, actor=None, request=None):
+    if not _same_institution(actor, user):
+        raise ValidationError("That account belongs to another institution.")
+    if user.pk == primary.pk:
+        raise ValidationError("Choose two different accounts.")
+    if user.institution_id != primary.institution_id:
+        raise ValidationError("Both accounts must be in the same institution.")
+    user.duplicate_of = primary
+    user.is_active = False
+    user.deactivated_at = timezone.now()
+    user.save(update_fields=["duplicate_of", "is_active", "deactivated_at"])
+    log_action(actor, "user.duplicate_flagged", instance=user, request=request,
+               after={"duplicate_of": primary.pk})
+    return user
+
+
+@transaction.atomic
+def merge_users(primary, duplicate, actor=None, request=None):
+    """Fold a duplicate into the primary account without deleting history.
+
+    Links that point at the duplicate are moved where that is safe. Financial
+    and academic rows are never deleted; if the duplicate has its own student
+    record we keep it and flag the login instead of guessing which history wins.
+    """
+    from academics.models import Guardian, Student
+
+    if duplicate.pk == primary.pk:
+        raise ValidationError("Choose two different accounts.")
+    if not _same_institution(actor, duplicate):
+        raise ValidationError("That account belongs to another institution.")
+    if duplicate.institution_id != primary.institution_id:
+        raise ValidationError("Both accounts must be in the same institution.")
+    if duplicate.pk == getattr(actor, "pk", None):
+        raise ValidationError("You cannot merge your own account.")
+
+    duplicate_student = Student.all_objects.filter(user=duplicate).first()
+    primary_student = Student.all_objects.filter(user=primary).first()
+    if duplicate_student is not None:
+        has_history = (
+            duplicate_student.invoices.exists()
+            or duplicate_student.enrollments.exists()
+        )
+        if primary_student is not None or has_history:
+            return flag_duplicate(duplicate, primary, actor=actor, request=request)
+        duplicate_student.user = primary
+        duplicate_student.save(update_fields=["user"])
+
+    for link in Guardian.objects.filter(parent=duplicate):
+        existing = Guardian.objects.filter(parent=primary, student=link.student).first()
+        if existing is None:
+            link.parent = primary
+            link.save(update_fields=["parent"])
+        else:
+            link.delete()
+
+    duplicate.duplicate_of = primary
+    duplicate.is_active = False
+    duplicate.deactivated_at = timezone.now()
+    duplicate.save(update_fields=["duplicate_of", "is_active", "deactivated_at"])
+    log_action(actor, "user.merged", instance=duplicate, request=request,
+               after={"into": primary.pk})
+    return primary
+
+
+def deactivation_has_history(user):
+    """True when the account has money, results or audit rows behind it."""
+    from academics.models import Student
+
+    student = Student.all_objects.filter(user=user).first()
+    if student is not None:
+        if student.invoices.exists() or student.enrollments.exists():
+            return True
+    return user.audit_entries.exists()
+
+
+# ---------- login lock ----------
+
+LOGIN_FAILURE_LIMIT = 8
+LOGIN_LOCK_MINUTES = 15
+
+
+def note_failed_login(user, request=None):
+    if user is None:
+        return
+    user.failed_login_count = (user.failed_login_count or 0) + 1
+    update = ["failed_login_count"]
+    if user.failed_login_count >= LOGIN_FAILURE_LIMIT:
+        user.locked_until = timezone.now() + timedelta(minutes=LOGIN_LOCK_MINUTES)
+        user.failed_login_count = 0
+        update = ["failed_login_count", "locked_until"]
+        log_action(None, "user.locked", instance=user, request=request)
+    user.save(update_fields=update)
+
+
+def clear_failed_logins(user):
+    if user and (user.failed_login_count or user.locked_until):
+        user.failed_login_count = 0
+        user.locked_until = None
+        user.save(update_fields=["failed_login_count", "locked_until"])
+
+
+def is_locked(user):
+    return bool(user and user.locked_until and user.locked_until > timezone.now())

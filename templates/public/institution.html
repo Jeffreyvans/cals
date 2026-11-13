@@ -1,0 +1,64 @@
+{% extends "public_base.html" %}
+{% load static %}
+{% block title %}{{ institution.name }} — EduSphere{% endblock %}
+{% block description %}{{ institution.tagline|default:institution.name }}{% endblock %}
+{% block content %}
+<section class="institution-hero">
+  <div class="page-shell">
+    <div class="institution-head">
+      <span class="brand-badge">
+        {% if institution.logo %}
+          <img src="{{ institution.logo.url }}" alt="{{ institution.name }} logo">
+        {% else %}
+          <span class="brand-initials" aria-hidden="true">{{ institution.initials }}</span>
+        {% endif %}
+      </span>
+      <div>
+        <h1>{{ institution.name }}</h1>
+        {% if institution.tagline %}<p class="tagline">{{ institution.tagline }}</p>{% endif %}
+        <p class="sub">{{ institution.get_type_display }}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="page-shell">
+  {% if institution.about %}
+    <section class="panel prose-block" aria-labelledby="about-title">
+      <h2 id="about-title">About {{ institution.name }}</h2>
+      <p class="about-text">{{ institution.about|linebreaksbr }}</p>
+    </section>
+  {% endif %}
+
+  <section class="panel" aria-labelledby="contact-title">
+    <h2 id="contact-title">Contact</h2>
+    <ul class="contact-list">
+      {% if institution.contact_phone %}
+        <li><a href="tel:{{ institution.contact_phone }}">{{ institution.contact_phone }}</a></li>
+      {% endif %}
+      {% if institution.contact_email %}
+        <li><a href="mailto:{{ institution.contact_email }}">{{ institution.contact_email }}</a></li>
+      {% endif %}
+    </ul>
+    {% if institution.address %}<p class="sub" style="margin-top: 1rem;">{{ institution.address|linebreaksbr }}</p>{% endif %}
+    {% if not institution.contact_phone and not institution.contact_email and not institution.address %}
+      <p class="sub">This institution has not published contact details yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel" aria-labelledby="join-title">
+    <h2 id="join-title">Join {{ institution.name }}</h2>
+    {% if institution.public_registration %}
+      <p class="sub">Student portal accounts and staff account requests both start here. Your details are checked against this institution only.</p>
+      <p style="margin-top: 1.2rem;">
+        <a class="btn" href="{% url 'register_student' %}?institution={{ institution.pk }}">Register as a student</a>
+        <a class="btn btn-ghost" href="{% url 'register_staff' %}?institution={{ institution.pk }}">Request a staff account</a>
+      </p>
+    {% else %}
+      <p class="sub">This institution has not switched public registration on. Contact the office for an account.</p>
+    {% endif %}
+  </section>
+
+  <p style="margin-top: 1.4rem;"><a class="back-link" href="{% url 'login' %}">&larr; Back to EduSphere</a></p>
+</div>
+{% endblock %}

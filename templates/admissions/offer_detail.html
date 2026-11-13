@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div><h1>Offer {{ offer.offer_no }}</h1><p class="muted">{{ offer.application.name }} · {{ offer.get_status_display }}</p></div>
+  <a class="btn" href="{% url 'admissions:offer_pdf' offer.pk %}">Download letter</a>
+</div>
+<table class="tbl">
+  <tr><th>Applicant</th><td><a href="{% url 'admissions:application_detail' offer.application.pk %}">{{ offer.application.name }}</a></td></tr>
+  <tr><th>Programme</th><td>{{ offer.application.programme }}</td></tr>
+  <tr><th>Acceptance deadline</th><td>{{ offer.acceptance_deadline|date:"j F Y" }}</td></tr>
+  <tr><th>Deposit</th><td>{{ CUR }}{{ offer.deposit_amount }} · {% if offer.deposit_paid %}paid{% else %}not paid{% endif %}</td></tr>
+  <tr><th>Issued</th><td>{{ offer.issued_at|date:"j F Y H:i" }}{% if offer.issued_by %} by {{ offer.issued_by.get_full_name|default:offer.issued_by.username }}{% endif %}</td></tr>
+  {% if offer.accepted_at %}<tr><th>Accepted</th><td>{{ offer.accepted_at|date:"j F Y H:i" }}{% if offer.accepted_by_name %} by {{ offer.accepted_by_name }}{% endif %}</td></tr>{% endif %}
+  {% if offer.student %}<tr><th>Student</th><td><a href="{% url 'admissions:lifecycle_detail' offer.student.pk %}">{{ offer.student.name }} ({{ offer.student.student_no }})</a></td></tr>{% endif %}
+</table>
+<p><a class="btn ghost" href="{% url 'admissions:track_application' offer.application.tracking_token %}" target="_blank">Applicant tracking page</a></p>
+{% endblock %}

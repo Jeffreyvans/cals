@@ -1,8 +1,10 @@
 {% extends "base.html" %}{% block content %}
 <div class="noprint">
   <button class="btn" onclick="window.print()">Print report</button>
-  {% if user.role == 'student' %}<a class="btn ghost" href="{% url 'student_portal' %}">Back to my account</a>
-  {% else %}<a class="btn ghost" href="{% url 'student_detail' s.pk %}">Back to student</a>{% endif %}
+  {% if user.role == 'student' %}<a class="btn ghost" href="{% url 'my_report_pdf' %}">Download PDF</a> <a class="btn ghost" href="{% url 'my_transcript_pdf' %}">Transcript PDF</a>
+  <a class="btn ghost" href="{% url 'student_portal' %}">Back to my account</a>
+  {% else %}<a class="btn ghost" href="{% url 'student_report_pdf' s.pk %}">Download PDF</a> <a class="btn ghost" href="{% url 'student_transcript_pdf' s.pk %}">Transcript PDF</a>
+  <a class="btn ghost" href="{% url 'student_detail' s.pk %}">Back to student</a>{% endif %}
 </div>
 <h1>Report card</h1>
 <div class="head"><div><h2>{{ s.name }}</h2>

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ endpoint.name }}{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ endpoint.name }}</h1>
+    <p class="muted"><code>{{ endpoint.url }}</code></p>
+  </div>
+  <a class="btn ghost" href="{% url 'api_webhooks' %}">All endpoints</a>
+</div>
+
+<h2>Settings</h2>
+<div class="tbl-wrap">
+<table class="tbl">
+  <tbody>
+    <tr><th>State</th><td>{% if endpoint.is_active %}<span class="badge">active</span>{% else %}<span class="badge">paused</span>{% endif %}</td></tr>
+    <tr><th>Events</th><td>{% if endpoint.events %}{{ endpoint.events|join:", " }}{% else %}every event{% endif %}</td></tr>
+    <tr><th>Signing secret</th><td><code>{{ endpoint.secret }}</code></td></tr>
+    <tr><th>Created</th><td>{{ endpoint.created|date:"Y-m-d H:i" }} by {{ endpoint.created_by|default:"system" }}</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="row">
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle">
+    <button class="btn ghost">{% if endpoint.is_active %}Pause{% else %}Resume{% endif %}</button>
+  </form>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="test">
+    <button class="btn">Send test event</button>
+  </form>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="rotate">
+    <button class="btn ghost">Rotate secret</button>
+  </form>
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete">
+    <button class="btn danger">Delete endpoint</button>
+  </form>
+</div>
+
+<h2>Deliveries</h2>
+<p class="muted">Failed deliveries are retried with a growing delay by <code>manage.py deliver_webhooks</code>.</p>
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead><tr><th>Event</th><th>State</th><th>Attempts</th><th>Response</th><th>Queued</th><th></th></tr></thead>
+  <tbody>
+  {% for delivery in deliveries %}
+    <tr>
+      <td><code>{{ delivery.event }}</code></td>
+      <td>{{ delivery.get_status_display }}</td>
+      <td>{{ delivery.attempts }}</td>
+      <td>{% if delivery.response_status %}{{ delivery.response_status }}{% endif %} {% if delivery.error %}<span class="muted">{{ delivery.error|truncatechars:80 }}</span>{% endif %}</td>
+      <td>{{ delivery.created|date:"Y-m-d H:i" }}</td>
+      <td class="r">
+        {% if delivery.status != "delivered" %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="retry">
+          <input type="hidden" name="delivery" value="{{ delivery.pk }}">
+          <button class="btn ghost">Retry</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No deliveries yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

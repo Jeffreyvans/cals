@@ -143,6 +143,43 @@ def department_delete(request, pk):
 
 
 @login_required
+def department_portal(request):
+    """The shared staff portal: the departments this person belongs to."""
+    if request.user.role in ("student", "parent"):
+        raise PermissionDenied("Departments are for staff accounts.")
+    inst = _institution(request)
+    profile = StaffProfile.objects.filter(
+        institution=inst, user=request.user).prefetch_related("departments").first()
+    headed = Department.objects.filter(institution=inst, head=request.user)
+    department_ids = set(headed.values_list("pk", flat=True))
+    if profile is not None:
+        department_ids.update(profile.departments.values_list("pk", flat=True))
+    departments = list(
+        Department.objects.filter(pk__in=department_ids)
+        .select_related("head", "parent").order_by("name"))
+
+    from finance.models import Budget
+    from finance.services import budget_variance
+
+    for department in departments:
+        department.staff_rows = list(
+            department.staff.select_related("user").order_by(
+                "user__last_name", "user__first_name"))
+        department.budget_rows = [
+            budget_variance(budget)
+            for budget in Budget.objects.filter(department=department)
+            .select_related("financial_year")
+        ]
+        department.child_rows = list(
+            department.child_departments.order_by("name"))
+    return render(request, "core/department_portal.html", {
+        "inst": inst,
+        "profile": profile,
+        "departments": departments,
+    })
+
+
+@login_required
 def staff_list(request):
     """The staff of this institution."""
     _require(request, "admin.manage_departments")

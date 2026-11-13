@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block content %}
+<p class="muted"><a href="{% url 'lecturer_assignments' %}">Back to assignments</a></p>
+<div class="head"><div><h1>{{ activity.title }}</h1>
+<p class="muted">{% if activity.course %}{{ activity.course }}{% elif activity.subject %}{{ activity.subject }}{% endif %} · due {{ activity.due_date|date:"d M Y"|default:"—" }}</p></div></div>
+{% if activity.detail %}<div class="card">{{ activity.detail|linebreaks }}</div>{% endif %}
+
+<h2>Students</h2>
+<table class="tbl"><tr><th>Student</th><th>Submitted</th><th>When</th></tr>
+{% for a in students %}<tr><td>{{ a.student.name }} <span class="muted">{{ a.student.student_no }}</span></td><td>{% if a.pk in submitted_ids %}<span class="badge">Yes</span>{% else %}<span class="muted">Pending</span>{% endif %}</td><td>{% for sub in submissions %}{% if sub.assignment_id == a.pk %}{{ sub.submitted_at|date:"d M Y H:i" }}{% endif %}{% endfor %}</td></tr>
+{% empty %}<tr><td colspan="3" class="muted">No students are attached to this assignment.</td></tr>{% endfor %}</table>
+
+<h2>Submissions</h2>
+{% for sub in submissions %}
+<div class="card"><b>{{ sub.student.name }}</b> <span class="muted">{{ sub.submitted_at|date:"d M Y H:i" }}</span>
+{% if sub.text %}<p>{{ sub.text|linebreaksbr }}</p>{% endif %}
+{% if sub.file %}<p><a href="{{ sub.file.url }}">Download the submitted file</a></p>{% endif %}</div>
+{% empty %}<p class="muted">Nothing has been submitted yet.</p>{% endfor %}
+{% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block content %}
 <div class="noprint"><button class="btn" onclick="window.print()">Print report</button>
-<a class="btn ghost" href="{% url 'export_collections' %}?from={{ raw_from }}&amp;to={{ raw_to }}">Export CSV</a></div>
+{% include "finance/_export_links.html" with export_name="export_collections" %}</div>
 <h1>Collections report</h1>
 <p class="muted">Money received, filtered by date and broken down by payment method.</p>
 <form method="get" class="inline">

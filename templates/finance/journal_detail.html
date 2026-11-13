@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block content %}
+<h1>{{ entry.number }}</h1>
+<p>{{ entry.date }} · {{ entry.description }}{% if entry.reference %} · {{ entry.reference }}{% endif %}</p>
+<table class="tbl"><tr><th>Account</th><th>Description</th><th class="r">Debit</th><th class="r">Credit</th></tr>
+{% for line in lines %}<tr><td>{{ line.account.code }} {{ line.account.name }}</td>
+<td>{{ line.description }}</td><td class="r">{{ CUR }}{{ line.debit }}</td><td class="r">{{ CUR }}{{ line.credit }}</td></tr>
+{% endfor %}</table>
+{% if reversal %}<p class="muted">Reversed by <a href="{% url 'journal_detail' reversal.pk %}">{{ reversal.number }}</a>.</p>
+{% else %}
+<form method="post" action="{% url 'journal_reverse' entry.pk %}" class="noprint">
+{% csrf_token %}
+<label>Reason for reversal <input type="text" name="reason" required maxlength="120"></label>
+<button class="btn">Reverse entry</button>
+</form>
+{% endif %}
+{% endblock %}

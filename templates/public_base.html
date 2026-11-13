@@ -1,0 +1,64 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="{% block description %}Register for an EduSphere account at your institution.{% endblock %}">
+  <meta name="theme-color" content="#5d4037">
+  <title>{% block title %}EduSphere{% endblock %}</title>
+  <script>
+    /* Apply a remembered theme before paint so the page never flashes. */
+    (function () {
+      try {
+        var key = "edusphere.public.theme";
+        var choice = window.localStorage.getItem(key);
+        if (choice === "dark" || choice === "light") {
+          document.documentElement.setAttribute("data-theme", choice);
+        }
+      } catch (error) { /* storage blocked: fall back to the system setting */ }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/public.css' %}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-head public-head" data-site-head>
+  <div class="wrap">
+    <a class="wordmark" href="{% url 'login' %}" aria-label="EduSphere home">
+      <span class="wordmark-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 9 12 4.5 21.5 9 12 13.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 11.2V16c0 1.6 2.7 3 6 3s6-1.4 6-3v-4.8M21.5 9v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </span>
+      <span>EduSphere<small>School management</small></span>
+    </a>
+    <div class="head-actions">
+      <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Switch to dark theme">
+        <svg class="icon-moon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg>
+        <svg class="icon-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></svg>
+      </button>
+      <a class="btn btn-ghost btn-sm" href="{% url 'login' %}">Sign in</a>
+      <a class="btn btn-marigold btn-sm" href="{% url 'register_choice' %}">Register</a>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="public-main">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="public-foot">
+  <div class="wrap">
+    <span>&copy; {% now "Y" %} EduSphere</span>
+    <span>
+      <a href="{% url 'privacy_notice' %}">Privacy notice</a> &middot;
+      <a href="{% url 'login' %}">Sign in</a> &middot;
+      <a href="mailto:vanhuvaonejeffrey@gmail.com">Contact</a>
+    </span>
+  </div>
+</footer>
+<script src="{% static 'js/landing.js' %}" defer></script>
+</body>
+</html>

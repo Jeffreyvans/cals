@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block title %}Accept offer — {{ INSTITUTION }}{% endblock %}
+{% block content %}{% include "admissions/_offer_accept_body.html" %}{% endblock %}
+{% block bare %}
+<div class="public-wrap">{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}</div>
+{% include "admissions/_offer_accept_body.html" %}
+{% endblock %}
