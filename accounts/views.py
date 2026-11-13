@@ -1,5 +1,6 @@
 """Public landing, registration, email verification and admin review screens."""
 
+from django import forms
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -16,7 +17,12 @@ from core.audit import log_action
 from core.models import Department
 
 from .forms import ContactForm, StaffRegistrationForm, StudentRegistrationForm
-from .models import EmailVerification, StaffRegistrationRequest, User
+from .models import (
+    EmailVerification,
+    SignupLink,
+    StaffRegistrationRequest,
+    User,
+)
 from .registration import (
     CONTACT_EMAIL,
     CONTACT_PHONE,
@@ -37,6 +43,13 @@ from .registration import (
     register_student,
     reject_staff_request,
     student_rate_limited,
+)
+from .signup_links import (
+    link_offers,
+    link_positions,
+    link_rate_limited,
+    record_link_attempt,
+    record_use,
 )
 
 
@@ -479,6 +492,232 @@ def registration_request_detail(request, pk):
     )
 
 
+def _signup_closed(request, link, reason):
+    return _public_page(
+        request,
+        "registration/signup_link.html",
+        {
+            "link": link,
+            "institution": link.institution,
+            "closed": True,
+            "close_reason": reason,
+        },
+    )
+
+
+def _signup_staff_form(link, data=None):
+    form = StaffRegistrationForm(
+        data, institution=link.institution, positions=link_positions(link)
+    )
+    if link.position:
+        form.fields["position"].widget = forms.HiddenInput()
+        form.fields["position"].initial = link.position
+    return form
+
+
+def _signup_student(request, link):
+    institution = link.institution
+    if request.method == "POST":
+        registration_number = request.POST.get("registration_number", "")
+        if student_rate_limited(request, institution, registration_number):
+            record_link_attempt(request, link)
+            log_action(
+                None, "registration.student_rate_limited",
+                institution=institution, request=request,
+            )
+            return _public_page(
+                request,
+                "registration/signup_link.html",
+                {
+                    "link": link,
+                    "institution": institution,
+                    "path": "student",
+                    "form": StudentRegistrationForm(
+                        request.POST, institution=institution),
+                    "rate_limited": True,
+                },
+                status=429,
+            )
+        form = StudentRegistrationForm(request.POST, institution=institution)
+        if form.is_valid():
+            data = form.cleaned_data
+            result = register_student(
+                institution,
+                data["registration_number"],
+                data["surname"],
+                data["date_of_birth"],
+                data["contact"],
+                data["username"],
+                data["password"],
+                request=request,
+            )
+            if result["outcome"] == "activated":
+                record_use(
+                    link, "student", user=result.get("user"),
+                    email=data.get("contact", ""), request=request,
+                )
+                return _public_page(
+                    request,
+                    "registration/signup_link.html",
+                    {
+                        "link": link,
+                        "institution": institution,
+                        "path": "student",
+                        "activated": True,
+                        "student": result["student"],
+                        "verification_sent": result.get("verification_sent", False),
+                    },
+                )
+            if result["outcome"] == "existing":
+                return _public_page(
+                    request,
+                    "registration/signup_link.html",
+                    {
+                        "link": link,
+                        "institution": institution,
+                        "path": "student",
+                        "existing_account": True,
+                    },
+                )
+            context = {
+                "link": link,
+                "institution": institution,
+                "path": "student",
+                "form": form,
+                "generic_error": STUDENT_GENERIC_ERROR,
+            }
+            if institution.public_registration:
+                context["contact_url"] = reverse(
+                    "register_contact", args=[institution.pk])
+            return _public_page(request, "registration/signup_link.html", context)
+    else:
+        form = StudentRegistrationForm(institution=institution)
+    return _public_page(
+        request,
+        "registration/signup_link.html",
+        {
+            "link": link,
+            "institution": institution,
+            "path": "student",
+            "form": form,
+        },
+    )
+
+
+def _signup_staff(request, link):
+    institution = link.institution
+    if request.method == "POST":
+        if form_rate_limited(request, f"signup.staff.{link.pk}"):
+            record_link_attempt(request, link)
+            log_action(
+                None, "registration.staff_rate_limited",
+                institution=institution, request=request,
+            )
+            return _public_page(
+                request,
+                "registration/signup_link.html",
+                {
+                    "link": link,
+                    "institution": institution,
+                    "path": "staff",
+                    "form": _signup_staff_form(link, request.POST),
+                    "rate_limited": True,
+                },
+                status=429,
+            )
+        form = _signup_staff_form(link, request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            try:
+                reg_request = register_staff(
+                    institution,
+                    data["full_name"],
+                    data["email"],
+                    data["phone"],
+                    data["position"],
+                    data.get("department"),
+                    data["username"],
+                    data["password"],
+                    staff_no=data.get("staff_no", ""),
+                    message=data.get("message", ""),
+                    allowed_positions=link_positions(link),
+                    request=request,
+                )
+            except ValidationError as exc:
+                form.add_error(None, " ".join(exc.messages))
+            else:
+                record_link_attempt(request, link)
+                record_use(
+                    link, "staff", user=reg_request.user,
+                    email=data["email"], request=request,
+                )
+                return _public_page(
+                    request,
+                    "registration/signup_link.html",
+                    {
+                        "link": link,
+                        "institution": institution,
+                        "path": "staff",
+                        "staff_sent": True,
+                        "staff_name": reg_request.full_name,
+                        "message": STAFF_GENERIC_PENDING,
+                    },
+                )
+    else:
+        form = _signup_staff_form(link)
+    return _public_page(
+        request,
+        "registration/signup_link.html",
+        {
+            "link": link,
+            "institution": institution,
+            "path": "staff",
+            "form": form,
+            "preset_position": link.position_label,
+        },
+    )
+
+
+def signup_link(request, token):
+    """The public page behind a shareable sign-up link."""
+    link = get_object_or_404(
+        SignupLink.objects.select_related("institution"), token=token)
+    institution = link.institution
+    if not institution.is_active:
+        return _signup_closed(request, link, "This institution is not active.")
+    if not link.is_open:
+        return _signup_closed(request, link, "This sign-up link is closed.")
+
+    if link_rate_limited(request, link):
+        return _public_page(
+            request,
+            "registration/signup_link.html",
+            {"link": link, "institution": institution, "rate_limited": True},
+            status=429,
+        )
+
+    offers = link_offers(link)
+    path = (request.POST.get("path") or request.GET.get("as") or "").strip()
+    if path not in offers:
+        path = ""
+    if link.kind != SignupLink.Kind.ANY:
+        path = next(iter(offers))
+    if not path:
+        return _public_page(
+            request,
+            "registration/signup_link.html",
+            {
+                "link": link,
+                "institution": institution,
+                "choose": True,
+                "offers": offers,
+            },
+        )
+    if path == "student":
+        return _signup_student(request, link)
+    return _signup_staff(request, link)
+
+
 def password_reset_done(request):
     return _public_page(request, "registration/password_reset_done.html")
 
@@ -499,5 +738,6 @@ __all__ = [
     "register_student_view",
     "registration_request_detail",
     "registration_requests",
+    "signup_link",
     "verify_email",
 ]

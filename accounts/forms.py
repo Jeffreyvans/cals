@@ -5,7 +5,7 @@ import re
 from django import forms
 from django.core.exceptions import ValidationError
 
-from core.models import Department
+from core.models import Department, Institution
 
 from .registration import (
     CONTACT_EMAIL,
@@ -77,6 +77,17 @@ class StudentRegistrationForm(forms.Form):
         help_text="At least 10 characters with capital and small letters and a number.",
     )
     website = forms.CharField(required=False, widget=forms.HiddenInput)
+
+    def __init__(self, *args, institution=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.locked_institution = institution
+        if institution is not None:
+            # A sign-up link locks the form to its own institution.
+            field = self.fields["institution"]
+            field.queryset = Institution.objects.filter(pk=institution.pk)
+            field.widget = forms.HiddenInput()
+            field.initial = institution.pk
+            field.help_text = ""
 
     def clean_registration_number(self):
         return " ".join(self.cleaned_data["registration_number"].split())
@@ -151,23 +162,38 @@ class StaffRegistrationForm(forms.Form):
     )
     website = forms.CharField(required=False, widget=forms.HiddenInput)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, institution=None, positions=None, **kwargs):
         super().__init__(*args, **kwargs)
-        institution = None
-        raw_institution = None
-        if self.is_bound:
-            raw_institution = self.data.get("institution")
-        elif self.initial.get("institution"):
-            raw_institution = self.initial.get("institution")
-        if raw_institution:
-            institution = public_institutions().filter(pk=raw_institution).first()
-        self.institution = institution
+        locked = institution
+        if locked is None:
+            raw_institution = None
+            if self.is_bound:
+                raw_institution = self.data.get("institution")
+            elif self.initial.get("institution"):
+                raw_institution = self.initial.get("institution")
+            if raw_institution:
+                locked = public_institutions().filter(pk=raw_institution).first()
+        self.institution = locked
 
-        # Only offer the positions this institution has switched on. The
-        # server still re-checks the submitted code, because a visitor can
+        if locked is not None:
+            # A sign-up link locks the form to its own institution.
+            field = self.fields["institution"]
+            field.queryset = Institution.objects.filter(pk=locked.pk)
+            field.widget = forms.HiddenInput()
+            field.initial = locked.pk
+            field.help_text = ""
+
+        # Only offer the positions this institution (or link) has switched on.
+        # The server still re-checks the submitted code, because a visitor can
         # edit the HTML before posting.
-        if institution is not None:
-            allowed = set(allowed_staff_positions(institution))
+        if positions is not None:
+            allowed = set(positions)
+        elif locked is not None:
+            allowed = set(allowed_staff_positions(locked))
+        else:
+            allowed = set()
+        self.allowed_positions = allowed
+        if locked is not None:
             self.fields["position"].choices = [
                 ("", "Choose a position"),
                 *[
@@ -177,9 +203,14 @@ class StaffRegistrationForm(forms.Form):
                 ],
             ]
 
-        self.fields["department"].queryset = Department.all_objects.filter(
-            institution__public_registration=True
-        ).select_related("institution").order_by("institution__name", "name")
+        if locked is not None:
+            self.fields["department"].queryset = Department.all_objects.filter(
+                institution=locked
+            ).order_by("name")
+        else:
+            self.fields["department"].queryset = Department.all_objects.filter(
+                institution__public_registration=True
+            ).select_related("institution").order_by("institution__name", "name")
 
         def label(department):
             return f"{department.name} ({department.institution.name})"
@@ -222,9 +253,7 @@ class StaffRegistrationForm(forms.Form):
         position = cleaned.get("position")
         department = cleaned.get("department")
         if institution and position:
-            if position in STAFF_POSITIONS and position not in allowed_staff_positions(
-                institution
-            ):
+            if position in STAFF_POSITIONS and position not in self.allowed_positions:
                 self.add_error(
                     "position",
                     "This institution is not accepting registrations for that position.",

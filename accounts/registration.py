@@ -463,16 +463,26 @@ def register_staff(
     password,
     staff_no="",
     message="",
+    allowed_positions=None,
     request=None,
 ):
-    """Create an inactive login and a request for an administrator to review."""
+    """Create an inactive login and a request for an administrator to review.
+
+    ``allowed_positions`` lets a sign-up link open positions that the public
+    registration page does not offer. It defaults to the institution's public
+    list, so the ordinary flow is unchanged.
+    """
     full_name = normalize_text(full_name)
     email = normalize_text(email).lower()
     username = normalize_text(username)
     position = normalize_text(position)
+    if allowed_positions is None:
+        allowed_positions = allowed_staff_positions(institution)
+    else:
+        allowed_positions = list(allowed_positions)
     if position in FORBIDDEN_POSITIONS or position not in STAFF_POSITIONS:
         raise ValidationError("Choose a staff position from the list.")
-    if position not in allowed_staff_positions(institution):
+    if position not in allowed_positions:
         raise ValidationError(
             "This institution is not accepting registrations for that position."
         )

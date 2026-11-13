@@ -9,6 +9,7 @@
   <div class="row">
     {% if can_add_student %}<a class="btn" href="{% url 'user_add_student' %}">Add a student</a>{% endif %}
     {% if can_add_staff %}<a class="btn ghost" href="{% url 'user_add_staff' %}">Add a staff member</a>{% endif %}
+    <a class="btn ghost" href="{% url 'signup_link_list' %}">Sign-up links</a>
   </div>
 </div>
 

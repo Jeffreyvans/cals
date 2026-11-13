@@ -159,6 +159,109 @@ class UserInvitation(models.Model):
         return self.used_at is None and not self.is_expired
 
 
+class SignupLink(models.Model):
+    """A shareable link that opens self-registration for one institution.
+
+    A ``UserInvitation`` belongs to a person who already has a row. A sign-up
+    link is the opposite: an administrator hands it out and anyone who opens it
+    may register. The link can be limited to students or staff, preset to one
+    staff position, and can carry an expiry date and a maximum number of uses.
+    It works even when the institution has public registration switched off,
+    because the link itself is the invitation.
+    """
+
+    class Kind(models.TextChoices):
+        STUDENT = "student", "Students"
+        STAFF = "staff", "Staff"
+        ANY = "any", "Students or staff"
+
+    institution = models.ForeignKey(
+        "core.Institution", on_delete=models.CASCADE, related_name="signup_links")
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    label = models.CharField(
+        max_length=120, blank=True,
+        help_text="A name for your own reference, such as 'Term 1 intake'.")
+    kind = models.CharField(
+        max_length=20, choices=Kind.choices, default=Kind.ANY)
+    position = models.CharField(
+        max_length=40, blank=True,
+        help_text="For a staff link: the position it is preset to, if any.")
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="signup_links_created")
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    max_uses = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Leave empty for no limit.")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+        indexes = [models.Index(fields=["institution", "is_active"])]
+
+    def __str__(self):
+        return self.label or f"Sign-up link {self.token}"
+
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+
+        return self.expires_at is not None and self.expires_at <= timezone.now()
+
+    @property
+    def use_count(self):
+        return self.uses.count()
+
+    @property
+    def is_exhausted(self):
+        return self.max_uses is not None and self.use_count >= self.max_uses
+
+    @property
+    def is_open(self):
+        return self.is_active and not self.is_expired and not self.is_exhausted
+
+    @property
+    def position_label(self):
+        from accounts.registration import position_label
+
+        return position_label(self.position) if self.position else ""
+
+    def path(self):
+        """The public path a visitor opens, without the domain."""
+        from django.urls import reverse
+
+        return reverse("signup_link", args=[self.token])
+
+    def url(self, request=None):
+        """The absolute link to share."""
+        path = self.path()
+        return request.build_absolute_uri(path) if request is not None else path
+
+
+class SignupLinkUse(models.Model):
+    """One registration that came through a sign-up link.
+
+    Keeping a row per use gives the administrator a clear record of who
+    arrived through a link and makes the maximum-uses limit exact.
+    """
+
+    link = models.ForeignKey(
+        SignupLink, on_delete=models.CASCADE, related_name="uses")
+    user = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="signup_link_uses")
+    email = models.EmailField(blank=True)
+    kind = models.CharField(max_length=20, blank=True)
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+
+    def __str__(self):
+        return f"{self.kind or 'registration'} via {self.link}"
+
+
 class StaffRegistrationRequest(models.Model):
     """A staff sign-up waiting for an administrator to approve it.
 

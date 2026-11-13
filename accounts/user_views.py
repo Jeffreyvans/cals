@@ -1,5 +1,7 @@
 """The administrator Users area: list, add, edit, link and act on accounts."""
 
+from datetime import datetime, time
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordChangeView
@@ -9,6 +11,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from core.access import permission_required_code
 from core.models import AuditEntry, Department, Institution, Role
@@ -21,7 +24,13 @@ from .admin_forms import (
     StrongPasswordChangeForm,
     StudentAccountForm,
 )
-from .models import StaffRegistrationRequest, User, UserInvitation
+from .models import SignupLink, StaffRegistrationRequest, User, UserInvitation
+from .signup_links import (
+    create_signup_link,
+    delete_signup_link,
+    reactivate_signup_link,
+    revoke_signup_link,
+)
 from .user_admin import (
     accept_invitation,
     add_staff_member,
@@ -525,6 +534,101 @@ def user_duplicates(request):
         "form": form,
         "duplicates": duplicates,
     })
+
+
+def _signup_link_in_institution(request, pk):
+    inst = _institution(request)
+    return get_object_or_404(
+        SignupLink.objects.select_related("institution"),
+        pk=pk,
+        institution=inst,
+    )
+
+
+@login_required
+@permission_required_code("admin.manage_users")
+def signup_link_list(request):
+    """Create and review the shareable sign-up links of this institution."""
+    _guard(request)
+    inst = _institution(request)
+    if request.method == "POST":
+        expires_at = None
+        expires_on = (request.POST.get("expires_on") or "").strip()
+        if expires_on:
+            parsed = parse_date(expires_on)
+            if parsed is None:
+                messages.error(request, "Enter the expiry date as YYYY-MM-DD.")
+                return redirect("signup_link_list")
+            expires_at = timezone.make_aware(datetime.combine(parsed, time(23, 59, 59)))
+        max_uses = (request.POST.get("max_uses") or "").strip() or None
+        try:
+            create_signup_link(
+                inst,
+                label=request.POST.get("label", ""),
+                kind=request.POST.get("kind", SignupLink.Kind.ANY),
+                position=request.POST.get("position", ""),
+                expires_at=expires_at,
+                max_uses=max_uses,
+                actor=request.user,
+                request=request,
+            )
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+        else:
+            messages.success(
+                request,
+                "Sign-up link created. Copy the link and share it with the people "
+                "you want to invite.",
+            )
+        return redirect("signup_link_list")
+
+    from .registration import POSITION_ORDER, STAFF_POSITIONS
+
+    links = list(
+        SignupLink.objects.filter(institution=inst)
+        .select_related("created_by")
+        .prefetch_related("uses")
+    )
+    for link in links:
+        link.share_url = link.url(request)
+    return render(request, "accounts/signup_links.html", {
+        "inst": inst,
+        "links": links,
+        "kind_choices": SignupLink.Kind.choices,
+        "positions": [
+            {"code": code, "label": STAFF_POSITIONS[code].label}
+            for code in POSITION_ORDER
+            if code not in ("administrator", "principal")
+        ],
+        "public_registration": inst.public_registration,
+    })
+
+
+@login_required
+@permission_required_code("admin.manage_users")
+def signup_link_action(request, pk):
+    """Revoke, reactivate or delete one sign-up link."""
+    _guard(request)
+    link = _signup_link_in_institution(request, pk)
+    if request.method != "POST":
+        return redirect("signup_link_list")
+    action = request.POST.get("action", "")
+    try:
+        if action == "revoke":
+            revoke_signup_link(link, actor=request.user, request=request)
+            messages.success(request, "The link no longer works.")
+        elif action == "reactivate":
+            reactivate_signup_link(link, actor=request.user, request=request)
+            messages.success(request, "The link works again.")
+        elif action == "delete":
+            label = link.label or "Sign-up link"
+            delete_signup_link(link, actor=request.user, request=request)
+            messages.success(request, f"{label} was deleted.")
+        else:
+            messages.error(request, "Choose an action.")
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+    return redirect("signup_link_list")
 
 
 class ForcePasswordChangeView(PasswordChangeView):

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Sign-up links{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Sign-up links</h1>
+    <p class="muted">Share a link so people can register themselves at {{ inst.name }}. A link works even when public registration is off, because the link itself is the invitation.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'user_list' %}">Back to users</a>
+</div>
+
+<h2>Create a link</h2>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Name for your reference<input name="label" maxlength="120" placeholder="Term 1 intake"></label></p>
+  <p><label>Who is it for?
+    <select name="kind">
+      {% for value, label in kind_choices %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select></label></p>
+  <p><label>Preset staff position (optional)
+    <select name="position">
+      <option value="">Let the visitor choose</option>
+      {% for position in positions %}
+        <option value="{{ position.code }}">{{ position.label }}</option>
+      {% endfor %}
+    </select>
+    <span class="helptext">Only used for staff links. A student link ignores this.</span></label></p>
+  <p><label>Expires on (optional)<input type="date" name="expires_on"></label></p>
+  <p><label>Maximum uses (optional)<input type="number" name="max_uses" min="1" placeholder="No limit"></label></p>
+  <p><button class="btn">Create link</button></p>
+</form>
+
+{% if not public_registration %}
+<p class="muted">Public registration is switched off for this institution. These links still work, but the public registration page does not list {{ inst.name }}.</p>
+{% endif %}
+
+<h2>Links</h2>
+{% if links %}
+<table>
+  <thead>
+    <tr><th>Name</th><th>For</th><th>Position</th><th>Uses</th><th>Expires</th><th>Status</th><th>Link</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for link in links %}
+    <tr>
+      <td>{{ link.label|default:"—" }}</td>
+      <td>{{ link.get_kind_display }}</td>
+      <td>{% if link.position %}{{ link.position_label }}{% else %}—{% endif %}</td>
+      <td>{{ link.use_count }}{% if link.max_uses %} / {{ link.max_uses }}{% endif %}</td>
+      <td>{% if link.expires_at %}{{ link.expires_at|date:"Y-m-d" }}{% else %}Never{% endif %}</td>
+      <td>
+        {% if link.is_open %}<span class="badge">Open</span>
+        {% elif not link.is_active %}<span class="badge">Revoked</span>
+        {% elif link.is_expired %}<span class="badge">Expired</span>
+        {% else %}<span class="badge">Used up</span>{% endif %}
+      </td>
+      <td>
+        <input type="text" readonly value="{{ link.share_url }}" class="share-link" data-copy-source style="width:22rem;max-width:100%;">
+        <button type="button" class="btn ghost btn-sm" data-copy="{{ link.share_url }}">Copy</button>
+      </td>
+      <td class="row">
+        <form method="post" action="{% url 'signup_link_action' link.pk %}">
+          {% csrf_token %}
+          {% if link.is_active %}
+            <button class="btn ghost btn-sm" name="action" value="revoke">Revoke</button>
+          {% else %}
+            <button class="btn ghost btn-sm" name="action" value="reactivate">Reactivate</button>
+          {% endif %}
+          <button class="btn ghost btn-sm" name="action" value="delete">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No sign-up links yet.</p>
+{% endif %}
+
+<script>
+  (function () {
+    document.querySelectorAll("[data-copy]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var text = button.getAttribute("data-copy");
+        var done = function () {
+          var old = button.textContent;
+          button.textContent = "Copied";
+          window.setTimeout(function () { button.textContent = old; }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, done);
+        } else {
+          var input = button.parentElement.querySelector("[data-copy-source]");
+          if (input) { input.select(); document.execCommand("copy"); }
+          done();
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

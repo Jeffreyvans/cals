@@ -1,0 +1,154 @@
+{% extends "public_base.html" %}
+{% load branding %}
+{% block title %}Join {{ institution.name }} — EduSphere{% endblock %}
+{% block description %}Register at {{ institution.name }} using the link you were sent.{% endblock %}
+{% block content %}
+<div class="page-shell narrow">
+  <div class="page-title">
+    {% institution_logo institution 160 as logo_url %}
+    {% if logo_url %}
+      <img class="contact-logo" src="{{ logo_url }}" alt="{{ institution.name }} logo">
+    {% endif %}
+    <h1>Join {{ institution.name }}</h1>
+    {% if institution.tagline %}<p class="sub">{{ institution.tagline }}</p>{% endif %}
+    {% if link.label %}<p class="sub">{{ link.label }}</p>{% endif %}
+  </div>
+
+  {% if closed %}
+    <div class="panel">
+      <div class="alert alert-error" role="alert">{{ close_reason }}</div>
+      <p style="margin-top: 1rem;">Ask the person who sent you this link for a new one, or contact {{ institution.name }} directly.</p>
+      <p style="margin-top: 1.2rem;"><a class="btn" href="{% url 'login' %}">Go to sign in</a></p>
+    </div>
+  {% elif rate_limited %}
+    <div class="panel">
+      <div class="alert alert-error" role="alert">Too many attempts from this connection. Please wait 15 minutes and try again.</div>
+    </div>
+  {% elif choose %}
+    <div class="panel">
+      <h2>How would you like to join?</h2>
+      <p class="sub">This link was shared with you by {{ institution.name }}.</p>
+    </div>
+    <div class="choice-grid">
+      {% if "student" in offers %}
+      <a class="choice-card" href="?as=student">
+        <span class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M2.5 9 12 4.5 21.5 9 12 13.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M6 11.2V16c0 1.6 2.7 3 6 3s6-1.4 6-3v-4.8M21.5 9v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </span>
+        <h2>I am a student</h2>
+        <p>Match your admission record with your registration number, surname and date of birth.</p>
+        <span class="go">Continue as a student &rarr;</span>
+      </a>
+      {% endif %}
+      {% if "staff" in offers %}
+      <a class="choice-card" href="?as=staff">
+        <span class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M18 8v6M15 11h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </span>
+        <h2>I am a member of staff</h2>
+        <p>Ask for a staff account. An administrator at {{ institution.name }} reviews it before it is activated.</p>
+        <span class="go">Continue as staff &rarr;</span>
+      </a>
+      {% endif %}
+    </div>
+
+  {% elif activated %}
+    <div class="panel">
+      <div class="alert alert-ok" role="status">
+        Your account is ready{% if student.name %} — welcome, {{ student.name }}{% endif %}. You can sign in with the username and password you just chose.
+      </div>
+      {% if verification_sent %}
+        <p class="sub" style="margin-top: 1rem;">We sent a link to confirm your email address. You can still sign in while you look for it.</p>
+      {% endif %}
+      <p style="margin-top: 1.2rem;"><a class="btn" href="{% url 'login' %}">Sign in</a></p>
+    </div>
+
+  {% elif existing_account %}
+    <div class="panel">
+      <div class="alert" role="status">A login already exists for this student. Each student has one account.</div>
+      <p style="margin-top: 1.1rem;">
+        <a class="btn" href="{% url 'login' %}">Sign in</a>
+        <a class="btn btn-ghost" href="{% url 'password_reset' %}">Reset your password</a>
+      </p>
+    </div>
+
+  {% elif staff_sent %}
+    <div class="panel">
+      <div class="alert alert-ok" role="status">{{ message }}</div>
+      <p style="margin-top: 1.1rem;"><a class="btn" href="{% url 'login' %}">Go to sign in</a></p>
+    </div>
+
+  {% elif path == "student" %}
+    <div class="panel">
+      <h2>Match your admission record</h2>
+      <p class="sub">All fields are required. Your details are checked against {{ institution.name }} only.</p>
+
+      {% if generic_error %}
+        <div class="alert alert-error" role="alert" style="margin-top: 1rem;">{{ generic_error }}</div>
+        {% if contact_url %}
+          <p style="margin-top: 0.9rem;"><a class="btn btn-ghost btn-sm" href="{{ contact_url }}">Contact the institution</a></p>
+        {% endif %}
+      {% endif %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert" style="margin-top: 1rem;">{{ form.non_field_errors|striptags }}</div>
+      {% endif %}
+
+      <form method="post" class="form-stack" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="path" value="student">
+        {% include "registration/_field.html" with field=form.institution %}
+        {% include "registration/_field.html" with field=form.registration_number %}
+        {% include "registration/_field.html" with field=form.surname %}
+        {% include "registration/_field.html" with field=form.date_of_birth %}
+        {% include "registration/_field.html" with field=form.contact %}
+        {% include "registration/_field.html" with field=form.username %}
+        {% include "registration/_field.html" with field=form.password %}
+        {{ form.website }}
+        <div><button class="btn" type="submit">Activate my account</button></div>
+      </form>
+    </div>
+
+  {% elif path == "staff" %}
+    <div class="panel">
+      <h2>Request a staff account</h2>
+      {% if preset_position %}
+        <p class="sub">You are requesting the position of <strong>{{ preset_position }}</strong> at {{ institution.name }}.</p>
+      {% else %}
+        <p class="sub">An administrator at {{ institution.name }} reviews your request before your account is activated.</p>
+      {% endif %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert" style="margin-top: 1rem;">{{ form.non_field_errors|striptags }}</div>
+      {% endif %}
+
+      <form method="post" class="form-stack" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="path" value="staff">
+        {% include "registration/_field.html" with field=form.institution %}
+        {% include "registration/_field.html" with field=form.full_name %}
+        {% include "registration/_field.html" with field=form.email %}
+        {% include "registration/_field.html" with field=form.phone %}
+        {% if not preset_position %}{% include "registration/_field.html" with field=form.position %}{% else %}{{ form.position }}{% endif %}
+        {% include "registration/_field.html" with field=form.department %}
+        {% include "registration/_field.html" with field=form.username %}
+        {% include "registration/_field.html" with field=form.password %}
+        {% include "registration/_field.html" with field=form.staff_no %}
+        {% include "registration/_field.html" with field=form.message %}
+        {{ form.website }}
+        <div><button class="btn" type="submit">Send my request</button></div>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if institution and not closed %}
+    <div class="institution-contact">
+      {% if logo_url %}<img class="contact-logo" src="{{ logo_url }}" alt="{{ institution.name }} logo">{% endif %}
+      <strong>{{ institution.name }}</strong><br>
+      {% if institution.contact_phone %}Phone: {{ institution.contact_phone }}<br>{% endif %}
+      {% if institution.contact_email %}Email: {{ institution.contact_email }}<br>{% endif %}
+      {% if institution.website %}Website: {{ institution.website }}<br>{% endif %}
+      {% if institution.address %}{{ institution.address }}{% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

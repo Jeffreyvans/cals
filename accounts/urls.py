@@ -23,6 +23,7 @@ urlpatterns = [
     ), name="password_reset_confirm"),
     path("reset/done/", views.password_reset_complete, name="password_reset_complete"),
     path("register/", views.register_choice, name="register_choice"),
+    path("join/<uuid:token>/", views.signup_link, name="signup_link"),
     path("register/student/", views.register_student_view, name="register_student"),
     path("register/staff/", views.register_staff_view, name="register_staff"),
     path("register/staff/sent/", views.register_staff_sent, name="register_staff_sent"),
@@ -42,6 +43,16 @@ urlpatterns = [
         "settings/registration-requests/<int:pk>/",
         views.registration_request_detail,
         name="registration_request_detail",
+    ),
+    path(
+        "settings/signup-links/",
+        user_views.signup_link_list,
+        name="signup_link_list",
+    ),
+    path(
+        "settings/signup-links/<int:pk>/action/",
+        user_views.signup_link_action,
+        name="signup_link_action",
     ),
     # The administrator Users area. Everything here is tenant-scoped.
     path("users/", user_views.user_list, name="user_list"),
