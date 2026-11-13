@@ -88,8 +88,9 @@ class Institution(models.Model):
         help_text="A short line shown under the name on the public institution page.",
     )
     about = models.TextField(
+        max_length=600,
         blank=True,
-        help_text="A short description shown on the public institution page.",
+        help_text="A short description shown on the public institution page (600 characters).",
     )
     logo = models.ImageField(upload_to="institutions/logos/", blank=True)
     primary_color = models.CharField(max_length=20, blank=True)
@@ -110,6 +111,7 @@ class Institution(models.Model):
     address = models.TextField(blank=True)
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=30, blank=True)
+    website = models.URLField(max_length=200, blank=True)
     settings = models.JSONField(default=dict, blank=True)
     public_registration = models.BooleanField(
         default=False,

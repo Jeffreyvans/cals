@@ -1690,6 +1690,16 @@ a:hover {
   font-weight: 800;
 }
 
+.contact-logo {
+  display: block;
+  max-width: 160px;
+  max-height: 64px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin-bottom: 0.7rem;
+}
+
 .institution-hero {
   padding: clamp(2rem, 5vw, 4rem) 0 clamp(1.6rem, 3vw, 2.4rem);
   border-bottom: 1px solid var(--line);

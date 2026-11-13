@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load branding %}
 {% block title %}Institution settings{% endblock %}
 {% block content %}
 <div class="head">
@@ -14,18 +15,65 @@
   {% csrf_token %}<input type="hidden" name="action" value="details">
   <p><label>Institution name<input name="name" value="{{ inst.name }}" required></label></p>
   <p><label>Tagline<input name="tagline" value="{{ inst.tagline }}" maxlength="200" placeholder="Learn. Serve. Lead."></label></p>
-  <p><label>About<textarea name="about" rows="4" placeholder="A short paragraph shown on your public institution page.">{{ inst.about }}</textarea></label></p>
+  <p><label>About us<textarea name="about" rows="4" maxlength="600" placeholder="A short paragraph shown on your public institution page.">{{ inst.about }}</textarea>
+    <span class="helptext">Up to 600 characters.</span></label></p>
+  <p><label>Website<input name="website" type="url" value="{{ inst.website }}" maxlength="200" placeholder="https://example.org"></label></p>
   <p><label>Currency symbol<input name="currency" value="{{ inst.currency }}" maxlength="10"></label></p>
   <p><label>Time zone<input name="timezone" value="{{ inst.timezone }}" maxlength="64"></label></p>
   <p><label>Language<input name="language" value="{{ inst.language }}" maxlength="10"></label></p>
   <p><label>Contact email<input name="contact_email" type="email" value="{{ inst.contact_email }}"></label></p>
   <p><label>Contact phone<input name="contact_phone" value="{{ inst.contact_phone }}"></label></p>
   <p><label>Address<textarea name="address" rows="2">{{ inst.address }}</textarea></label></p>
-  <p><label>Primary colour<input name="primary_color" value="{{ inst.primary_color }}" placeholder="#1E3A8A"></label></p>
-  <p><label>Accent colour<input name="accent_color" value="{{ inst.accent_color }}" placeholder="#3B82F6"></label></p>
-  <p class="muted">The tagline and About text appear on your public page at <code>/i/{{ inst.slug }}/</code>. The primary and accent colours are used in the signed-in app, receipts and documents; the public pages stay in the platform's brown theme.</p>
+  <p class="muted">The tagline and About text appear on your public page at <code>/i/{{ inst.slug }}/</code>.</p>
   <button class="btn">Save details</button>
 </form>
+
+<h2>Logo and branding</h2>
+{% if can_brand %}
+<p class="muted">The logo appears in the sidebar, on receipts, statements, report cards, transcripts, certificates and emails. Colours are used in the signed-in app, receipts and documents; the public pages stay in the platform's brown theme.</p>
+<form method="post" enctype="multipart/form-data" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="branding">
+  {% institution_logo inst 160 as logo_url %}
+  <div class="logo-preview">
+    {% if logo_url %}
+      <img id="settings-logo-preview" src="{{ logo_url }}" alt="{{ inst.name }} logo">
+    {% else %}
+      <img id="settings-logo-preview" src="" alt="" hidden>
+      <span class="brand-initials" id="settings-logo-initials" style="background:{% institution_brand_colour inst %};color:{% institution_brand_text inst %}">{{ inst.initials }}</span>
+    {% endif %}
+  </div>
+  <p><label>Logo
+    <input type="file" name="logo" id="settings-logo" accept="image/png,image/jpeg,image/webp">
+    <span class="helptext">PNG, JPG or WebP. At least 200×200 pixels and no larger than 2 MB.</span></label></p>
+  <p><label>Primary colour<input name="primary_color" value="{{ inst.primary_color }}" placeholder="#1E3A8A"></label></p>
+  <p><label>Accent colour<input name="accent_color" value="{{ inst.accent_color }}" placeholder="#3B82F6"></label></p>
+  <p>
+    <button class="btn">Save branding</button>
+    {% if logo_url %}<button class="btn ghost" name="remove_logo" value="1">Remove logo</button>{% endif %}
+  </p>
+</form>
+<script>
+  (function () {
+    var input = document.getElementById("settings-logo");
+    var image = document.getElementById("settings-logo-preview");
+    var initials = document.getElementById("settings-logo-initials");
+    if (!input || !image) return;
+    input.addEventListener("change", function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        image.src = reader.result;
+        image.hidden = false;
+        if (initials) initials.hidden = true;
+      };
+      reader.readAsDataURL(file);
+    });
+  })();
+</script>
+{% else %}
+<p class="muted">Your role may edit institution details but not the logo or colours. Ask an administrator with the branding permission.</p>
+{% endif %}
 
 <h2>VAT and tax registration</h2>
 <p class="muted">A school that is not VAT-registered never charges VAT. When this institution is registered, dated VAT rates apply to standard-rated fees and fiscal documents can be sent to ZIMRA.</p>

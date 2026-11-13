@@ -9,6 +9,7 @@ into real rows. Everything created belongs to the new institution, so a
 wizard never touches the rows of another one.
 """
 
+import base64
 from datetime import date
 
 from django.core.exceptions import ValidationError
@@ -60,6 +61,41 @@ def set_state(request, state):
 def clear_state(request):
     request.session.pop(SESSION_KEY, None)
     request.session.modified = True
+
+
+# ---------- the logo chosen in the details step ----------
+def set_logo(state, uploaded):
+    """Validate a logo upload and keep a small PNG copy in the session state.
+
+    The file itself cannot live across steps, so a re-encoded 512 px PNG is
+    held as base64 until the last step writes the institution.
+    """
+    from core.logo import preview_png_bytes
+
+    data = preview_png_bytes(uploaded)
+    state["logo"] = {
+        "data": base64.b64encode(data).decode("ascii"),
+        "name": getattr(uploaded, "name", "logo.png")[:120],
+    }
+    return state
+
+
+def clear_logo(state):
+    state.pop("logo", None)
+    return state
+
+
+def _store_wizard_logo(institution, state):
+    """Write the logo chosen in the details step, if there was one."""
+    payload = (state.get("logo") or {}).get("data")
+    if not payload:
+        return
+    from core.logo import save_logo
+
+    try:
+        save_logo(institution, base64.b64decode(payload))
+    except ValidationError:  # pragma: no cover - already validated in the view
+        pass
 
 
 def current_step(request):
@@ -133,10 +169,14 @@ def _parse_number(value, label, errors, minimum=None, maximum=None):
 def clean_details(data):
     """Institution name, slug, type, currency and branding."""
     errors = []
+    about = _clean(data.get("about"))
     clean = {
         "name": _clean(data.get("name"))[:200],
         "slug": _clean(data.get("slug"))[:100],
         "type": _clean(data.get("type")) or Institution.Type.COLLEGE,
+        "tagline": _clean(data.get("tagline"))[:200],
+        "about": about[:600],
+        "website": _clean(data.get("website"))[:200],
         "currency": _clean(data.get("currency"))[:10] or "$",
         "timezone": _clean(data.get("timezone"))[:64] or "Africa/Harare",
         "language": _clean(data.get("language"))[:10] or "en",
@@ -146,6 +186,8 @@ def clean_details(data):
         "primary_color": _clean(data.get("primary_color"))[:20],
         "accent_color": _clean(data.get("accent_color"))[:20],
     }
+    if len(about) > 600:
+        errors.append("The About text must be 600 characters or fewer.")
     if not clean["name"]:
         errors.append("The institution needs a name.")
     if not clean["slug"]:
@@ -305,6 +347,9 @@ def build_institution(state):
             name=details["name"],
             slug=details["slug"],
             type=details["type"],
+            tagline=details.get("tagline", ""),
+            about=details.get("about", ""),
+            website=details.get("website", ""),
             currency=details["currency"],
             timezone=details["timezone"],
             language=details["language"],
@@ -314,6 +359,8 @@ def build_institution(state):
             primary_color=details["primary_color"],
             accent_color=details["accent_color"],
         )
+
+        _store_wizard_logo(institution, state)
 
         with use_institution(institution):
             # Every module gets a row, so the switches are explicit and the

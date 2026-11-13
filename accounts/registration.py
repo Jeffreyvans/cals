@@ -27,6 +27,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
+from core.logo import absolute_logo_url
 from core.models import Role
 from core.notifications import notify, queue_message, render_email_html, send_message
 from core.roles import ensure_roles
@@ -315,7 +316,8 @@ def send_email_verification(user, request=None):
     )
     html_body = render_email_html(
         "emails/verify_email.html",
-        {"user": user, "link": link, "institution": user.institution},
+        {"user": user, "link": link, "institution": user.institution,
+         "logo_url": absolute_logo_url(user.institution, request, 160)},
     )
     message = queue_message(
         "email",

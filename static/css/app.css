@@ -272,6 +272,59 @@ summary:focus-visible {
   height: 21px;
 }
 
+.brand-mark.logo {
+  overflow: hidden;
+  background: #fff;
+}
+
+.brand-mark.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.brand-mark.initials {
+  background: var(--accent, #3b82f6);
+  color: var(--accent-text, #fff);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.logo-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0.4rem 0 0.8rem;
+}
+
+.logo-preview img {
+  width: 96px;
+  height: 96px;
+  padding: 4px;
+  object-fit: contain;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.logo-preview .brand-initials {
+  display: inline-grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.receipt-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  margin-bottom: 0.6rem;
+}
+
 .brand-text {
   display: flex;
   flex-direction: column;

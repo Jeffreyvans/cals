@@ -1,4 +1,4 @@
-{% load static %}{% load perms %}<!doctype html>
+{% load static %}{% load perms %}{% load branding %}<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="{% if INSTITUTION_OBJECT.primary_color %}{{ INSTITUTION_OBJECT.primary_color }}{% else %}#1E3A8A{% endif %}">
 <title>{% block title %}{{ INSTITUTION }}{% endblock %}</title>
@@ -58,8 +58,15 @@
       <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v3"/></symbol>
     </svg>
 
+    {% institution_logo INSTITUTION_OBJECT 64 as sidebar_logo %}
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true"><svg class="ico"><use href="#i-logo"/></svg></span>
+      {% if sidebar_logo %}
+        <span class="brand-mark logo"><img src="{{ sidebar_logo }}" alt="{{ INSTITUTION }} logo"></span>
+      {% elif INSTITUTION_OBJECT %}
+        <span class="brand-mark initials" aria-hidden="true">{{ INSTITUTION_OBJECT.initials }}</span>
+      {% else %}
+        <span class="brand-mark" aria-hidden="true"><svg class="ico"><use href="#i-logo"/></svg></span>
+      {% endif %}
       <span class="brand-text"><span class="brand-name" title="{{ INSTITUTION }}">{{ INSTITUTION }}</span><span class="brand-sub">EduSphere</span></span>
     </div>
     <nav>

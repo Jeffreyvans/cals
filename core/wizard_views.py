@@ -86,6 +86,8 @@ def _step_context(request, state, step, errors=None, values=None):
         }
         for code in ALL_MODULES
     ]
+    logo = state.get("logo") or {}
+    logo_preview = f"data:image/png;base64,{logo['data']}" if logo.get("data") else ""
     return {
         "steps": wizard.STEPS,
         "step": step,
@@ -99,6 +101,7 @@ def _step_context(request, state, step, errors=None, values=None):
         "grading": grading,
         "demo": demo,
         "details": details,
+        "logo_preview": logo_preview,
     }
 
 
@@ -107,6 +110,9 @@ def _read_details(request):
         "name": request.POST.get("name", ""),
         "slug": request.POST.get("slug", ""),
         "type": request.POST.get("type", ""),
+        "tagline": request.POST.get("tagline", ""),
+        "about": request.POST.get("about", ""),
+        "website": request.POST.get("website", ""),
         "currency": request.POST.get("currency", ""),
         "timezone": request.POST.get("timezone", ""),
         "language": request.POST.get("language", ""),
@@ -190,6 +196,17 @@ def setup_wizard(request):
 
         if step == "details":
             clean, errors = wizard.clean_details(values["details"])
+            upload = request.FILES.get("logo")
+            if upload is not None:
+                try:
+                    wizard.set_logo(state, upload)
+                except ValidationError as exc:
+                    errors.extend(exc.messages)
+            elif request.POST.get("remove_logo"):
+                wizard.clear_logo(state)
+            # Keep the logo (a re-encoded PNG in the session) even when another
+            # field still needs fixing, because a file input cannot be refilled.
+            wizard.set_state(request, state)
         elif step == "year":
             clean, errors = wizard.clean_year(values["year"])
         elif step == "modules":

@@ -1,4 +1,5 @@
 {% extends "public_base.html" %}
+{% load branding %}
 {% block title %}Student registration — EduSphere{% endblock %}
 {% block description %}Activate your student portal using the registration number from your admission letter.{% endblock %}
 {% block content %}
@@ -69,9 +70,12 @@
 
     {% if institution %}
       <div class="institution-contact">
+        {% institution_logo institution 160 as logo_url %}
+        {% if logo_url %}<img class="contact-logo" src="{{ logo_url }}" alt="{{ institution.name }} logo">{% endif %}
         <strong>{{ institution.name }}</strong><br>
         {% if institution.contact_phone %}Phone: {{ institution.contact_phone }}<br>{% endif %}
         {% if institution.contact_email %}Email: {{ institution.contact_email }}<br>{% endif %}
+        {% if institution.website %}Website: {{ institution.website }}<br>{% endif %}
         {% if institution.address %}{{ institution.address }}{% endif %}
         {% if not institution.contact_phone and not institution.contact_email %}
           Contact the registrar to confirm your admission details.

@@ -1,14 +1,16 @@
 {% extends "public_base.html" %}
 {% load static %}
+{% load branding %}
 {% block title %}{{ institution.name }} — EduSphere{% endblock %}
 {% block description %}{{ institution.tagline|default:institution.name }}{% endblock %}
 {% block content %}
 <section class="institution-hero">
   <div class="page-shell">
     <div class="institution-head">
+      {% institution_logo institution 160 as logo_url %}
       <span class="brand-badge">
-        {% if institution.logo %}
-          <img src="{{ institution.logo.url }}" alt="{{ institution.name }} logo">
+        {% if logo_url %}
+          <img src="{{ logo_url }}" alt="{{ institution.name }} logo">
         {% else %}
           <span class="brand-initials" aria-hidden="true">{{ institution.initials }}</span>
         {% endif %}
@@ -39,9 +41,12 @@
       {% if institution.contact_email %}
         <li><a href="mailto:{{ institution.contact_email }}">{{ institution.contact_email }}</a></li>
       {% endif %}
+      {% if institution.website %}
+        <li><a href="{{ institution.website }}">{{ institution.website }}</a></li>
+      {% endif %}
     </ul>
     {% if institution.address %}<p class="sub" style="margin-top: 1rem;">{{ institution.address|linebreaksbr }}</p>{% endif %}
-    {% if not institution.contact_phone and not institution.contact_email and not institution.address %}
+    {% if not institution.contact_phone and not institution.contact_email and not institution.address and not institution.website %}
       <p class="sub">This institution has not published contact details yet.</p>
     {% endif %}
   </section>

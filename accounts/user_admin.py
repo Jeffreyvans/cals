@@ -22,6 +22,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
+from core.logo import absolute_logo_url
 from core.models import Department, Role, StaffProfile
 from core.notifications import queue_message, render_email_html, send_message
 from core.roles import LEGACY_ROLE_MAP
@@ -247,6 +248,7 @@ def _invitation_html(user, invitation, request=None):
             "user": user,
             "institution": user.institution,
             "link": _invitation_link(invitation, request),
+            "logo_url": absolute_logo_url(user.institution, request, 160),
         },
     )
 

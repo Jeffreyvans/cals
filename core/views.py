@@ -4,7 +4,7 @@ import csv
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -54,18 +54,45 @@ def settings_view(request):
         if action == "details":
             inst.name = request.POST.get("name", inst.name)[:200]
             inst.tagline = request.POST.get("tagline", inst.tagline)[:200]
-            inst.about = request.POST.get("about", inst.about)[:5000]
+            inst.about = request.POST.get("about", inst.about)[:600]
+            inst.website = request.POST.get("website", inst.website)[:200]
             inst.currency = request.POST.get("currency", inst.currency)[:10]
             inst.timezone = request.POST.get("timezone", inst.timezone)[:64]
             inst.language = request.POST.get("language", inst.language)[:10]
             inst.address = request.POST.get("address", "")[:2000]
             inst.contact_email = request.POST.get("contact_email", "")[:200]
             inst.contact_phone = request.POST.get("contact_phone", "")[:30]
-            inst.primary_color = request.POST.get("primary_color", inst.primary_color)[:20]
-            inst.accent_color = request.POST.get("accent_color", inst.accent_color)[:20]
             inst.save()
             log_action(request.user, "institution.updated", inst, request=request)
             messages.success(request, "Institution details saved.")
+            return redirect("institution_settings")
+        if action == "branding":
+            _require(request, "admin.manage_branding")
+            from core.logo import remove_logo, save_logo
+
+            if request.POST.get("remove_logo"):
+                remove_logo(inst)
+                log_action(request.user, "institution.logo_removed", inst,
+                           request=request)
+                messages.success(request, "The logo was removed.")
+                return redirect("institution_settings")
+            inst.primary_color = request.POST.get("primary_color", inst.primary_color)[:20]
+            inst.accent_color = request.POST.get("accent_color", inst.accent_color)[:20]
+            inst.save(update_fields=["primary_color", "accent_color"])
+            upload = request.FILES.get("logo")
+            if upload is not None:
+                try:
+                    save_logo(inst, upload)
+                except ValidationError as exc:
+                    for problem in exc.messages:
+                        messages.error(request, problem)
+                    return redirect("institution_settings")
+            log_action(request.user, "institution.branding_updated", inst,
+                       after={"primary_color": inst.primary_color,
+                              "accent_color": inst.accent_color,
+                              "logo": bool(inst.logo)},
+                       request=request)
+            messages.success(request, "Branding saved.")
             return redirect("institution_settings")
         if action == "vat":
             inst.vat_status = request.POST.get("vat_status", inst.vat_status)[:20]
@@ -163,6 +190,7 @@ def settings_view(request):
         "term_fields": term_fields,
         "staff_position_choices": staff_position_choices,
         "vat_status_choices": Institution.VatStatus.choices,
+        "can_brand": user_has_code(request.user, "admin.manage_branding"),
     })
 
 

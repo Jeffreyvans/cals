@@ -21,7 +21,7 @@
 </div>
 {% endif %}
 
-<form method="post" class="inline wide">
+<form method="post" enctype="multipart/form-data" class="inline wide">
   {% csrf_token %}
 
   {% if step == "details" %}
@@ -41,7 +41,18 @@
     <p><label>Contact email<input name="contact_email" type="email" value="{{ form.contact_email|default:'' }}" maxlength="200"></label></p>
     <p><label>Contact phone<input name="contact_phone" value="{{ form.contact_phone|default:'' }}" maxlength="30"></label></p>
     <p><label>Address<textarea name="address" rows="2" maxlength="2000">{{ form.address|default:'' }}</textarea></label></p>
+    <p><label>Tagline
+      <input name="tagline" value="{{ form.tagline|default:'' }}" maxlength="200" placeholder="Learn. Serve. Lead.">
+      <span class="helptext">A short line shown under the name on your public page.</span></label></p>
+    <p><label>About us
+      <textarea name="about" rows="4" maxlength="600" placeholder="A short paragraph shown on your public institution page.">{{ form.about|default:'' }}</textarea>
+      <span class="helptext">Up to 600 characters.</span></label></p>
+    <p><label>Website<input name="website" type="url" value="{{ form.website|default:'' }}" maxlength="200" placeholder="https://example.org"></label></p>
     <h3>Branding</h3>
+    <p><label>Logo
+      <input type="file" name="logo" id="wizard-logo" accept="image/png,image/jpeg,image/webp">
+      <span class="helptext">PNG, JPG or WebP. At least 200×200 pixels and no larger than 2 MB.</span></label></p>
+    <p><img class="logo-preview" id="wizard-logo-preview" src="{{ logo_preview }}" alt="Logo preview" width="96" height="96" {% if not logo_preview %}hidden{% endif %}></p>
     <p><label>Primary colour
       <input name="primary_color" value="{{ form.primary_color|default:'#1E3A8A' }}" maxlength="20" placeholder="#1E3A8A">
       <span class="helptext">The sidebar colour. Text stays readable whatever you choose.</span></label></p>
@@ -109,4 +120,21 @@
     <button class="btn" name="action" value="next">{% if step == "demo" %}Create the institution{% else %}Save and continue{% endif %}</button>
   </div>
 </form>
+
+{% if step == "details" %}
+<script>
+  (function () {
+    var input = document.getElementById("wizard-logo");
+    var image = document.getElementById("wizard-logo-preview");
+    if (!input || !image) return;
+    input.addEventListener("change", function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () { image.src = reader.result; image.hidden = false; };
+      reader.readAsDataURL(file);
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

@@ -5,7 +5,6 @@ from decimal import Decimal
 from io import BytesIO
 
 import qrcode
-from django.core.files.storage import default_storage
 from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -22,6 +21,7 @@ from reportlab.platypus import (
 
 from core.audit import log_action
 from core.branding import accent_colour, primary_colour, readable_text
+from core.logo import logo_flowable
 
 from .models import DAY_CHOICES, DocumentVerification, GradeBand
 from .services import enrollment_credits
@@ -52,22 +52,6 @@ def _number(value):
     if isinstance(value, Decimal):
         return f"{value:g}"
     return str(value)
-
-
-def _logo(institution, size):
-    logo = getattr(institution, "logo", None)
-    if not logo:
-        return None
-    try:
-        with default_storage.open(logo.name, "rb") as handle:
-            image = Image(BytesIO(handle.read()))
-    except (OSError, ValueError):
-        return None
-    scale = min(size / image.drawWidth, size / image.drawHeight, 1)
-    image.drawWidth *= scale
-    image.drawHeight *= scale
-    image.hAlign = "LEFT"
-    return image
 
 
 def _qr_image(url):
@@ -105,7 +89,7 @@ def _header(student, kind, styles, issued_on):
     primary = primary_colour(institution)
     title = ("Academic transcript" if kind == DocumentVerification.Kind.TRANSCRIPT
              else "Report card")
-    logo = _logo(institution, 1.9 * cm)
+    logo = logo_flowable(institution, 1.9 * cm)
     identity = [Paragraph(_safe(institution.name), styles["DocTitle"])]
     if institution.address:
         identity.append(Paragraph(_safe(institution.address), styles["DocSmall"]))
@@ -321,7 +305,7 @@ def build_timetable_pdf(institution, title, entries, term=None, subtitle=""):
         topMargin=1.1 * cm, bottomMargin=1.6 * cm,
         title=f"{title}", author=institution.name)
 
-    logo = _logo(institution, 1.9 * cm)
+    logo = logo_flowable(institution, 1.9 * cm)
     heading = [Paragraph(_safe(institution.name), styles["DocTitle"])]
     if institution.address:
         heading.append(Paragraph(_safe(institution.address), styles["DocSmall"]))

@@ -26,6 +26,7 @@ from reportlab.platypus import (
 )
 
 from core.branding import primary_colour, readable_text
+from core.logo import logo_flowable
 
 INK = colors.HexColor("#0f172a")
 MUTED = colors.HexColor("#64748b")
@@ -61,22 +62,6 @@ def _styles(primary):
     return styles
 
 
-def _logo(institution, size):
-    logo = getattr(institution, "logo", None)
-    if not logo:
-        return ""
-    try:
-        with default_storage.open(logo.name, "rb") as handle:
-            image = Image(BytesIO(handle.read()))
-    except (OSError, ValueError):
-        return ""
-    scale = min(size / image.drawWidth, size / image.drawHeight, 1)
-    image.drawWidth *= scale
-    image.drawHeight *= scale
-    image.hAlign = "LEFT"
-    return image
-
-
 def _photo(file_field, width, height):
     if not file_field:
         return ""
@@ -109,7 +94,7 @@ def _header(institution, title, styles, subtitle=""):
     right = [Paragraph(_safe(title), styles["AdTitle"])]
     if subtitle:
         right.append(Paragraph(_safe(subtitle), styles["AdSmall"]))
-    table = Table([[ _logo(institution, 1.8 * cm), detail, right ]],
+    table = Table([[logo_flowable(institution, 1.8 * cm) or "", detail, right]],
                   colWidths=[2.2 * cm, 9.3 * cm, 6.0 * cm])
     table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -264,9 +249,14 @@ def _card_block(card, request, styles, primary):
         ("LEFTPADDING", (0, 0), (-1, -1), 4),
         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
     ]))
-    front_holder = Table([[Paragraph(
-        f"<b>{_safe(institution.name)}</b>", styles["AdBody"]),
-        _qr(verify_url, 1.5 * cm)]], colWidths=[6.0 * cm, 2.2 * cm])
+    card_logo = logo_flowable(institution, 0.9 * cm)
+    front_left = []
+    if card_logo is not None:
+        front_left.append(card_logo)
+    front_left.append(Paragraph(
+        f"<b>{_safe(institution.name)}</b>", styles["AdBody"]))
+    front_holder = Table([[front_left, _qr(verify_url, 1.5 * cm)]],
+                         colWidths=[6.0 * cm, 2.2 * cm])
     front_holder.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(primary)),
         ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor(readable_text(primary))),
