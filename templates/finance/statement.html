@@ -1,6 +1,5 @@
 {% extends "base.html" %}{% load branding %}{% block content %}
-{% institution_logo INSTITUTION_OBJECT 160 as logo_url %}
-{% if logo_url %}<img class="receipt-logo" src="{{ logo_url }}" alt="{{ INSTITUTION }} logo">{% endif %}
+{% document_masthead INSTITUTION_OBJECT %}
 <h1>Statement: {{ s.name }}</h1>
 <p class="muted">{{ s.student_no }} · {{ s.programme|default:"-" }} · {{ s.class_label }}</p>
 <p><a class="btn" href="{% url 'student_statement_pdf' s.pk %}">Download PDF</a></p>

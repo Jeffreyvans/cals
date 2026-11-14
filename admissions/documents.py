@@ -26,7 +26,12 @@ from reportlab.platypus import (
 )
 
 from core.branding import primary_colour, readable_text
-from core.logo import logo_flowable
+from core.document_header import (
+    build_header,
+    contact_lines,
+    header_mark,
+    institution_details,
+)
 
 INK = colors.HexColor("#0f172a")
 MUTED = colors.HexColor("#64748b")
@@ -83,27 +88,11 @@ def _qr(url, size=2.4 * cm):
 
 
 def _header(institution, title, styles, subtitle=""):
-    primary = primary_colour(institution)
-    detail = [Paragraph(_safe(institution.name), styles["AdTitle"])]
-    if institution.address:
-        detail.append(Paragraph(_safe(institution.address), styles["AdSmall"]))
-    contacts = " ".join(filter(None, [institution.contact_phone,
-                                      institution.contact_email]))
-    if contacts:
-        detail.append(Paragraph(_safe(contacts), styles["AdSmall"]))
-    right = [Paragraph(_safe(title), styles["AdTitle"])]
-    if subtitle:
-        right.append(Paragraph(_safe(subtitle), styles["AdSmall"]))
-    table = Table([[logo_flowable(institution, 1.8 * cm) or "", detail, right]],
-                  colWidths=[2.2 * cm, 9.3 * cm, 6.0 * cm])
-    table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("LINEBELOW", (0, 0), (-1, 0), 1.2, colors.HexColor(primary)),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-    ]))
-    return table
+    return build_header(
+        institution, title, subtitle=subtitle,
+        title_style=styles["AdTitle"], small_style=styles["AdSmall"],
+        logo_size=1.8 * cm, widths=(2.2 * cm, 9.3 * cm, 6.0 * cm),
+        primary=primary_colour(institution))
 
 
 def _footer(text):
@@ -249,10 +238,8 @@ def _card_block(card, request, styles, primary):
         ("LEFTPADDING", (0, 0), (-1, -1), 4),
         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
     ]))
-    card_logo = logo_flowable(institution, 0.9 * cm)
-    front_left = []
-    if card_logo is not None:
-        front_left.append(card_logo)
+    card_logo = header_mark(institution, size=0.9 * cm, primary=primary)
+    front_left = [card_logo]
     front_left.append(Paragraph(
         f"<b>{_safe(institution.name)}</b>", styles["AdBody"]))
     front_holder = Table([[front_left, _qr(verify_url, 1.5 * cm)]],
@@ -262,10 +249,13 @@ def _card_block(card, request, styles, primary):
         ("TEXTCOLOR", (0, 0), (-1, -1), colors.HexColor(readable_text(primary))),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
     ]))
+    # The back repeats the address and tax numbers so a found card can be
+    # returned and a cashier can see the institution's VAT/BP identity.
+    details = institution_details(institution)
+    back_lines = contact_lines(details)[:3]
     back_details = [
         Paragraph(f"Card {_safe(card.card_no)}", styles["AdCell"]),
-        Paragraph(f"Phone: {_safe(institution.contact_phone)}", styles["AdSmall"]),
-        Paragraph(f"Email: {_safe(institution.contact_email)}", styles["AdSmall"]),
+        *[Paragraph(_safe(line), styles["AdSmall"]) for line in back_lines],
         Paragraph("If found, return to the institution.", styles["AdSmall"]),
     ]
     card_table = Table([

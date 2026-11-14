@@ -97,6 +97,16 @@ def user_list(request):
     verified = request.GET.get("verified", "")
 
     if query:
+        from core.numbering import number_key
+
+        # Numbers may be typed with or without their separators, so compare
+        # compact keys here as well as doing the ordinary contains lookup.
+        number_pks = [
+            pk for pk, student_no, employee_no in queryset.values_list(
+                "pk", "student__student_no", "staff_profile__employee_no")
+            if number_key(query) in number_key(student_no)
+            or number_key(query) in number_key(employee_no)
+        ]
         queryset = queryset.filter(
             Q(username__icontains=query)
             | Q(first_name__icontains=query)
@@ -105,6 +115,7 @@ def user_list(request):
             | Q(phone__icontains=query)
             | Q(student__student_no__icontains=query)
             | Q(staff_profile__employee_no__icontains=query)
+            | Q(pk__in=number_pks)
         )
 
     if kind == "staff":

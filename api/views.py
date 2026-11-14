@@ -33,6 +33,7 @@ from academics.models import (
 from accounts.models import User
 from admissions.models import Application
 from core.access import user_has_any_code, user_has_code
+from core.numbering import number_key
 from finance.models import Invoice, Payment
 
 from .filters import SimpleFilterBackend
@@ -381,6 +382,21 @@ class ApplicationViewSet(ReadOnlyApiViewSet):
     search_fields = ["first_name", "last_name", "email", "reference", "phone"]
 
 
+def _student_by_number(institution, number):
+    """Find a student by number, tolerating case, spaces and separators.
+
+    A device operator may key the number from a card or a printout, so
+    ``stu/2026/0001`` reaches the same student as ``STU-2026-0001``.
+    """
+    key = number_key(number)
+    if not key:
+        return None
+    for student in Student.all_objects.filter(institution=institution):
+        if number_key(student.student_no) == key:
+            return student
+    return None
+
+
 # ---------- integrations ----------
 class AttendanceDeviceView(APIView):
     """Bulk attendance from a turnstile or other device.
@@ -405,7 +421,7 @@ class AttendanceDeviceView(APIView):
         with transaction.atomic():
             for index, record in enumerate(payload.validated_data["records"]):
                 student = (
-                    Student.objects.filter(student_no=record["student_no"]).first()
+                    _student_by_number(institution, record["student_no"])
                     if institution
                     else None
                 )

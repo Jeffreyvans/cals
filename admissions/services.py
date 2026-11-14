@@ -351,6 +351,11 @@ def create_student_record(
     due_date = due_date or timezone.localdate()
     with use_institution(institution):
         ensure_roles(institution)
+        if student_no:
+            from core.numbering import validate_manual_number
+
+            student_no = validate_manual_number(
+                institution, "student", student_no, actor=actor, request=request)
         student_role = Role.all_objects.filter(
             institution=institution, code="student"
         ).first()
@@ -369,7 +374,7 @@ def create_student_record(
         student = Student(
             institution=institution,
             user=account.user,
-            student_no=str(student_no or "").strip()[:20],
+            student_no=str(student_no or "").strip(),
             programme=programme,
             programme_year=programme_year,
             cohort=cohort,

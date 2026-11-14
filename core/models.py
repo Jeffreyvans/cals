@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 
 from core.tenancy import CurrentInstitutionId, current_institution_id, default_institution_id
 
@@ -264,46 +264,149 @@ class StaffProfile(TenantModel):
 
     class Meta:
         ordering = ["user__last_name", "user__first_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["institution", "employee_no"],
+                condition=~models.Q(employee_no=""),
+                name="uniq_staff_employee_no"),
+        ]
 
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} - {self.job_title}"
 
     def save(self, *a, **kw):
-        adding = self._state.adding
-        super().save(*a, **kw)
-        if adding and not self.employee_no:
-            from core.numbering import next_number
+        with transaction.atomic():
+            super().save(*a, **kw)
+            if not self.employee_no:
+                from core.numbering import next_number
 
-            self.employee_no = next_number(self.institution, "staff")
-            super().save(update_fields=["employee_no"])
+                # Callers that know the department before the row exists (the
+                # user and import screens do) hand its code in, because a
+                # many-to-many relation cannot be read before the first save.
+                department_code = getattr(self, "_department_code", "")
+                if not department_code:
+                    department = self.departments.first()
+                    department_code = getattr(department, "code", "")
+                self.employee_no = next_number(
+                    self.institution, "staff", department_code=department_code)
+                super().save(update_fields=["employee_no"])
+            elif self.employee_no:
+                normalised = str(self.employee_no).strip().upper()
+                if normalised != self.employee_no:
+                    self.employee_no = normalised
+                    super().save(update_fields=["employee_no"])
 
 
-class NumberSequence(TenantModel):
-    """The last student or staff number issued by an institution.
+class NumberFormat(TenantModel):
+    """How one kind of number is built for one institution.
 
-    One row per institution and kind. The number is advanced with an atomic
-    database update inside a row lock, so two clerks admitting at the same
-    moment never share a number. The prefix, year and padding come from the
-    institution's number-format settings.
+    The format is a set of tokens, not a template string: a fixed letter
+    prefix, an optional two- or four-digit year, an optional programme or
+    department code, a zero-padded sequence, one separator, and an optional
+    final check letter. Keeping the pieces separate makes validation,
+    live previews and a documented check-letter calculation possible.
     """
 
     class Kind(models.TextChoices):
         STUDENT = "student", "Student number"
         STAFF = "staff", "Staff number"
+        APPLICANT = "applicant", "Applicant number"
+
+    class Separator(models.TextChoices):
+        NONE = "", "None"
+        HYPHEN = "-", "Hyphen"
+        SLASH = "/", "Slash"
+
+    class CheckMode(models.TextChoices):
+        NONE = "none", "No check letter"
+        FIXED = "fixed", "Fixed letter"
+        CALCULATED = "calculated", "Calculated check letter"
 
     kind = models.CharField(max_length=20, choices=Kind.choices)
-    last_number = models.PositiveIntegerField(default=0)
+    prefix = models.CharField(max_length=12, blank=True)
+    include_year = models.BooleanField(default=True)
+    year_digits = models.PositiveSmallIntegerField(default=4)
+    include_programme = models.BooleanField(
+        default=False,
+        help_text="Add the student's programme code to student numbers.")
+    include_department = models.BooleanField(
+        default=False,
+        help_text="Add the staff member's department code to staff numbers.")
+    padding = models.PositiveSmallIntegerField(default=4)
+    separator = models.CharField(max_length=1, choices=Separator.choices,
+                                 blank=True, default=Separator.HYPHEN)
+    check_mode = models.CharField(max_length=12, choices=CheckMode.choices,
+                                  default=CheckMode.NONE)
+    check_letter = models.CharField(max_length=1, blank=True)
+    reset_yearly = models.BooleanField(default=True)
+    start_number = models.PositiveIntegerField(default=1)
     updated = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="number_formats_changed")
 
     class Meta:
         ordering = ["kind"]
         constraints = [
             models.UniqueConstraint(fields=["institution", "kind"],
+                                    name="uniq_number_format")
+        ]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} for {self.institution}"
+
+
+class NumberFormatChange(TenantModel):
+    """An append-only history of number-format changes."""
+
+    format = models.ForeignKey(
+        NumberFormat, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="changes")
+    kind = models.CharField(max_length=20, choices=NumberFormat.Kind.choices)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="number_format_changes")
+    before = models.JSONField(default=dict, blank=True)
+    after = models.JSONField(default=dict, blank=True)
+    reason = models.CharField(max_length=200, blank=True)
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+
+    def __str__(self):
+        return f"{self.kind} format changed"
+
+
+class NumberSequence(TenantModel):
+    """The last number issued for one kind and one year bucket.
+
+    A yearly format has one row per year, so a new year starts again without
+    touching the old rows. A format that continues forever uses year ``0``.
+    The number is advanced with an atomic database update inside a row lock,
+    so two clerks admitting at the same moment never share a number. A number
+    is never put back, so deleting a record cannot cause a reused number.
+    """
+
+    class Kind(models.TextChoices):
+        STUDENT = "student", "Student number"
+        STAFF = "staff", "Staff number"
+        APPLICANT = "applicant", "Applicant number"
+
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    year = models.PositiveIntegerField(default=0)
+    last_number = models.PositiveIntegerField(default=0)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["kind", "year"]
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "kind", "year"],
                                     name="uniq_number_sequence")
         ]
 
     def __str__(self):
-        return f"{self.kind}: {self.last_number}"
+        return f"{self.kind} {self.year or 'all'}: {self.last_number}"
 
 
 # ---------- bulk import ----------

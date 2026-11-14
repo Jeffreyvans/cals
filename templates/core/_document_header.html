@@ -1,0 +1,17 @@
+{% comment %}
+The shared masthead for printable screens. Views that know about a fiscalised
+document pass its frozen layout as ``layout``; every other page uses the live
+institution details. Keep this black-and-white friendly: the mark is the only
+element that carries colour, and the text is always ink on the page.
+{% endcomment %}
+<header class="doc-header">
+  {% if logo_url %}
+    <img class="doc-logo" src="{{ logo_url }}" alt="{{ details.name }} logo">
+  {% else %}
+    <span class="doc-initials" aria-hidden="true">{{ initials }}</span>
+  {% endif %}
+  <div class="doc-identity">
+    <p class="doc-name">{{ details.name }}</p>
+    {% for line in lines %}<p class="doc-line">{{ line }}</p>{% endfor %}
+  </div>
+</header>

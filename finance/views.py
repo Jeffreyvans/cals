@@ -301,6 +301,47 @@ def _receipt_payment(request, pk):
     return payment, None
 
 
+def _invoice_record(request, pk):
+    """The invoice a document view may show, or a 403 for another student."""
+    invoice = get_object_or_404(
+        Invoice.objects.select_related("student__user", "institution"), pk=pk)
+    if (request.user.role == "student"
+            and invoice.student.user != request.user):
+        return None, render(request, "403.html", status=403)
+    return invoice, None
+
+
+@module_required("finance")
+@role_required("bursar", "registrar", "student")
+def invoice_detail(request, pk):
+    invoice, denied = _invoice_record(request, pk)
+    if denied is not None:
+        return denied
+    return render(request, "finance/invoice.html", {
+        "i": invoice,
+        "s": invoice.student,
+        "payments": invoice.payments.all().order_by("-paid_on"),
+        "fiscal": _fiscal_for(invoice, DocumentType.INVOICE),
+    })
+
+
+@module_required("finance")
+@role_required("bursar", "registrar", "student")
+def invoice_pdf(request, pk):
+    invoice, denied = _invoice_record(request, pk)
+    if denied is not None:
+        return denied
+    from .invoices import build_invoice_pdf
+
+    pdf = build_invoice_pdf(
+        invoice, request=request,
+        fiscal=_fiscal_for(invoice, DocumentType.INVOICE))
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'attachment; filename="invoice-{invoice.number or invoice.pk}.pdf"')
+    return response
+
+
 @module_required("finance")
 @role_required("bursar", "registrar", "student")
 def receipt(request, pk):
@@ -342,17 +383,22 @@ def email_receipt(request, pk):
         messages.error(request, "This student has no email address on file.")
         return redirect("receipt", pk=p.pk)
 
+    from core.document_header import header_context
     from core.logo import absolute_logo_url
     from core.notifications import queue_message, render_email_html, send_message
 
     institution = p.invoice.institution
     currency = p.currency or institution.currency
     url = reverse("verify_receipt", args=[p.verification_token])
+    fiscal = _fiscal_for(p, DocumentType.RECEIPT)
+    header = header_context(
+        institution, layout=getattr(fiscal, "layout", None), request=request)
     html_body = render_email_html("emails/receipt.html", {
         "user": student_user, "institution": institution, "payment": p,
         "student": p.invoice.student, "currency": currency,
         "verify_url": request.build_absolute_uri(url),
-        "logo_url": absolute_logo_url(institution, request, 160)})
+        "header": header,
+        "logo_url": header["logo_url"] or absolute_logo_url(institution, request, 160)})
     body = (
         f"Hello {student_user.get_full_name() or student_user.username},\n\n"
         f"We received your payment of {currency}{p.amount} "

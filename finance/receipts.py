@@ -26,7 +26,7 @@ from reportlab.platypus import (
 )
 
 from core.branding import primary_colour
-from core.logo import logo_flowable
+from core.document_header import build_header
 
 INK = colors.HexColor("#0f172a")
 MUTED = colors.HexColor("#64748b")
@@ -83,28 +83,18 @@ def build_receipt_pdf(payment, request=None, fiscal=None):
                             rightMargin=2 * cm, topMargin=1.8 * cm,
                             bottomMargin=1.8 * cm)
 
-    heading = [Paragraph(_safe(institution.name), styles["ReceiptTitle"])]
-    if institution.tagline:
-        heading.append(Paragraph(_safe(institution.tagline), styles["ReceiptSmall"]))
-    contacts = " · ".join(filter(None, [institution.address,
-                                        institution.contact_phone,
-                                        institution.contact_email,
-                                        institution.website]))
-    if contacts:
-        heading.append(Paragraph(_safe(contacts), styles["ReceiptSmall"]))
-    logo = logo_flowable(institution, 1.6 * cm)
-    if logo is not None:
-        header = Table([[logo, heading]], colWidths=[2.2 * cm, 14.8 * cm])
-        header.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ]))
-        story = [header, Spacer(1, 0.4 * cm)]
-    else:
-        story = heading + [Spacer(1, 0.4 * cm)]
+    layout = getattr(fiscal, "layout", None) if fiscal is not None else None
+    story = [
+        build_header(
+            institution, "Payment receipt",
+            subtitle=institution.tagline if not layout else "",
+            title_style=styles["ReceiptTitle"],
+            small_style=styles["ReceiptSmall"],
+            header=layout, logo_size=1.8 * cm,
+            widths=(2.2 * cm, 10.0 * cm, 5.4 * cm), primary=primary),
+        Spacer(1, 0.4 * cm),
+    ]
 
-    story.append(Paragraph("Payment receipt", styles["ReceiptH2"]))
     method = payment.get_method_display()
     if payment.reference:
         method = f"{method} · {payment.reference}"

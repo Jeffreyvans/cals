@@ -102,6 +102,21 @@ class GlobalSearchTests(DashboardBase):
         self.assertContains(response, "Programming")
         self.assertContains(response, "Courses")
 
+    def test_search_finds_a_number_typed_with_different_separators(self):
+        self.student.student_no = "STU/2026/0007"
+        self.student.save(update_fields=["student_no"])
+        response = self.client.get(
+            reverse("global_search"), {"q": "stu 2026 0007"})
+        self.assertContains(response, "Rita Risk")
+
+    def test_student_search_api_tolerates_separators(self):
+        self.student.student_no = "STU-2026-0007"
+        self.student.save(update_fields=["student_no"])
+        response = self.client.get(
+            reverse("student_search_api"), {"q": "stu/2026/0007"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["results"][0]["no"], "STU-2026-0007")
+
     def test_short_queries_do_not_search(self):
         response = self.client.get(reverse("global_search"), {"q": "R"})
         self.assertEqual(response.status_code, 200)

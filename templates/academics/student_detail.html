@@ -5,7 +5,7 @@
 <small>Billed {{ CUR }}{{ s.total_billed }} · Paid {{ CUR }}{{ s.total_paid }}{% if s.total_waived %} · Waived {{ CUR }}{{ s.total_waived }}{% endif %}</small></div>{% endif %}</div>
 {% if user.role == 'bursar' or user.role == 'admin' %}<p><a class="btn" href="{% url 'record_payment' s.pk %}">Receive payment</a> <a class="btn ghost" href="{% url 'create_invoice' s.pk %}">Add invoice</a></p>{% endif %}
 {% if show_money %}<h2>Fees</h2><table class="tbl"><tr><th>Invoice</th><th>Due</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Waived</th><th class="r">Balance</th><th>Receipts</th><th></th></tr>
-{% for i in invoices %}<tr><td>{{ i.description }}</td><td>{{ i.due_date }}</td><td class="r">{{ i.amount }}</td><td class="r">{{ i.paid }}</td>
+{% for i in invoices %}<tr><td><a href="{% url 'invoice_detail' i.pk %}">{{ i.description }}</a></td><td>{{ i.due_date }}</td><td class="r">{{ i.amount }}</td><td class="r">{{ i.paid }}</td>
 <td class="r">{% if i.waived %}{{ CUR }}{{ i.waived }}{% for w in i.waivers.all %} <a href="{% url 'credit_note' w.pk %}">{{ w.note_no }}</a>{% endfor %}{% else %}—{% endif %}</td>
 <td class="r">{{ i.balance }}</td>
 <td>{% for p in i.payments.all %}<a href="{% url 'receipt' p.pk %}">{{ p.receipt_no }}</a> {% endfor %}</td>

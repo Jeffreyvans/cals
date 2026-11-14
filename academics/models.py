@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q, Sum
 
 from core.models import TenantModel
@@ -590,12 +590,18 @@ class Student(TenantModel):
 
     def save(self, *a, **kw):
         adding = self._state.adding
-        super().save(*a, **kw)
-        if adding and not self.student_no:
-            from core.numbering import next_number
+        with transaction.atomic():
+            if adding and not self.student_no:
+                from core.numbering import next_number
 
-            self.student_no = next_number(self.institution, "student")
-            super().save(update_fields=["student_no"])
+                self.student_no = next_number(
+                    self.institution, "student",
+                    programme_code=getattr(self.programme, "code", ""))
+            elif self.student_no:
+                # An administrator may type a number in any case. Store it in
+                # one consistent shape so matching and searching are reliable.
+                self.student_no = str(self.student_no).strip().upper()
+            super().save(*a, **kw)
 
     @property
     def name(self): return self.user.get_full_name() or self.user.username

@@ -1,0 +1,190 @@
+{% extends "base.html" %}{% block content %}
+<div class="head">
+  <div>
+    <h1>Number formats</h1>
+    <p class="muted">Choose how student, staff and applicant numbers are built. A change only affects numbers issued from now on: existing numbers keep the shape they were given.</p>
+  </div>
+</div>
+
+{% for kind, nf in formats.items %}
+<h2>{{ kind|title }} numbers</h2>
+<form method="post" class="inline wide number-format"
+      data-programme="{{ nf.example_programme }}"
+      data-department="{{ nf.example_department }}"
+      onsubmit="return confirmNumberChange(this);">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="format">
+  <input type="hidden" name="kind" value="{{ nf.kind }}">
+
+  <p><label>Fixed letter prefix
+    <input name="prefix" value="{{ nf.prefix }}" maxlength="12" placeholder="STU" class="js-prefix"></label>
+    <span class="helptext">Letters and digits only, up to 12. Leave empty for no prefix.</span></p>
+
+  <p><label class="check"><input type="checkbox" name="include_year" class="js-include-year" {% if nf.include_year %}checked{% endif %}> Include the year</label></p>
+  <p><label>Year digits
+    <select name="year_digits" class="js-year-digits">
+      <option value="4" {% if nf.year_digits == 4 %}selected{% endif %}>Four digits (2026)</option>
+      <option value="2" {% if nf.year_digits == 2 %}selected{% endif %}>Two digits (26)</option>
+    </select></label></p>
+
+  <p><label>Sequence padding
+    <input name="padding" type="number" min="1" max="8" value="{{ nf.padding }}" class="js-padding"></label>
+    <span class="helptext">How many digits the sequence part is padded to, for example 4 gives 0001.</span></p>
+
+  <p><label>Separator
+    <select name="separator" class="js-separator">
+      {% for value, label in separator_choices %}
+      <option value="{{ value }}" {% if nf.separator == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select></label></p>
+
+  <p><label class="check"><input type="checkbox" name="include_programme" class="js-programme" {% if nf.include_programme %}checked{% endif %}> Add the programme code (students)</label>
+    <span class="helptext">Example code: <code>{{ nf.example_programme }}</code></span></p>
+  <p><label class="check"><input type="checkbox" name="include_department" class="js-department" {% if nf.include_department %}checked{% endif %}> Add the department code (staff)</label>
+    <span class="helptext">Example code: <code>{{ nf.example_department }}</code></span></p>
+
+  <p><label>Final letter
+    <select name="check_mode" class="js-check-mode">
+      {% for value, label in check_choices %}
+      <option value="{{ value }}" {% if nf.check_mode == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select></label>
+    <label>Fixed letter
+      <input name="check_letter" maxlength="1" value="{{ nf.check_letter }}" class="js-check-letter" {% if nf.check_mode != 'fixed' %}disabled{% endif %}></label>
+    <span class="helptext">The calculated letter is a weighted modulo-26 check of the rest of the number.</span></p>
+
+  <p><label class="check"><input type="checkbox" name="reset_yearly" class="js-reset" {% if nf.reset_yearly %}checked{% endif %}> Start again at the chosen start number each year</label>
+    <span class="helptext">Leave off to continue the sequence forever.</span></p>
+
+  <p><label>Start number
+    <input name="start_number" type="number" min="1" value="{{ nf.start_number }}" class="js-start"></label></p>
+
+  <p><label>Next number
+    <input name="next" type="number" min="1" value="{{ nf.next }}" class="js-next"></label>
+    <span class="helptext">The sequence position the next record will receive.</span></p>
+
+  <p><label>Reason for the change
+    <input name="reason" maxlength="200" placeholder="Optional note for the audit trail"></label></p>
+
+  <div class="card" style="margin:0.6rem 0;">
+    <b>Next three {{ kind }} numbers</b>
+    <p class="muted js-preview" style="font-family:monospace; font-size:1.05rem;">{{ nf.preview_three|join:", " }}</p>
+    <p class="muted" style="margin:0;">Current first number: <strong>{{ nf.preview }}</strong></p>
+  </div>
+
+  <button class="btn">Save {{ kind }} format</button>
+</form>
+{% endfor %}
+
+<h2>Manual override</h2>
+<p class="muted">An authorised administrator can give one existing record a different number. The number is checked for uniqueness and the change is written to the audit trail. Existing numbers are never reused.</p>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="override">
+  <p><label>Record type
+    <select name="kind">
+      {% for k in kinds %}<option value="{{ k.code }}">{{ k.label }}</option>{% endfor %}
+    </select></label></p>
+  <p><label>Current number<input name="current" maxlength="30" required></label></p>
+  <p><label>New number<input name="number" maxlength="30" required></label></p>
+  <button class="btn ghost">Change the number</button>
+</form>
+
+<h2>Change history</h2>
+<table class="tbl">
+  <thead><tr><th>When</th><th>Type</th><th>Changed by</th><th>Before</th><th>After</th><th>Reason</th></tr></thead>
+  <tbody>
+  {% for change in changes %}
+    <tr>
+      <td>{{ change.created|date:"d M Y H:i" }}</td>
+      <td>{{ change.kind|title }}</td>
+      <td>{{ change.actor.get_full_name|default:change.actor.username|default:"—" }}</td>
+      <td><code>{{ change.before.prefix }} · pad {{ change.before.padding }}</code></td>
+      <td><code>{{ change.after.prefix }} · pad {{ change.after.padding }}</code></td>
+      <td>{{ change.reason|default:"—" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No format changes have been recorded yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<p><a href="{% url 'institution_settings' %}">Back to institution settings</a></p>
+
+<script>
+(function () {
+  function digits(value, count) {
+    var text = String(value == null ? "" : value).replace(/[^0-9]/g, "");
+    while (text.length < count) { text = "0" + text; }
+    return text;
+  }
+  function checkLetter(stem) {
+    var total = 0;
+    for (var i = 0; i < stem.length; i += 1) {
+      var ch = stem.charAt(i).toUpperCase();
+      var value = 0;
+      if (ch >= "0" && ch <= "9") { value = parseInt(ch, 10); }
+      else if (ch >= "A" && ch <= "Z") { value = ch.charCodeAt(0) - 64; }
+      total += (i + 1) * value;
+    }
+    return String.fromCharCode(65 + (total % 26));
+  }
+  function build(form, value) {
+    var prefix = form.querySelector(".js-prefix").value.trim().toUpperCase();
+    var includeYear = form.querySelector(".js-include-year").checked;
+    var yearDigits = parseInt(form.querySelector(".js-year-digits").value, 10) || 4;
+    var padding = parseInt(form.querySelector(".js-padding").value, 10) || 1;
+    var separator = form.querySelector(".js-separator").value;
+    var parts = [];
+    if (prefix) { parts.push(prefix); }
+    if (includeYear) { parts.push(digits(new Date().getFullYear(), yearDigits)); }
+    if (form.querySelector(".js-programme").checked) { parts.push(form.dataset.programme || "PROG"); }
+    if (form.querySelector(".js-department").checked) { parts.push(form.dataset.department || "DEP"); }
+    parts.push(digits(value, padding));
+    var mode = form.querySelector(".js-check-mode").value;
+    if (mode === "fixed") {
+      var letter = form.querySelector(".js-check-letter").value.trim().toUpperCase();
+      if (letter) { parts.push(letter); }
+    } else if (mode === "calculated") {
+      parts.push(checkLetter(parts.join("")));
+    }
+    return parts.join(separator);
+  }
+  function refresh(form) {
+    var next = parseInt(form.querySelector(".js-next").value, 10) || 1;
+    var target = form.querySelector(".js-preview");
+    if (target) {
+      target.textContent = [build(form, next), build(form, next + 1), build(form, next + 2)].join(", ");
+    }
+  }
+  function setup(form) {
+    if (!form.classList.contains("number-format")) { return; }
+    var fields = form.querySelectorAll("input, select");
+    for (var i = 0; i < fields.length; i += 1) {
+      fields[i].addEventListener("input", function () { refresh(form); });
+      fields[i].addEventListener("change", function () { refresh(form); });
+    }
+    var mode = form.querySelector(".js-check-mode");
+    var letter = form.querySelector(".js-check-letter");
+    mode.addEventListener("change", function () {
+      letter.disabled = mode.value !== "fixed";
+      refresh(form);
+    });
+    refresh(form);
+  }
+  var forms = document.querySelectorAll("form");
+  for (var i = 0; i < forms.length; i += 1) { setup(forms[i]); }
+
+  window.confirmNumberChange = function (form) {
+    var kind = form.querySelector("input[name=kind]").value;
+    var prefix = form.querySelector(".js-prefix").value.trim().toUpperCase() || "(none)";
+    var next = form.querySelector(".js-next").value;
+    return window.confirm(
+      "Save the " + kind + " number format with prefix " + prefix +
+      " and next number " + next + "?\n\n" +
+      "Existing numbers will not be renamed. Numbers issued from now on will use the new layout."
+    );
+  };
+})();
+</script>
+{% endblock %}

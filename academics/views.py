@@ -478,8 +478,13 @@ def student_search_api(request):
     q = request.GET.get("q", "").strip()[:100]
     qs = Student.objects.select_related("user", "programme")
     if q:
-        qs = qs.filter(Q(student_no__icontains=q) | Q(user__first_name__icontains=q) |
-                       Q(user__last_name__icontains=q) | Q(programme__name__icontains=q))
+        from core.numbering import matching_pks
+
+        numbers = matching_pks(qs, "student_no", q, limit=30)
+        qs = qs.filter(Q(student_no__icontains=q) | Q(pk__in=numbers)
+                       | Q(user__first_name__icontains=q)
+                       | Q(user__last_name__icontains=q)
+                       | Q(programme__name__icontains=q))
     billed, paid, waived = balances_by_student()
     data = [{"id": s.pk, "no": s.student_no, "name": s.name, "programme": s.programme.name,
              "status": s.get_status_display(),

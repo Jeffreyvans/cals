@@ -174,13 +174,22 @@ def settings_view(request):
                     include_year=request.POST.get("include_year") == "on",
                     padding=request.POST.get("padding", ""),
                     next_value=request.POST.get("next", ""),
+                    year_digits=request.POST.get("year_digits") or None,
+                    separator=request.POST.get("separator"),
+                    check_mode=request.POST.get("check_mode") or None,
+                    check_letter=request.POST.get("check_letter", ""),
+                    include_programme=request.POST.get("include_programme"),
+                    include_department=request.POST.get("include_department"),
+                    reset_yearly=request.POST.get("reset_yearly"),
+                    start_number=request.POST.get("start_number") or None,
+                    actor=request.user,
+                    reason=request.POST.get("reason", ""),
+                    request=request,
                 )
             except ValidationError as exc:
                 for problem in exc.messages:
                     messages.error(request, problem)
                 return redirect("institution_settings")
-            log_action(request.user, "institution.numbering_updated", inst,
-                       after={"kind": kind}, request=request)
             messages.success(request, f"{kind.title()} number format saved.")
             return redirect("institution_settings")
     switches = []
@@ -218,6 +227,80 @@ def settings_view(request):
         "institution_login_url": request.build_absolute_uri(
             reverse("institution_login", args=[inst.slug])
         ),
+    })
+
+
+# ---------- numbering ----------
+@login_required
+def numbering_settings(request):
+    """The dedicated student, staff and applicant number settings screen.
+
+    The format is stored per institution and the last issued number per
+    institution, kind and year, so one institution's sequence can never move
+    another's. Changing a format only affects numbers issued from then on.
+    """
+    _require(request, "admin.manage_settings")
+    inst = _institution(request)
+    if request.method == "POST":
+        action = request.POST.get("action", "format")
+        kind = request.POST.get("kind", "")
+        try:
+            if action == "override":
+                from core.numbering import manual_override
+
+                manual_override(
+                    inst, kind,
+                    request.POST.get("current", ""),
+                    request.POST.get("number", ""),
+                    actor=request.user, request=request)
+                messages.success(
+                    request, "The number was changed and the change was logged.")
+            else:
+                from core.numbering import save_format
+
+                save_format(
+                    inst, kind,
+                    prefix=request.POST.get("prefix", ""),
+                    include_year=request.POST.get("include_year") == "on",
+                    padding=request.POST.get("padding", ""),
+                    next_value=request.POST.get("next", ""),
+                    year_digits=request.POST.get("year_digits") or None,
+                    separator=request.POST.get("separator"),
+                    include_programme=request.POST.get("include_programme"),
+                    include_department=request.POST.get("include_department"),
+                    check_mode=request.POST.get("check_mode") or None,
+                    check_letter=request.POST.get("check_letter", ""),
+                    reset_yearly=request.POST.get("reset_yearly"),
+                    start_number=request.POST.get("start_number") or None,
+                    actor=request.user,
+                    reason=request.POST.get("reason", ""),
+                    request=request,
+                )
+                messages.success(
+                    request, f"{kind.title()} number format saved. Existing "
+                             "numbers were not changed.")
+        except ValidationError as exc:
+            for problem in exc.messages:
+                messages.error(request, problem)
+        return redirect("numbering_settings")
+
+    from core.models import NumberFormat, NumberFormatChange
+    from core.numbering import formats_for
+
+    return render(request, "core/numbering_settings.html", {
+        "inst": inst,
+        "formats": formats_for(inst),
+        "kinds": [{"code": code, "label": label}
+                  for code, label in NumberFormat.Kind.choices],
+        "separator_choices": [
+            ("", "None"), ("-", "Hyphen"), ("/", "Slash")],
+        "check_choices": [
+            ("none", "No check letter"),
+            ("fixed", "Fixed final letter"),
+            ("calculated", "Calculated check letter"),
+        ],
+        "changes": NumberFormatChange.all_objects.filter(
+            institution=inst).select_related("actor")[:20],
     })
 
 
@@ -415,6 +498,13 @@ def sensitive_log(request):
     rows = SensitiveViewLog.objects.filter(institution=inst).select_related("actor")[:300]
     return render(request, "core/sensitive_log.html", {"inst": inst, "rows": rows})
 
+def _number_pks(queryset, field, query, limit=20):
+    """Primary keys whose number matches the query ignoring case/separators."""
+    from core.numbering import matching_pks
+
+    return matching_pks(queryset, field, query, limit=limit)
+
+
 # ---------- global search ----------
 @login_required
 def global_search(request):
@@ -435,9 +525,11 @@ def global_search(request):
         from finance.models import Payment
 
         if user_has_code(request.user, "students.view_all"):
+            number_pks = _number_pks(Student.objects.all(), "student_no", query)
             rows = (Student.objects.select_related(
                         "user", "programme", "school_class")
                     .filter(Q(student_no__icontains=query)
+                            | Q(pk__in=number_pks)
                             | Q(user__first_name__icontains=query)
                             | Q(user__last_name__icontains=query)
                             | Q(user__username__icontains=query))[:20])
@@ -449,14 +541,23 @@ def global_search(request):
 
         if (user_has_code(request.user, "admin.manage_users")
                 or user_has_code(request.user, "hr.manage")):
-            rows = (User.tenant_objects.select_related("primary_role")
+            staff_numbers = _number_pks(
+                User.tenant_objects.exclude(staff_profile__isnull=True),
+                "staff_profile__employee_no", query)
+            rows = (User.tenant_objects.select_related(
+                        "primary_role", "staff_profile")
                     .filter(Q(first_name__icontains=query)
                             | Q(last_name__icontains=query)
                             | Q(username__icontains=query)
-                            | Q(email__icontains=query))[:20])
+                            | Q(email__icontains=query)
+                            | Q(staff_profile__employee_no__icontains=query)
+                            | Q(pk__in=staff_numbers))[:20])
             groups.append({"title": "Staff accounts", "items": [{
                 "label": u.get_full_name() or u.username,
-                "meta": f"{u.username} - {u.get_role_display()}",
+                "meta": " · ".join(filter(None, [
+                    getattr(getattr(u, "staff_profile", None),
+                            "employee_no", ""),
+                    u.username, u.get_role_display()])),
                 "url": reverse("staff_detail", args=[u.pk]),
             } for u in rows]})
 
@@ -470,8 +571,10 @@ def global_search(request):
             } for c in rows]})
 
         if user_has_code(request.user, "finance.view_reports"):
+            receipt_pks = _number_pks(Payment.objects.all(), "receipt_no", query)
             rows = (Payment.objects.select_related("invoice__student__user")
                     .filter(Q(receipt_no__icontains=query)
+                            | Q(pk__in=receipt_pks)
                             | Q(reference__icontains=query)
                             | Q(payer_name__icontains=query)
                             | Q(invoice__student__user__first_name__icontains=query)
@@ -485,8 +588,11 @@ def global_search(request):
         if (is_enabled("admissions", getattr(request, "institution", None))
                 and (user_has_code(request.user, "admissions.manage")
                      or user_has_code(request.user, "admissions.review"))):
+            reference_pks = _number_pks(
+                Application.objects.all(), "reference", query)
             rows = Application.objects.filter(
                 Q(reference__icontains=query)
+                | Q(pk__in=reference_pks)
                 | Q(first_name__icontains=query)
                 | Q(last_name__icontains=query))[:20]
             groups.append({"title": "Applications", "items": [{

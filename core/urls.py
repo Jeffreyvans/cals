@@ -29,6 +29,7 @@ urlpatterns = [
     path("imports/<int:pk>/undo/", import_views.import_undo, name="import_undo"),
     path("imports/<int:pk>/errors.csv", import_views.import_errors, name="import_errors"),
     path("settings/institution/", views.settings_view, name="institution_settings"),
+    path("settings/numbering/", views.numbering_settings, name="numbering_settings"),
     path("settings/roles/", views.role_list, name="role_list"),
     path("settings/roles/matrix/", views.role_matrix, name="role_matrix"),
     path("settings/roles/new/", views.role_create, name="role_create"),

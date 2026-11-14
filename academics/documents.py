@@ -21,7 +21,7 @@ from reportlab.platypus import (
 
 from core.audit import log_action
 from core.branding import accent_colour, primary_colour, readable_text
-from core.logo import logo_flowable
+from core.document_header import build_header
 
 from .models import DAY_CHOICES, DocumentVerification, GradeBand
 from .services import enrollment_credits
@@ -86,27 +86,13 @@ def _styles(primary):
 
 def _header(student, kind, styles, issued_on):
     institution = student.institution
-    primary = primary_colour(institution)
     title = ("Academic transcript" if kind == DocumentVerification.Kind.TRANSCRIPT
              else "Report card")
-    logo = logo_flowable(institution, 1.9 * cm)
-    identity = [Paragraph(_safe(institution.name), styles["DocTitle"])]
-    if institution.address:
-        identity.append(Paragraph(_safe(institution.address), styles["DocSmall"]))
-    if institution.contact_email:
-        identity.append(Paragraph(_safe(institution.contact_email), styles["DocSmall"]))
-    right = [Paragraph(title, styles["DocTitle"]),
-             Paragraph(f"Issued {issued_on:%d %B %Y}", styles["DocSmall"])]
-    cells = [[logo or "", identity, right]]
-    table = Table(cells, colWidths=[2.2 * cm, 10.3 * cm, 5.5 * cm])
-    table.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("LINEBELOW", (0, 0), (-1, -1), 1.2, colors.HexColor(primary)),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
-    return table
+    return build_header(
+        institution, title, subtitle=f"Issued {issued_on:%d %B %Y}",
+        title_style=styles["DocTitle"], small_style=styles["DocSmall"],
+        logo_size=1.9 * cm, widths=(2.2 * cm, 10.3 * cm, 5.5 * cm),
+        primary=primary_colour(institution))
 
 
 def _student_table(student, styles):
@@ -305,23 +291,14 @@ def build_timetable_pdf(institution, title, entries, term=None, subtitle=""):
         topMargin=1.1 * cm, bottomMargin=1.6 * cm,
         title=f"{title}", author=institution.name)
 
-    logo = logo_flowable(institution, 1.9 * cm)
-    heading = [Paragraph(_safe(institution.name), styles["DocTitle"])]
-    if institution.address:
-        heading.append(Paragraph(_safe(institution.address), styles["DocSmall"]))
-    right = [Paragraph(_safe(title), styles["DocTitle"]),
-             Paragraph(_safe(subtitle or (str(term) if term else "")),
-                       styles["DocSmall"]),
-             Paragraph(f"Printed {timezone.localdate():%d %B %Y}", styles["DocSmall"])]
-    head = Table([[logo or "", heading, right]],
-                 colWidths=[2.6 * cm, 17.5 * cm, 7.4 * cm])
-    head.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("LINEBELOW", (0, 0), (-1, -1), 1.2, colors.HexColor(primary)),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
+    detail = subtitle or (str(term) if term else "")
+    detail = f"{detail} · " if detail else ""
+    head = build_header(
+        institution, title,
+        subtitle=f"{detail}Printed {timezone.localdate():%d %B %Y}",
+        title_style=styles["DocTitle"], small_style=styles["DocSmall"],
+        logo_size=1.9 * cm, widths=(2.6 * cm, 17.5 * cm, 7.4 * cm),
+        primary=primary)
 
     story = [head, Spacer(1, 0.4 * cm)]
     if not days:

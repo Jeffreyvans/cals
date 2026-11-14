@@ -2,6 +2,11 @@
 {% block title %}Receipt {{ payment.receipt_no }} from {{ institution.name }}{% endblock %}
 {% block preheader %}{{ institution.name }} received {{ currency }}{{ payment.amount }}.{% endblock %}
 {% block content %}
+{% if header %}
+<p style="margin:0 0 4px; font-weight:700; color:#2b1a12;">{{ header.details.name }}</p>
+{% for line in header.lines %}<p style="margin:0 0 2px; color:#6f4a36; font-size:13px;">{{ line }}</p>{% endfor %}
+<hr style="border:0; border-top:1px solid #dcc8b6; margin:14px 0;">
+{% endif %}
 <p style="margin:0 0 14px;">Hello {{ user.get_full_name|default:user.username }},</p>
 <p style="margin:0 0 18px;">{{ institution.name }} has received your payment. Here is your receipt.</p>
 <p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e;">

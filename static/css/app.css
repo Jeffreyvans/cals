@@ -325,6 +325,77 @@ summary:focus-visible {
   margin-bottom: 0.6rem;
 }
 
+/* The shared masthead on receipts, statements, notes and invoices. */
+.doc-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.doc-logo {
+  flex: none;
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+}
+
+.doc-initials {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--accent, #3b82f6);
+  color: var(--accent-text, #fff);
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.doc-identity {
+  min-width: 0;
+}
+
+.doc-name {
+  margin: 0 0 0.25rem;
+  color: var(--navy, #0f172a);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.doc-line {
+  margin: 0.1rem 0;
+  color: var(--muted, #64748b);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.doc-tax {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+@media print {
+  .doc-header {
+    border-bottom-color: #000;
+  }
+
+  .doc-logo,
+  .doc-initials {
+    width: 64px;
+    height: 64px;
+  }
+
+  .doc-name,
+  .doc-line {
+    color: #000;
+  }
+}
+
 .brand-text {
   display: flex;
   flex-direction: column;

@@ -200,6 +200,15 @@ class StudentRegistrationTests(RegistrationBase):
         self.assertTrue(self.student_user.is_active)
         self.assertEqual(self.student_user.username, "tariro")
 
+    def test_match_ignores_separators_as_well_as_case(self):
+        self.client.post(
+            reverse("register_student"),
+            self.student_payload(registration_number="st 001"),
+        )
+        self.student_user.refresh_from_db()
+        self.assertTrue(self.student_user.is_active)
+        self.assertEqual(self.student_user.username, "tariro")
+
     def test_wrong_surname_wrong_date_and_missing_number_share_one_message(self):
         cases = [
             {"surname": "Ncube"},

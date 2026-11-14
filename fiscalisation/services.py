@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from core.document_header import snapshot_header
 from core.modules import is_enabled
 from finance.models import DocumentType
 
@@ -113,9 +114,12 @@ def submit_document(instance, document_type):
         institution=institution, document_type=document_type,
         document_id=instance.pk,
         defaults={"document_number": document_number(instance),
-                  "fiscal_day": fiscal_day})
+                  "fiscal_day": fiscal_day,
+                  "layout": snapshot_header(institution)})
     if submission.status == FiscalSubmission.Status.VERIFIED:
         return submission
+    if not submission.layout:
+        submission.layout = snapshot_header(institution)
     if submission.fiscal_day_id is None:
         submission.fiscal_day = fiscal_day
     counter = submission.receipt_counter or (

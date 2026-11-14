@@ -90,6 +90,10 @@ class FiscalSubmission(TenantModel):
                               default=Status.PENDING)
     verification_code = models.CharField(max_length=120, blank=True)
     qr_data = models.TextField(blank=True)
+    # The masthead as it was when the document was issued. A fiscalised
+    # document is reprinted with this frozen copy, never with a later logo or
+    # address, so the paper copy always matches what ZIMRA was told.
+    layout = models.JSONField(default=dict, blank=True)
     response = models.JSONField(default=dict, blank=True)
     attempts = models.PositiveIntegerField(default=0)
     last_error = models.TextField(blank=True)

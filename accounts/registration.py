@@ -199,10 +199,12 @@ def _client_ip(request):
 
 
 def _student_rate_keys(request, institution, registration_number):
+    from core.numbering import number_key
+
     ip = _client_ip(request)
     return (
         f"edusphere.register.ip.{institution.pk}.{ip}",
-        f"edusphere.register.reg.{institution.pk}.{normalized_key(registration_number)}",
+        f"edusphere.register.reg.{institution.pk}.{number_key(registration_number)}",
     )
 
 
@@ -242,20 +244,23 @@ def record_form_attempt(request, scope, window=CONTACT_RATE_WINDOW):
 
 
 def _student_candidates(institution, registration_number):
-    """Find possible records by number, tolerating case and extra spaces."""
-    from academics.models import Student
+    """Find possible records by number, tolerating case, spaces and separators.
 
-    key = normalized_key(registration_number)
-    candidates = Student.all_objects.filter(
-        institution=institution
-    ).select_related("user")
-    exact = [s for s in candidates if normalized_key(s.student_no) == key]
-    if exact:
-        return exact
-    compact = key.replace(" ", "")
+    A number printed on a letter may be typed back as ``stu/2026/0001`` or
+    ``STU 2026 0001``. Comparing compact keys means all of those reach the
+    same record without weakening the surname and date-of-birth check.
+    """
+    from academics.models import Student
+    from core.numbering import number_key
+
+    key = number_key(registration_number)
+    if not key:
+        return []
     return [
-        s for s in candidates
-        if normalized_key(s.student_no).replace(" ", "") == compact
+        student
+        for student in Student.all_objects.filter(
+            institution=institution).select_related("user")
+        if number_key(student.student_no) == key
     ]
 
 
@@ -606,16 +611,23 @@ def approve_staff_request(reg_request, actor, position=None, department=None,
         from core.models import StaffProfile
 
         profile = StaffProfile.all_objects.filter(user=user).first()
-        if profile is None:
+        adding = profile is None
+        if adding:
             profile = StaffProfile(institution=institution, user=user)
-        profile.employee_no = reg_request.staff_no
+        if reg_request.staff_no and (adding or not profile.employee_no):
+            from core.numbering import validate_manual_number
+
+            profile.employee_no = validate_manual_number(
+                institution, "staff", reg_request.staff_no,
+                actor=actor, request=request)
+        chosen_department = department or reg_request.department
+        if chosen_department is not None:
+            profile._department_code = chosen_department.code
         profile.job_title = STAFF_POSITIONS[position].label
         profile.phone = reg_request.phone
         profile.save()
-        if department is not None:
-            profile.departments.add(department)
-        elif reg_request.department_id:
-            profile.departments.add(reg_request.department)
+        if chosen_department is not None:
+            profile.departments.add(chosen_department)
 
         before = {"status": reg_request.status}
         reg_request.status = StaffRegistrationRequest.Status.APPROVED

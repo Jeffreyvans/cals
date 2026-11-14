@@ -451,16 +451,19 @@ def _check_email(values, errors, context, seen_emails):
 def _check_students(values, errors, context, seen_numbers, seen_usernames, seen_emails):
     from academics.models import Student
     from accounts.models import User
+    from core.numbering import number_key
 
-    student_no = values.get("student_no", "")
+    student_no = str(values.get("student_no", "") or "").strip().upper()
+    values["student_no"] = student_no
     username = values.get("username", "")
     if student_no:
-        if student_no in seen_numbers:
+        key = number_key(student_no)
+        if key in seen_numbers:
             errors.append(f"Student number '{student_no}' is used twice in this file.")
-        seen_numbers[student_no] = True
-        if Student.all_objects.filter(
-            institution=context.institution, student_no=student_no
-        ).exists():
+        seen_numbers[key] = True
+        existing = Student.all_objects.filter(
+            institution=context.institution).values_list("student_no", flat=True)
+        if any(number_key(number) == key for number in existing):
             errors.append(f"Student number '{student_no}' is already used by another student.")
     if not username:
         username = re.sub(r"[^a-zA-Z0-9._-]", "", student_no) or f"student{len(seen_usernames) + 1}"
@@ -495,7 +498,21 @@ def _check_students(values, errors, context, seen_numbers, seen_usernames, seen_
 
 def _check_staff(values, errors, context, seen_numbers, seen_usernames, seen_emails):
     from accounts.models import User
+    from core.models import StaffProfile
+    from core.numbering import number_key
 
+    employee_no = str(values.get("employee_no", "") or "").strip().upper()
+    values["employee_no"] = employee_no
+    if employee_no:
+        key = number_key(employee_no)
+        if key in seen_numbers:
+            errors.append(f"Employee number '{employee_no}' is used twice in this file.")
+        seen_numbers[key] = True
+        existing = StaffProfile.all_objects.filter(
+            institution=context.institution).values_list("employee_no", flat=True)
+        if any(number_key(number) == key for number in existing):
+            errors.append(
+                f"Employee number '{employee_no}' is already used by another staff member.")
     username = values.get("username", "")
     if username:
         if username.lower() in seen_usernames:
@@ -713,6 +730,12 @@ def _write_staff(values, institution, user):
     )
     account.set_unusable_password()
     account.save(update_fields=["password"])
+    department = None
+    if values.get("department"):
+        from core.models import Department
+
+        department = Department.objects.filter(
+            name__iexact=values["department"]).first()
     profile = StaffProfile(
         institution=institution,
         user=account,
@@ -721,14 +744,11 @@ def _write_staff(values, institution, user):
         phone=values.get("phone", "")[:30],
         date_joined=values.get("date_joined"),
     )
+    if department is not None:
+        profile._department_code = department.code
     profile.save()
-    if values.get("department"):
-        from core.models import Department
-
-        department = Department.objects.filter(
-            name__iexact=values["department"]).first()
-        if department is not None:
-            profile.departments.add(department)
+    if department is not None:
+        profile.departments.add(department)
 
 
 def _write_student_with_access(values, institution, user, access_mode):

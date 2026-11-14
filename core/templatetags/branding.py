@@ -15,6 +15,7 @@ so a school that has not uploaded one still gets a recognisable mark.
 from django import template
 
 from core.branding import primary_colour, readable_text
+from core.document_header import header_context
 from core.logo import institution_logo_png_url, institution_logo_url
 
 register = template.Library()
@@ -50,3 +51,9 @@ def institution_brand_colour(institution):
 def institution_brand_text(institution):
     """Text that stays readable on the institution's primary colour."""
     return readable_text(primary_colour(institution))
+
+
+@register.inclusion_tag("core/_document_header.html")
+def document_masthead(institution, layout=None, size=160):
+    """The shared logo/name/address/VAT header for a printable screen."""
+    return header_context(institution, layout=layout or None, size=size)

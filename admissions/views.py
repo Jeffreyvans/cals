@@ -469,10 +469,14 @@ def lifecycle_list(request):
     if status:
         students = students.filter(status=status)
     if query:
+        from core.numbering import matching_pks
+
+        numbers = matching_pks(students, "student_no", query)
         students = students.filter(
             Q(user__first_name__icontains=query)
             | Q(user__last_name__icontains=query)
             | Q(student_no__icontains=query)
+            | Q(pk__in=numbers)
             | Q(programme__name__icontains=query))
     return render(request, "admissions/lifecycle_list.html", {
         "students": students, "status": status, "query": query,
@@ -554,10 +558,14 @@ def graduation_list(request):
         "user__last_name", "user__first_name")
     query = request.GET.get("q", "").strip()
     if query:
+        from core.numbering import matching_pks
+
+        numbers = matching_pks(students, "student_no", query)
         students = students.filter(
             Q(user__first_name__icontains=query)
             | Q(user__last_name__icontains=query)
-            | Q(student_no__icontains=query))
+            | Q(student_no__icontains=query)
+            | Q(pk__in=numbers))
     return render(request, "admissions/graduation_list.html", {
         "students": students, "query": query,
     })
@@ -638,9 +646,13 @@ def certificate_list(request):
         "student__user", "student__programme").order_by("-issued_at", "-pk")
     query = request.GET.get("q", "").strip()
     if query:
+        from core.numbering import matching_pks
+
+        numbers = matching_pks(certificates, "student__student_no", query)
         certificates = certificates.filter(
             Q(serial_no__icontains=query)
             | Q(student__student_no__icontains=query)
+            | Q(pk__in=numbers)
             | Q(student__user__first_name__icontains=query)
             | Q(student__user__last_name__icontains=query)
             | Q(award__icontains=query))
@@ -754,10 +766,14 @@ def alumni_list(request):
             "student__user__last_name", "student__user__first_name")
     query = request.GET.get("q", "").strip()
     if query:
+        from core.numbering import matching_pks
+
+        numbers = matching_pks(alumni, "student__student_no", query)
         alumni = alumni.filter(
             Q(student__user__first_name__icontains=query)
             | Q(student__user__last_name__icontains=query)
             | Q(student__student_no__icontains=query)
+            | Q(pk__in=numbers)
             | Q(contact_email__icontains=query)
             | Q(employer__icontains=query))
     return render(request, "admissions/alumni_list.html", {

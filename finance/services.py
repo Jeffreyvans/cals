@@ -624,8 +624,23 @@ def send_overdue_reminders(as_of=None, send=True):
                 continue
             from core.notifications import queue_message
 
+            html_body = ""
+            if channel == OutboundMessage.Channel.EMAIL:
+                from core.document_header import header_context
+                from core.notifications import render_email_html
+
+                html_body = render_email_html("emails/fee_reminder.html", {
+                    "institution": student.institution,
+                    "student": student,
+                    "currency": student.institution.currency,
+                    "balance": f"{row['balance']:.2f}",
+                    "plans": row["plans"],
+                    "header": header_context(student.institution),
+                })
             queue_message(channel, recipient, body, subject=title,
-                          related_object=student)
+                          related_object=student,
+                          institution=student.institution,
+                          html_body=html_body)
             summary["messages"] += 1
         summary["students"] += 1
 

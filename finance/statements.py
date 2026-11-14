@@ -10,7 +10,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from core.branding import primary_colour
-from core.logo import logo_flowable
+from core.document_header import build_header
 
 from . import services
 
@@ -27,24 +27,19 @@ def build_statement_pdf(student):
         name="StatementTitle", parent=styles["Title"], fontName="Helvetica-Bold",
         fontSize=17, textColor=colors.HexColor(primary_colour(institution)),
         spaceAfter=4))
-    heading = [
-        Paragraph(institution.name, styles["StatementTitle"]),
-        Paragraph("Student statement", styles["Heading2"]),
+    story = [
+        build_header(
+            institution, "Student statement",
+            subtitle=f"Generated {timezone.localdate():%d %B %Y}",
+            title_style=styles["StatementTitle"],
+            small_style=styles["BodyText"],
+            logo_size=1.8 * cm,
+            widths=(2.2 * cm, 10.0 * cm, 5.4 * cm),
+            primary=primary_colour(institution)),
+        Spacer(1, 0.35 * cm),
         Paragraph(f"{student.name} ({student.student_no})", styles["Normal"]),
-        Paragraph(f"Generated {timezone.localdate():%d %B %Y}",
-                  styles["BodyText"]),
+        Spacer(1, 0.3 * cm),
     ]
-    logo = logo_flowable(institution, 1.6 * cm)
-    if logo is not None:
-        header = Table([[logo, heading]], colWidths=[2.2 * cm, 14.8 * cm])
-        header.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ]))
-        story = [header, Spacer(1, 0.4 * cm)]
-    else:
-        story = heading + [Spacer(1, 0.4 * cm)]
     rows = [["Date", "Description", "Billed", "Paid", "Balance"]]
     for invoice in student.invoices.all().order_by("created"):
         rows.append([

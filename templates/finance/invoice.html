@@ -1,0 +1,44 @@
+{% extends "base.html" %}{% load branding %}{% block content %}
+<div class="receipt">
+  {% document_masthead INSTITUTION_OBJECT layout=fiscal.layout %}
+  <h2>Tax invoice {{ i.number }}</h2>
+  <table class="tbl">
+    <tr><td>Billed to</td><td>{{ s.name }} ({{ s.student_no }})</td></tr>
+    <tr><td>Description</td><td>{{ i.description }}</td></tr>
+    <tr><td>Issued</td><td>{{ i.created|date:"d M Y H:i" }}</td></tr>
+    <tr><td>Due</td><td>{{ i.due_date|date:"d M Y" }}</td></tr>
+    <tr><td>Amount</td><td><b>{{ CUR }}{{ i.amount }}</b></td></tr>
+    <tr><td>VAT included</td><td>{{ CUR }}{{ i.tax_amount }} ({{ i.tax_rate }}%)</td></tr>
+    <tr><td>Paid</td><td>{{ CUR }}{{ i.paid }}</td></tr>
+    {% if i.waived %}<tr><td>Waived / credited</td><td>{{ CUR }}{{ i.waived }}</td></tr>{% endif %}
+    {% if i.debited %}<tr><td>Debit notes</td><td>{{ CUR }}{{ i.debited }}</td></tr>{% endif %}
+    <tr><td>Balance due</td><td><b>{{ CUR }}{{ i.balance }}</b></td></tr>
+    {% if fiscal.verification_code %}<tr><td>ZIMRA verification</td><td><b>{{ fiscal.verification_code }}</b></td></tr>{% endif %}
+  </table>
+
+  {% if payments %}
+  <h3>Payments received</h3>
+  <table class="tbl">
+    <tr><th>Receipt</th><th>Date</th><th>Method</th><th class="r">Amount</th></tr>
+    {% for p in payments %}
+    <tr><td><a href="{% url 'receipt' p.pk %}">{{ p.receipt_no }}</a></td>
+      <td>{{ p.paid_on|date:"d M Y" }}</td><td>{{ p.get_method_display }}</td>
+      <td class="r">{{ CUR }}{{ p.amount }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if fiscal.verification_code %}
+  <div class="fiscal-qr">
+    <img src="{% url 'fiscalisation:qr' fiscal.pk %}" alt="ZIMRA verification QR code" width="140" height="140">
+    <p class="muted">Fiscal day {{ fiscal.fiscal_day.fiscal_day_no }}</p>
+  </div>
+  {% endif %}
+
+  <div class="noprint" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    <a class="btn" href="{% url 'invoice_pdf' i.pk %}">Download PDF</a>
+    <button class="btn ghost" onclick="print()">Print invoice</button>
+  </div>
+</div>
+<a class="btn ghost noprint" href="{% url 'student_detail' s.pk %}">Back to student</a>
+{% endblock %}

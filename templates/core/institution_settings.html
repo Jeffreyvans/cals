@@ -163,7 +163,7 @@
 </script>
 
 <h2>Number formats</h2>
-<p class="muted">Choose how student and staff numbers are built. The next number is the sequence position that will be issued next; changing it does not rename existing records.</p>
+<p class="muted">Choose how student and staff numbers are built. The next number is the sequence position that will be issued next; changing it does not rename existing records. <a href="{% url 'numbering_settings' %}">Open the full numbering page</a> for programme codes, check letters, yearly resets, a live preview and the change history.</p>
 {% for key, nf in number_formats.items %}
 <h3>{{ key|title }} numbers</h3>
 <form method="post" class="inline wide">

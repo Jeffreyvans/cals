@@ -7,7 +7,7 @@ job title, phone and the departments the person belongs to.
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -187,10 +187,17 @@ def staff_list(request):
     query = request.GET.get("q", "").strip()
     rows = StaffProfile.objects.filter(institution=inst).select_related("user")
     if query:
+        from core.numbering import number_key
+
+        number_pks = [
+            pk for pk, value in rows.values_list("pk", "employee_no")
+            if number_key(query) in number_key(value)
+        ]
         rows = rows.filter(
             Q(user__first_name__icontains=query)
             | Q(user__last_name__icontains=query)
             | Q(employee_no__icontains=query)
+            | Q(pk__in=number_pks)
             | Q(job_title__icontains=query)
         )
     for row in rows:
@@ -218,7 +225,20 @@ def staff_detail(request, pk):
         institution=inst, user=user, defaults={"job_title": user.get_role_display()}
     )
     if request.method == "POST":
-        profile.employee_no = request.POST.get("employee_no", "").strip()[:30]
+        employee_no = request.POST.get("employee_no", "").strip()
+        if employee_no and employee_no.upper() != (profile.employee_no or "").upper():
+            from core.numbering import validate_manual_number
+
+            try:
+                employee_no = validate_manual_number(
+                    inst, "staff", employee_no, actor=request.user,
+                    record=profile, request=request)
+            except ValidationError as exc:
+                for problem in exc.messages:
+                    messages.error(request, problem)
+                return redirect("staff_detail", pk=user.pk)
+        if employee_no:
+            profile.employee_no = employee_no
         profile.job_title = request.POST.get("job_title", "").strip()[:120]
         profile.phone = request.POST.get("phone", "").strip()[:30]
         profile.date_joined = request.POST.get("date_joined") or None

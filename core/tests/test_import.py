@@ -205,6 +205,41 @@ class StudentImportTests(ImportFixture):
         with use_institution(self.inst):
             self.assertTrue(User.objects.filter(username="ST001").exists())
 
+    def test_a_row_without_a_number_gets_the_next_one(self):
+        text = ("Student Number,First Name,Last Name,Programme\n"
+                ",Tariro,Dube,DIT\n"
+                ",Blessing,Sibanda,DIT\n")
+        rows = importer.read_rows(csv_file(text), "students.csv")
+        mapping = importer.guess_mapping(list(rows[0].keys()), importer.STUDENT_FIELDS)
+        results = importer.validate("students", rows[1:], mapping, self.inst)
+        imported, errors = importer.run_import("students", results, self.inst, self.admin)
+        self.assertEqual(imported, 2)
+        self.assertEqual(errors, [])
+        with use_institution(self.inst):
+            numbers = list(Student.objects.order_by("pk").values_list(
+                "student_no", flat=True))
+        self.assertEqual(numbers[0], numbers[0].upper())
+        self.assertNotEqual(numbers[0], numbers[1])
+
+    def test_duplicate_numbers_are_found_whatever_the_case_or_separators(self):
+        text = ("Student Number,First Name,Last Name\n"
+                "ST-001,Tariro,Dube\n"
+                "st 001,Blessing,Sibanda\n")
+        rows = importer.read_rows(csv_file(text), "students.csv")
+        results = self._check(rows)
+        self.assertTrue(any("used twice" in problem
+                            for problem in results[1]["errors"]))
+
+    def test_a_country_number_is_kept_exactly(self):
+        text = ("Student Number,First Name,Last Name,Programme\n"
+                "abc-7,Tariro,Dube,DIT\n")
+        rows = importer.read_rows(csv_file(text), "students.csv")
+        mapping = importer.guess_mapping(list(rows[0].keys()), importer.STUDENT_FIELDS)
+        results = importer.validate("students", rows[1:], mapping, self.inst)
+        importer.run_import("students", results, self.inst, self.admin)
+        with use_institution(self.inst):
+            self.assertTrue(Student.objects.filter(student_no="ABC-7").exists())
+
     def test_the_students_of_another_institution_are_not_touched(self):
         other = Institution.objects.create(name="Beta School", slug="beta", type="secondary")
         ensure_roles(other)

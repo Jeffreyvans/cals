@@ -5,6 +5,8 @@ from . import views as v
 urlpatterns = [
     path("pay/<int:pk>/", v.record_payment, name="record_payment"),
     path("invoice/<int:pk>/", v.create_invoice, name="create_invoice"),
+    path("invoice/<int:pk>/detail/", v.invoice_detail, name="invoice_detail"),
+    path("invoice/<int:pk>/pdf/", v.invoice_pdf, name="invoice_pdf"),
     path("receipt/<int:pk>/", v.receipt, name="receipt"),
     path("receipt/<int:pk>/pdf/", v.receipt_pdf, name="receipt_pdf"),
     path("receipt/<int:pk>/email/", v.email_receipt, name="email_receipt"),

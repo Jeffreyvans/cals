@@ -10,7 +10,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 from core.models import TenantModel
@@ -96,13 +96,14 @@ class Application(TenantModel):
 
     def save(self, *a, **kw):
         adding = self._state.adding
-        if adding and not self.reference:
-            self.reference = f"TMP{uuid.uuid4().hex[:12].upper()}"
-        super().save(*a, **kw)
-        if adding and self.reference.startswith("TMP"):
-            stamp = (self.submitted_at or timezone.now()).strftime("%y")
-            self.reference = f"APP{stamp}{self.pk:05d}"
-            super().save(update_fields=["reference"])
+        with transaction.atomic():
+            if adding and not self.reference:
+                from core.numbering import next_number
+
+                self.reference = next_number(self.institution, "applicant")
+            elif self.reference:
+                self.reference = str(self.reference).strip().upper()
+            super().save(*a, **kw)
 
     @property
     def name(self):

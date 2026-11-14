@@ -445,6 +445,11 @@ def add_staff_member(
 
     first_name, _, last_name = full_name.partition(" ")
     with use_institution(institution):
+        if staff_no:
+            from core.numbering import validate_manual_number
+
+            staff_no = validate_manual_number(
+                institution, "staff", staff_no, actor=actor, request=request)
         account = provision_user(
             institution,
             first_name=first_name,
@@ -456,14 +461,19 @@ def add_staff_member(
             actor=actor,
             request=request,
         )
-        profile = StaffProfile.objects.create(
+        profile = StaffProfile(
             institution=institution,
             user=account.user,
-            employee_no=str(staff_no or "").strip()[:30],
+            employee_no=str(staff_no or "").strip(),
             job_title=str(job_title or "").strip()[:120],
             phone=str(phone or "").strip()[:30],
             date_joined=start_date,
         )
+        first_department = next(
+            (d for d in departments if d is not None), None)
+        if first_department is not None:
+            profile._department_code = first_department.code
+        profile.save()
         if department_ids:
             profile.departments.set(
                 Department.all_objects.filter(
