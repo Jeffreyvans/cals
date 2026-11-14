@@ -4,12 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="EduSphere runs admissions, student records, fees, results, attendance, timetables and parent communication for schools and colleges in one place.">
-  <meta name="theme-color" content="#5d4037">
+  <meta name="theme-color" content="#12403c">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
   <title>EduSphere — Run your school or college in one place</title>
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="EduSphere">
   <meta property="og:title" content="EduSphere — Run your school or college in one place">
   <meta property="og:description" content="Admissions, student records, fees, results, attendance, timetables and parent communication in one calm system.">
+  <meta property="og:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
   <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/landing/hero-classroom-1040.jpg' %}">
   <meta name="twitter:card" content="summary_large_image">
   <script>
@@ -61,10 +64,21 @@
       <svg aria-hidden="true"><use href="#p-menu"/></svg>
     </button>
     <nav class="site-nav" id="siteNav" aria-label="Main navigation">
-      <a href="#features">Features</a>
-      <a href="#who">Who it is for</a>
-      <a href="#how">How it works</a>
-      <a href="#contact">Contact</a>
+      <a href="{% url 'learn_features' %}">Features</a>
+      <a href="{% url 'learn_for_schools' %}">For schools</a>
+      <a href="{% url 'learn_for_colleges' %}">For colleges</a>
+      <details class="nav-more">
+        <summary>All learn pages</summary>
+        <div class="nav-more-panel">
+          <a href="{% url 'learn_features' %}">Features</a>
+          <a href="{% url 'learn_for_schools' %}">For schools</a>
+          <a href="{% url 'learn_for_colleges' %}">For colleges</a>
+          <a href="{% url 'learn_for_parents_and_students' %}">Parents and students</a>
+          <a href="{% url 'learn_security_and_privacy' %}">Security and privacy</a>
+          <a href="{% url 'learn_pricing_and_contact' %}">Pricing and contact</a>
+          <a href="{% url 'learn_faq' %}">FAQ</a>
+        </div>
+      </details>
     </nav>
     <div class="head-actions">
       <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Switch to dark theme">
@@ -389,10 +403,13 @@
       <div>
         <h3 style="font-size: 0.92rem;">Explore</h3>
         <ul class="foot-links" style="margin-top: 0.7rem;">
-          <li><a href="#features">Features</a></li>
-          <li><a href="#who">Who it is for</a></li>
-          <li><a href="#how">How it works</a></li>
-          <li><a href="#contact">Contact</a></li>
+          <li><a href="{% url 'learn_features' %}">Features</a></li>
+          <li><a href="{% url 'learn_for_schools' %}">For schools</a></li>
+          <li><a href="{% url 'learn_for_colleges' %}">For colleges</a></li>
+          <li><a href="{% url 'learn_for_parents_and_students' %}">Parents and students</a></li>
+          <li><a href="{% url 'learn_security_and_privacy' %}">Security and privacy</a></li>
+          <li><a href="{% url 'learn_pricing_and_contact' %}">Pricing and contact</a></li>
+          <li><a href="{% url 'learn_faq' %}">FAQ</a></li>
         </ul>
       </div>
       <div>

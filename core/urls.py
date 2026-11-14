@@ -1,3 +1,4 @@
+from django.contrib.sitemaps.views import sitemap
 from django.urls import path
 
 from . import (
@@ -9,9 +10,14 @@ from . import (
     views,
     wizard_views,
 )
+from .learn import LEARN_PAGES
+from .sitemaps import SITEMAPS
 
 urlpatterns = [
+    path("sitemap.xml", sitemap, {"sitemaps": SITEMAPS}, name="sitemap"),
+    path("robots.txt", public_views.robots_txt, name="robots_txt"),
     path("learn/", public_views.learn_index, name="learn_index"),
+    path("learn/<slug:slug>/", public_views.learn_alias, name="learn_alias"),
     path("i/<slug:slug>/", public_views.institution_page, name="institution_public"),
     path("services/", module_directory.module_directory, name="module_directory"),
     path("setup/", wizard_views.setup_wizard, name="setup_wizard"),
@@ -53,4 +59,11 @@ urlpatterns = [
     path("audit/", views.audit_log, name="audit_trail"),
     path("audit/export/", views.audit_export, name="audit_trail_export"),
     path("audit/sensitive/", views.sensitive_log, name="sensitive_log"),
+]
+
+# One clean top-level URL per learn page, for example /features/ and /faq/.
+urlpatterns += [
+    path(f"{page['slug']}/", public_views.learn_page, {"slug": page["slug"]},
+         name=page["name"])
+    for page in LEARN_PAGES
 ]

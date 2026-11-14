@@ -1,0 +1,140 @@
+{% extends "public_base.html" %}
+{% block title %}{{ page.title }}{% endblock %}
+{% block description %}{{ page.description }}{% endblock %}
+{% block og_title %}{{ page.title }}{% endblock %}
+{% block og_description %}{{ page.description }}{% endblock %}
+{% block content %}
+<section class="learn-hero">
+  <div class="wrap">
+    <span class="eyebrow">Learn about EduSphere</span>
+    <h1>{{ page.heading }}</h1>
+    <p class="lede">{{ page.lead }}</p>
+    <nav class="learn-nav" aria-label="Learn pages">
+      {% for item in learn_pages %}
+        <a href="{% url item.name %}"{% if item.slug == page.slug %} aria-current="page"{% endif %}>{{ item.nav_label }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="learn-body">
+      {% for section in page.sections %}
+        <section class="learn-section">
+          <h2>{{ section.heading }}</h2>
+          <p>{{ section.body }}</p>
+          {% if section.list %}
+            <ul class="tick-list">
+              {% for item in section.list %}<li>{{ item }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+          {% if section.cards %}
+            <div class="card-grid">
+              {% for card in section.cards %}
+                <article class="card">
+                  <span class="card-icon" aria-hidden="true"><svg><use href="#i-{{ card.icon }}"/></svg></span>
+                  <h3>{{ card.title }}</h3>
+                  <p>{{ card.text }}</p>
+                </article>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </section>
+      {% endfor %}
+
+      {% if page.faqs %}
+        <section class="learn-section" aria-labelledby="faq-title">
+          <h2 id="faq-title">Questions and answers</h2>
+          <div class="faq-list">
+            {% for item in page.faqs %}
+              <details>
+                <summary>{{ item.q }}</summary>
+                <p>{{ item.a }}</p>
+              </details>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if page.slug == "pricing-and-contact" %}
+        <section class="learn-section" id="contact" aria-labelledby="contact-title">
+          <div class="contact-grid">
+            <div>
+              <h2 id="contact-title">Request a demo</h2>
+              <p>Tell us about your institution and the work that takes the most time. We will reply with a time to walk through it.</p>
+              <ul class="contact-list">
+                <li><a href="tel:{{ contact_phone }}"><svg aria-hidden="true"><use href="#i-phone"/></svg>{{ contact_phone }}</a></li>
+                <li><a href="{{ contact_whatsapp }}" rel="noopener"><svg aria-hidden="true"><use href="#i-whatsapp"/></svg>WhatsApp us</a></li>
+                <li><a href="mailto:{{ contact_email }}"><svg aria-hidden="true"><use href="#i-mail"/></svg>{{ contact_email }}</a></li>
+              </ul>
+              <p class="sub" style="margin-top: 1rem;">We do not publish prices because the right setup depends on your institution. You will receive a written proposal after the demo.</p>
+            </div>
+
+            <div class="contact-card">
+              {% if demo_sent %}
+                <div class="alert alert-ok" role="status">Thank you — your demo request has been sent. We will reply as soon as we can.</div>
+              {% elif demo_rate_limited %}
+                <div class="alert alert-error" role="alert">Too many messages from this connection. Please try again later, or use the phone number.</div>
+              {% endif %}
+              <form method="post" action="{% url 'learn_pricing_and_contact' %}#contact" novalidate>
+                {% csrf_token %}
+                {{ demo_form.website }}
+                {% if demo_form.non_field_errors %}
+                  <div class="alert alert-error" role="alert">{{ demo_form.non_field_errors|striptags }}</div>
+                {% endif %}
+                <div class="two">
+                  <div class="field">
+                    <label for="{{ demo_form.name.id_for_label }}">Your name</label>
+                    {{ demo_form.name }}
+                    {% for error in demo_form.name.errors %}<p class="field-message">{{ error }}</p>{% endfor %}
+                  </div>
+                  <div class="field">
+                    <label for="{{ demo_form.institution.id_for_label }}">Institution</label>
+                    {{ demo_form.institution }}
+                    {% for error in demo_form.institution.errors %}<p class="field-message">{{ error }}</p>{% endfor %}
+                  </div>
+                </div>
+                <div class="two">
+                  <div class="field">
+                    <label for="{{ demo_form.email.id_for_label }}">Email address</label>
+                    {{ demo_form.email }}
+                    {% for error in demo_form.email.errors %}<p class="field-message">{{ error }}</p>{% endfor %}
+                  </div>
+                  <div class="field">
+                    <label for="{{ demo_form.phone.id_for_label }}">Phone number <span class="help">(optional)</span></label>
+                    {{ demo_form.phone }}
+                    {% for error in demo_form.phone.errors %}<p class="field-message">{{ error }}</p>{% endfor %}
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="{{ demo_form.message.id_for_label }}">What would you like to see? <span class="help">(optional)</span></label>
+                  {{ demo_form.message }}
+                  <p class="help">For example: fees, results, the parent portal or admissions.</p>
+                  {% for error in demo_form.message.errors %}<p class="field-message">{{ error }}</p>{% endfor %}
+                </div>
+                <button class="btn" type="submit">Request a demo</button>
+              </form>
+            </div>
+          </div>
+        </section>
+      {% endif %}
+
+      {% if page.cta %}
+        <div class="cta-band">
+          <div>
+            <h2>{{ page.cta.heading }}</h2>
+            <p>{{ page.cta.body }}</p>
+          </div>
+          <div class="btn-row">
+            <a class="btn btn-marigold" href="{% url 'learn_pricing_and_contact' %}">Request a demo</a>
+            <a class="btn btn-ghost" href="{% url 'login' %}">Sign in</a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% if faq_json %}<script type="application/ld+json">{{ faq_json|safe }}</script>{% endif %}
+{% endblock %}

@@ -1,28 +1,252 @@
-"""Public, signed-out pages: the institution profile and the learn hub.
+"""Public, signed-out pages: the learn pages, the institution profile and SEO.
 
-These pages use the platform's brown public theme (``static/css/public.css``).
-An institution's logo, name, tagline and About text appear, but its primary
-and accent colours are deliberately not applied here: those stay for the
-signed-in application, receipts and documents.
+These pages use the platform's green and marigold public theme
+(``static/css/public.css``). An institution's logo, name, tagline, About text
+and contact details appear on its own page, together with its primary and
+accent colours. Only values that parse as real colours are applied, and the
+text colour on each colour is chosen for contrast, so an institution can never
+publish an unreadable page.
 """
 
-from django.shortcuts import get_object_or_404, render
+import json
 
+from django.conf import settings
+from django.core.mail import EmailMessage
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+
+from accounts.forms import DemoRequestForm
+from accounts.registration import (
+    CONTACT_EMAIL,
+    CONTACT_PHONE,
+    CONTACT_WHATSAPP,
+    contact_rate_limited,
+    contact_recipient,
+    record_contact_attempt,
+)
+from accounts.signup_links import open_signup_links
+from core.branding import (
+    INK,
+    WHITE,
+    accent_colour,
+    accent_text,
+    primary_colour,
+    readable_text,
+)
+from core.learn import LEARN_BY_SLUG, LEARN_PAGES
+from core.logo import absolute_logo_url
 from core.models import Institution
 
+# Routes that belong to the signed-in application. They are kept out of search
+# results; a few public check pages inside those prefixes are allowed back in.
+ROBOTS_DISALLOW = (
+    "/admin/",
+    "/api/",
+    "/settings/",
+    "/users/",
+    "/dashboard/",
+    "/students/",
+    "/years/",
+    "/levels/",
+    "/promotion/",
+    "/classes/",
+    "/courses/",
+    "/timetable/",
+    "/attendance/",
+    "/marks/",
+    "/results/",
+    "/reports/",
+    "/search/",
+    "/notifications/",
+    "/audit/",
+    "/imports/",
+    "/setup/",
+    "/logout/",
+    "/login/",
+    "/password-reset/",
+    "/reset/",
+    "/register/",
+    "/join/",
+    "/verify-email/",
+    "/invitation/",
+    "/password-change/",
+    "/finance/",
+    "/fiscalisation/",
+    "/admissions/",
+    "/lms/",
+    "/office/",
+    "/library/",
+    "/health/",
+    "/counselling/",
+    "/student-affairs/",
+    "/sports/",
+    "/boarding/",
+    "/transport/",
+    "/catering/",
+    "/careers/",
+    "/examinations/",
+    "/research/",
+    "/labs/",
+    "/ict/",
+)
 
-def institution_page(request, slug):
-    """The public profile of one active institution at /i/<slug>/."""
-    institution = get_object_or_404(
-        Institution.objects.filter(is_active=True), slug=slug
-    )
-    return render(
-        request,
-        "public/institution.html",
-        {"institution": institution},
-    )
+ROBOTS_ALLOW = (
+    "/static/",
+    "/media/",
+    "/admissions/apply/",
+    "/admissions/track/",
+    "/admissions/offer/",
+    "/admissions/verify/",
+    "/finance/verify/",
+    "/verify/",
+)
 
 
 def learn_index(request):
-    """A short public overview of the learning platform."""
-    return render(request, "public/learn.html", {})
+    """A short public overview with a link to every learn page."""
+    return render(request, "public/learn.html", {"learn_pages": LEARN_PAGES})
+
+
+def learn_alias(request, slug):
+    """Send the old ``/learn/<slug>/`` address to the canonical top-level URL.
+
+    The canonical URL is the short one (``/features/``), so a link that uses
+    the older prefix is redirected rather than served twice.
+    """
+    page = LEARN_BY_SLUG.get(slug)
+    if page is None:
+        raise Http404("Unknown learn page")
+    return redirect(reverse(page["name"]), permanent=True)
+
+
+def learn_page(request, slug):
+    """One plain-English learn page at its clean top-level URL."""
+    page = LEARN_BY_SLUG.get(slug)
+    if page is None:
+        raise Http404("Unknown learn page")
+    context = {"page": page, "learn_pages": LEARN_PAGES}
+    if page.get("faqs"):
+        context["faq_json"] = json.dumps(
+            {
+                "@context": "https://schema.org",
+                "@type": "FAQPage",
+                "mainEntity": [
+                    {
+                        "@type": "Question",
+                        "name": item["q"],
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": item["a"],
+                        },
+                    }
+                    for item in page["faqs"]
+                ],
+            },
+            ensure_ascii=False,
+        )
+    if slug == "pricing-and-contact":
+        return _pricing_page(request, context)
+    return render(request, "public/learn_page.html", context)
+
+
+def _pricing_page(request, context):
+    """The pricing page also carries the demo request form."""
+    context.update(
+        {
+            "contact_email": CONTACT_EMAIL,
+            "contact_phone": CONTACT_PHONE,
+            "contact_whatsapp": CONTACT_WHATSAPP,
+            "demo_form": DemoRequestForm(),
+            "demo_sent": False,
+            "demo_rate_limited": False,
+        }
+    )
+    if request.method != "POST":
+        return render(request, "public/learn_page.html", context)
+
+    form = DemoRequestForm(request.POST)
+    if not form.is_valid():
+        context["demo_form"] = form
+        return render(request, "public/learn_page.html", context)
+
+    data = form.cleaned_data
+    if data.get("website"):
+        # A bot filled the hidden field. Pretend it worked and send nothing.
+        context["demo_sent"] = True
+        return render(request, "public/learn_page.html", context)
+
+    if contact_rate_limited(request):
+        context.update({"demo_form": form, "demo_rate_limited": True})
+        return render(request, "public/learn_page.html", context, status=429)
+
+    body = (
+        "New EduSphere demo request\n\n"
+        f"Institution: {data['institution']}\n"
+        f"Name: {data['name']}\n"
+        f"Email: {data['email']}\n"
+        f"Phone: {data.get('phone') or 'Not given'}\n\n"
+        f"{data.get('message') or 'No extra notes.'}\n"
+    )
+    message = EmailMessage(
+        "EduSphere demo request",
+        body,
+        getattr(settings, "EMAIL_FROM", "EduSphere <no-reply@edusphere.local>"),
+        [contact_recipient()],
+        reply_to=[data["email"]],
+    )
+    message.send(fail_silently=True)
+    record_contact_attempt(request)
+    context.update({"demo_form": DemoRequestForm(), "demo_sent": True})
+    return render(request, "public/learn_page.html", context)
+
+
+def institution_page(request, slug):
+    """The public profile of one institution at /i/<slug>/.
+
+    An institution can switch the page off; a switched-off page is a 404, just
+    like a slug that never existed.
+    """
+    institution = get_object_or_404(
+        Institution.objects.filter(is_active=True, public_page_enabled=True),
+        slug=slug,
+    )
+    links = open_signup_links(institution)
+    registration_available = institution.public_registration or bool(links)
+    show_register = institution.show_register_button and registration_available
+    register_url = ""
+    if show_register:
+        register_url = links[0].path() if links else reverse("register_choice")
+
+    primary = primary_colour(institution)
+    accent = accent_colour(institution)
+    context = {
+        "institution": institution,
+        "primary_color": primary,
+        "primary_text": readable_text(primary, (WHITE, INK)),
+        "accent_color": accent,
+        "accent_text": accent_text(accent),
+        "show_register": show_register,
+        "hide_register": not show_register,
+        "register_url": register_url,
+        "registration_available": registration_available,
+        "og_image": absolute_logo_url(institution, request, 512),
+        "contact_email": CONTACT_EMAIL,
+        "contact_phone": CONTACT_PHONE,
+        "contact_whatsapp": CONTACT_WHATSAPP,
+    }
+    return render(request, "public/institution.html", context)
+
+
+def robots_txt(request):
+    """Keep the private application out of search results."""
+    lines = ["User-agent: *"]
+    lines.extend(f"Disallow: {path}" for path in ROBOTS_DISALLOW)
+    lines.extend(f"Allow: {path}" for path in ROBOTS_ALLOW)
+    lines.extend(
+        [
+            "",
+            f"Sitemap: {request.build_absolute_uri(reverse('sitemap'))}",
+        ]
+    )
+    return HttpResponse("\n".join(lines) + "\n", content_type="text/plain")

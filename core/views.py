@@ -114,6 +114,12 @@ def settings_view(request):
         if action == "registration":
             from accounts.registration import STAFF_POSITIONS
 
+            inst.public_page_enabled = (
+                request.POST.get("public_page_enabled") == "on"
+            )
+            inst.show_register_button = (
+                request.POST.get("show_register_button") == "on"
+            )
             inst.public_registration = (
                 request.POST.get("public_registration") == "on"
             )
@@ -121,18 +127,25 @@ def settings_view(request):
             inst.staff_positions = [
                 code for code in STAFF_POSITIONS if code in chosen
             ]
-            inst.save(update_fields=["public_registration", "staff_positions"])
+            inst.save(update_fields=[
+                "public_page_enabled",
+                "show_register_button",
+                "public_registration",
+                "staff_positions",
+            ])
             log_action(
                 request.user,
                 "institution.registration_updated",
                 inst,
                 after={
+                    "public_page_enabled": inst.public_page_enabled,
+                    "show_register_button": inst.show_register_button,
                     "public_registration": inst.public_registration,
                     "staff_positions": inst.staff_positions,
                 },
                 request=request,
             )
-            messages.success(request, "Public registration settings saved.")
+            messages.success(request, "Public page and registration settings saved.")
             return redirect("institution_settings")
         if action == "module":
             code = request.POST.get("code", "")

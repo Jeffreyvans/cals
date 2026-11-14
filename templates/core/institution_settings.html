@@ -30,7 +30,7 @@
 
 <h2>Logo and branding</h2>
 {% if can_brand %}
-<p class="muted">The logo appears in the sidebar, on receipts, statements, report cards, transcripts, certificates and emails. Colours are used in the signed-in app, receipts and documents; the public pages stay in the platform's brown theme.</p>
+<p class="muted">The logo appears in the sidebar, on receipts, statements, report cards, transcripts, certificates, emails and your public institution page. Your colours are used in the signed-in app, receipts, documents and on your public page; text colours are chosen automatically so the page stays readable.</p>
 <form method="post" enctype="multipart/form-data" class="inline wide">
   {% csrf_token %}<input type="hidden" name="action" value="branding">
   {% institution_logo inst 160 as logo_url %}
@@ -108,10 +108,19 @@
   <button class="btn">Save words</button>
 </form>
 
-<h2>Public registration</h2>
-<p class="muted">When this is on, the institution appears on the public registration page. Students can activate a portal account when their admission details match, and staff can request an account for an administrator to approve.</p>
+<h2>Public page and registration</h2>
+<p class="muted">Your public page at <a href="{% url 'institution_public' inst.slug %}" target="_blank" rel="noopener">/i/{{ inst.slug }}/</a> is a simple profile for families and visitors. It shows your logo, name, tagline, About text and contact details, with a sign-in card for your own people.</p>
 <form method="post">
   {% csrf_token %}<input type="hidden" name="action" value="registration">
+  <label class="check">
+    <input type="checkbox" name="public_page_enabled" {% if inst.public_page_enabled %}checked{% endif %}>
+    Show the public institution page
+  </label>
+  <label class="check">
+    <input type="checkbox" name="show_register_button" {% if inst.show_register_button %}checked{% endif %}>
+    Show a Register button on the public page
+  </label>
+  <p class="muted">The Register button only appears when public registration is switched on or an active sign-up link exists. Switch it off here if you prefer people to contact the office first.</p>
   <label class="check">
     <input type="checkbox" name="public_registration" {% if inst.public_registration %}checked{% endif %}>
     Allow students and staff to register from the public site
@@ -126,7 +135,7 @@
       </label>
     {% endfor %}
   </div>
-  <p><button class="btn">Save registration settings</button>
+  <p><button class="btn">Save public page settings</button>
     <a class="btn ghost" href="{% url 'registration_requests' %}">Review registration requests</a>
     <a class="btn ghost" href="{% url 'signup_link_list' %}">Share a sign-up link</a></p>
 </form>

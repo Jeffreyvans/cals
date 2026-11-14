@@ -53,6 +53,7 @@ from .signup_links import (
     link_offers,
     link_positions,
     link_rate_limited,
+    open_signup_links,
     record_link_attempt,
     record_use,
 )
@@ -187,6 +188,16 @@ class InstitutionLoginView(LoginLockoutMixin, LoginView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["institution"] = self.institution
+        links = open_signup_links(self.institution)
+        registration_available = self.institution.public_registration or bool(links)
+        show_register = (
+            self.institution.show_register_button and registration_available
+        )
+        context["show_register"] = show_register
+        context["hide_register"] = not show_register
+        context["register_url"] = (
+            links[0].path() if links else reverse("register_choice")
+        )
         return context
 
 

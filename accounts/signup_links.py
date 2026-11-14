@@ -153,6 +153,17 @@ def link_offers(link):
     return {"student", "staff"}
 
 
+def open_signup_links(institution):
+    """The institution's links that can still be used, newest first."""
+    if institution is None:
+        return []
+    return [
+        link
+        for link in institution.signup_links.filter(is_active=True)
+        if link.is_open
+    ]
+
+
 def record_use(link, kind, user=None, email="", request=None):
     """Remember that a registration came through this link."""
     use = SignupLinkUse.objects.create(
@@ -199,6 +210,7 @@ __all__ = [
     "link_offers",
     "link_positions",
     "link_rate_limited",
+    "open_signup_links",
     "reactivate_signup_link",
     "record_link_attempt",
     "record_use",

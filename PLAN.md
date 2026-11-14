@@ -175,6 +175,7 @@ resets. The suite is now 814 tests passing.
 - [x] Tests for the landing page, sign-in, contact form and honeypot, student matching/mismatch/duplicates/throttling, generic message, staff creation/approval/rejection, cross-institution isolation and forbidden roles
 
 ## Part 3B - Brown public theme
+> Superseded by Part 3C below: the public surface is now deep green and marigold, not brown.
 - [x] One shared stylesheet (`static/css/public.css`) for every public/access page, built on a single brown palette (`--brown-950` .. `--brown-50`); no colour is hard-coded outside those variables, and every gradient runs between two browns.
 - [x] The signed-in application keeps its own theme (`static/css/app.css`); only the signed-out surface changed. The dashboard moved to `/dashboard/` and `/` now serves the platform landing page (a signed-in visitor is redirected to the dashboard).
 - [x] All-brown dark variant (espresso `#1e120c`/`#2b1a12`, cream text, caramel accents) driven by `prefers-color-scheme` plus a toggle remembered in `localStorage` (`edusphere.public.theme`) and applied with a no-flash inline script.
@@ -184,6 +185,17 @@ resets. The suite is now 814 tests passing.
 - [x] Emails from verification, invitation and password reset use the same brown palette with inline CSS and keep a plain-text alternative (`templates/emails/`, `OutboundMessage.html_body`, migration `0009`, provider `html_body` plumbing in `core/notifications.py`).
 - [x] Tests (`core/tests/test_public_theme.py`, 46 tests): a palette scan of `public.css` and the public templates, a contrast check for the main text/button pairs in both themes, and a render test that loads every public page with the stylesheet and no 500s.
 - [x] Verification: 1010 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
+
+## Part 3C - Green public platform, learn pages and institution profiles
+- [x] One deep-green and marigold public identity (`#12403c` / `#e8a317`) on Figtree replaces the earlier brown palette for every signed-out page. `static/css/public.css` holds the tokens, the responsive mobile-first layout, the dark variant (system setting plus a remembered toggle) and the learn/institution styles.
+- [x] `/` is a platform login-and-marketing page: hero, sign-in card, an African classroom photo (WebP with a JPEG fallback and lazy loading below the fold), features, audience cards, how-it-works, role blocks, security band, contact section (phone `+263 774 573 765` and `vanhuvaonejeffrey@gmail.com`) and a footer. It carries no institution-specific content.
+- [x] Seven plain-English learn pages linked from the header and footer: `/features/`, `/for-schools/`, `/for-colleges/`, `/for-parents-and-students/`, `/security-and-privacy/`, `/pricing-and-contact/` and `/faq/`, plus a `/learn/` hub. Content lives in `core/learn.py`; there are no invented statistics, client names, awards, testimonials or prices. The header uses a `<details class="nav-more">` menu so every page is reachable without JavaScript.
+- [x] `/pricing-and-contact/` carries a "Request a demo" form (`DemoRequestForm`) with a honeypot and the shared contact rate limit; it emails the platform contact address and never publishes a price.
+- [x] Branded institution page at `/i/<slug>/`: logo, validated primary/accent colours with computed readable text colours, name, tagline, About, contact details, sign-in card and a "Powered by EduSphere" footer linking to `/`. An institution can switch the page off and choose whether to show a Register button; the button only appears when public registration is on or an open sign-up link exists.
+- [x] Institution-scoped sign-in from the institution page refuses another institution's account with the standard "wrong username or password" message. Institution colours apply only on `/i/<slug>/`, never on `/i/<slug>/login/`.
+- [x] SEO: page titles, meta descriptions, Open Graph/Twitter tags, canonical URLs and clean routes; a public-only sitemap (`/sitemap.xml`); and `/robots.txt` that disallows the private app while allowing the public check pages. Private and institution login pages are `noindex`, and no personal data appears on a public page.
+- [x] Tests: `core/tests/test_public_pages.py` (learn pages, demo form, public page/Register toggles, sitemap, robots, noindex) and a rewritten `core/tests/test_public_theme.py` (green palette scan, AA contrast in both themes, render sweep, branding and green emails).
+- [x] Verification: 1214 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
 
 ## Part 1 - Institution logo and branding
 - [x] The setup wizard and the institution settings screen both let an administrator upload a logo, choose the primary and accent colours, and set the "About us" text (up to 600 characters), tagline, address, phone, email and website. The existing WCAG contrast check still rejects an unreadable colour pair.

@@ -117,6 +117,16 @@ class Institution(models.Model):
         default=False,
         help_text="Allow students and staff to register from the public site.",
     )
+    public_page_enabled = models.BooleanField(
+        default=True,
+        help_text="Show this institution's public page at /i/<slug>/.",
+    )
+    show_register_button = models.BooleanField(
+        default=True,
+        help_text=(
+            "Show a Register button on the public page when registration is open."
+        ),
+    )
     staff_positions = models.JSONField(
         default=list,
         blank=True,

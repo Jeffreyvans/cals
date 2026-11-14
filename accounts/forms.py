@@ -318,3 +318,35 @@ class ContactForm(forms.Form):
 
     def recipient(self):
         return CONTACT_EMAIL
+
+
+class DemoRequestForm(forms.Form):
+    """The pricing page's "Request a demo" form."""
+
+    name = forms.CharField(label="Your name", max_length=120)
+    institution = forms.CharField(label="Institution", max_length=200)
+    email = forms.EmailField(label="Email address", max_length=200)
+    phone = forms.CharField(
+        label="Phone number (optional)",
+        max_length=30,
+        required=False,
+    )
+    message = forms.CharField(
+        label="What would you like to see?",
+        widget=forms.Textarea(attrs={"rows": 4}),
+        max_length=2000,
+        required=False,
+        help_text="For example: fees, results, the parent portal or admissions.",
+    )
+    website = forms.CharField(required=False, widget=forms.HiddenInput)
+
+    def clean_message(self):
+        return (self.cleaned_data.get("message") or "").strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("website"):
+            raise ValidationError(
+                "We could not send this request. Check your details and try again."
+            )
+        return cleaned

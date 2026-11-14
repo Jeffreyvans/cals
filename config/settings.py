@@ -41,6 +41,7 @@ if "test" in sys.argv or "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
+    "django.contrib.sitemaps",
     "accounts", "academics", "finance", "admissions", "lms",
     "operations",
     "library", "health", "counselling", "student_affairs", "sports",

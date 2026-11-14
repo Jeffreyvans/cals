@@ -1,14 +1,14 @@
-"""Part 3B: every public and access page uses one all-brown palette.
+"""The public surface uses one green and marigold palette.
 
 Three checks, matching the brief:
 
 * every colour in ``static/css/public.css`` and the public templates is one of
-  the defined brown palette values, so nothing is hard-coded outside them;
+  the defined palette values, so nothing is hard-coded outside them;
 * the main text and button pairs reach the WCAG AA contrast ratios;
 * every public page renders with the shared stylesheet and never a 500.
 
 The scan reads the stylesheet and the templates as text, so it also covers the
-brown email templates that carry inline CSS.
+HTML email templates that carry inline CSS.
 """
 
 import re
@@ -26,7 +26,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
 from accounts.models import EmailVerification, UserInvitation
-from core.branding import contrast_ratio
+from core.branding import DEFAULT_PRIMARY, contrast_ratio
 from core.models import Institution, OutboundMessage
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,44 +35,70 @@ TEMPLATES_DIR = ROOT / "templates"
 
 User = get_user_model()
 
-# The one palette every public page is allowed to use.
-PALETTE = {
-    "--brown-950": "#2b1a12",
-    "--brown-900": "#3e2723",
-    "--brown-800": "#4e342e",
-    "--brown-700": "#5d4037",
-    "--brown-600": "#6f4a36",
-    "--brown-500": "#8d6e63",
-    "--brown-400": "#a1887f",
-    "--brown-300": "#c4a998",
-    "--brown-200": "#dcc8b6",
-    "--brown-100": "#efe2d3",
-    "--brown-50": "#faf4ec",
-    "--espresso": "#1e120c",
-    "--espresso-soft": "#2b1a12",
+# The palette every public page is allowed to use. The named values are the
+# tokens in the stylesheet; the extras are literal labels, shadows and the
+# print fallback.
+LIGHT_TOKENS = {
+    "--green": "#12403c",
+    "--green-deep": "#0b2b28",
+    "--green-soft": "#e6f0ed",
+    "--marigold": "#e8a317",
+    "--marigold-deep": "#a86f00",
+    "--marigold-soft": "#fdf3dd",
+    "--ink": "#10201d",
+    "--muted": "#4e6560",
+    "--bg": "#f7f5ef",
+    "--surface": "#ffffff",
+    "--surface-2": "#f1efe7",
+    "--line": "#dbe2dd",
+    "--line-strong": "#bccbc5",
+    "--ok": "#166534",
+    "--bad": "#9f1239",
+    "--bad-bg": "#fff1f2",
+    "--bad-line": "#fecdd3",
 }
-ALLOWED_HEX = {value.lstrip("#").lower() for value in PALETTE.values()}
-ALLOWED_RGB = {
-    tuple(int(value[i : i + 2], 16) for i in (1, 3, 5)) for value in PALETTE.values()
+
+DARK_TOKENS = {
+    "--green": "#2e6b62",
+    "--green-deep": "#071a18",
+    "--green-soft": "#14312d",
+    "--marigold": "#f0b43c",
+    "--marigold-deep": "#ffd27a",
+    "--marigold-soft": "#332813",
+    "--ink": "#edf5f2",
+    "--muted": "#a9bdb7",
+    "--bg": "#0a1715",
+    "--surface": "#102522",
+    "--surface-2": "#0d1f1d",
+    "--line": "#25423c",
+    "--line-strong": "#355a52",
+    "--ok": "#6ee7a8",
+    "--bad": "#fecdd3",
+    "--bad-bg": "#35151b",
+    "--bad-line": "#6b2531",
 }
+
+EXTRA_HEX = {"fff", "ffffff", "000", "1d1500", "23645c"}
 
 # Text and background pairs that must reach 4.5:1, in both themes.
 CONTRAST_PAIRS = [
     ("--ink", "--bg"),
     ("--ink", "--surface"),
-    ("--ink", "--field"),
+    ("--ink", "--surface-2"),
+    ("--ink", "--green-soft"),
+    ("--ink", "--marigold-soft"),
     ("--muted", "--bg"),
     ("--muted", "--surface"),
-    ("--on-brand", "--brand"),
-    ("--on-brand-strong", "--brand-strong"),
+    ("--link", "--bg"),
+    ("--link", "--surface"),
+    ("--accent-ink", "--bg"),
     ("--bad", "--bad-bg"),
-    ("--ok", "--bad-bg"),
-    ("--on-band", "--band"),
-    ("--on-band", "--band-strong"),
 ]
 
 # Tokens the dark toggle and the system setting must agree on.
-DARK_TOKENS = [name for name, _ in CONTRAST_PAIRS]
+DARK_TOKENS_TO_COMPARE = [
+    name for name, _ in CONTRAST_PAIRS
+] + ["--green", "--marigold", "--line", "--bg", "--surface"]
 
 HEX_RE = re.compile(r"#([0-9a-fA-F]{3,8})\b")
 FUNC_RE = re.compile(r"\b(rgba?|hsla?)\(([^)]*)\)")
@@ -112,8 +138,23 @@ def _hex_variants(raw):
     return raw[:6]
 
 
+ALLOWED_HEX = {
+    _hex_variants(value.lstrip("#")) for value in LIGHT_TOKENS.values()
+} | {
+    _hex_variants(value.lstrip("#")) for value in DARK_TOKENS.values()
+} | {_hex_variants(value) for value in EXTRA_HEX}
+ALLOWED_RGB = {
+    (0, 0, 0),
+    (16, 32, 29),
+    (18, 64, 60),
+    (232, 163, 23),
+    (240, 180, 60),
+    (255, 255, 255),
+}
+
+
 def _bad_colours(text):
-    """Colour literals in ``text`` that are not one of the brown palette values."""
+    """Colour literals in ``text`` that are not one of the palette values."""
     problems = []
     for match in HEX_RE.finditer(text):
         value = _hex_variants(match.group(1))
@@ -161,18 +202,25 @@ def _resolve(variables, token, depth=0):
     return value.strip()
 
 
-class BrownPaletteScanTests(TestCase):
-    """No colour outside the defined brown variables may appear."""
+class PublicPaletteScanTests(TestCase):
+    """No colour outside the defined palette may appear."""
 
-    def test_the_stylesheet_defines_every_palette_value(self):
+    def test_the_stylesheet_defines_every_light_token(self):
         text = CSS_PATH.read_text(encoding="utf-8")
-        for name, value in PALETTE.items():
+        for name, value in LIGHT_TOKENS.items():
             with self.subTest(variable=name):
                 self.assertIn(f"{name}: {value};", text)
 
+    def test_the_stylesheet_defines_every_dark_token(self):
+        text = CSS_PATH.read_text(encoding="utf-8")
+        dark = _variables(_block_with(text, r':root\[data-theme="dark"\]'))
+        for name, value in DARK_TOKENS.items():
+            with self.subTest(variable=name):
+                self.assertEqual(dark.get(name), value)
+
     def test_the_stylesheet_uses_only_palette_colours(self):
         problems = _bad_colours(CSS_PATH.read_text(encoding="utf-8"))
-        self.assertEqual(problems, [], f"Non-brown colours in public.css: {problems}")
+        self.assertEqual(problems, [], f"Non-palette colours in public.css: {problems}")
 
     def test_the_public_templates_use_only_palette_colours(self):
         templates = _public_templates()
@@ -181,7 +229,7 @@ class BrownPaletteScanTests(TestCase):
             with self.subTest(template=path.name):
                 problems = _bad_colours(path.read_text(encoding="utf-8"))
                 self.assertEqual(
-                    problems, [], f"Non-brown colours in {path.name}: {problems}"
+                    problems, [], f"Non-palette colours in {path.name}: {problems}"
                 )
 
     def test_the_public_base_loads_the_shared_stylesheet(self):
@@ -197,7 +245,7 @@ class BrownPaletteScanTests(TestCase):
         self.assertNotIn("css/landing.css", text)
 
 
-class BrownContrastTests(TestCase):
+class PublicContrastTests(TestCase):
     """The main text and button pairs must be readable in both themes."""
 
     def setUp(self):
@@ -233,15 +281,29 @@ class BrownContrastTests(TestCase):
         self._check(self.dark, "dark")
 
     def test_the_system_setting_matches_the_toggle(self):
-        for token in DARK_TOKENS:
+        for token in DARK_TOKENS_TO_COMPARE:
             with self.subTest(token=token):
                 self.assertEqual(
                     _resolve(self.dark, token), _resolve(self.media, token)
                 )
 
-    def test_buttons_use_the_readable_text_token(self):
+    def test_buttons_use_a_readable_text_colour(self):
         block = re.search(r"\.btn\s*\{(.*?)\}", self.text, re.DOTALL).group(1)
-        self.assertIn("var(--on-brand)", block)
+        self.assertIn("color: #fff", block)
+        self.assertGreaterEqual(
+            round(contrast_ratio("#ffffff", self.light["--green"]), 2), 4.5
+        )
+        self.assertGreaterEqual(
+            round(contrast_ratio("#ffffff", self.dark["--green"]), 2), 4.5
+        )
+
+    def test_the_marigold_button_text_is_readable(self):
+        block = re.search(r"\.btn-marigold\s*\{(.*?)\}", self.text, re.DOTALL).group(1)
+        self.assertIn("#1d1500", block)
+        for theme in (self.light, self.dark):
+            self.assertGreaterEqual(
+                round(contrast_ratio("#1d1500", theme["--marigold"]), 2), 4.5
+            )
 
 
 class PublicPageRenderTests(TestCase):
@@ -281,6 +343,13 @@ class PublicPageRenderTests(TestCase):
             reverse("landing"),
             reverse("login"),
             reverse("learn_index"),
+            reverse("learn_features"),
+            reverse("learn_for_schools"),
+            reverse("learn_for_colleges"),
+            reverse("learn_for_parents_and_students"),
+            reverse("learn_security_and_privacy"),
+            reverse("learn_pricing_and_contact"),
+            reverse("learn_faq"),
             reverse("institution_public", args=[self.institution.slug]),
             reverse("institution_login", args=[self.institution.slug]),
             reverse("register_choice"),
@@ -342,7 +411,7 @@ class PublicPageRenderTests(TestCase):
 
 
 class InstitutionBrandingOnPublicPagesTests(PublicPageRenderTests):
-    """The institution's words appear, but its colours stay off public pages."""
+    """The institution's colours are applied on its own page only."""
 
     def test_the_institution_page_shows_name_tagline_and_about(self):
         response = self.client.get(
@@ -353,20 +422,36 @@ class InstitutionBrandingOnPublicPagesTests(PublicPageRenderTests):
         self.assertContains(response, "Learn. Serve. Lead.")
         self.assertContains(response, "A community college in Harare.")
         self.assertContains(response, "brand-badge")
+        self.assertContains(response, "Powered by EduSphere")
 
-    def test_the_institution_colours_are_not_applied_publicly(self):
+    def test_the_institution_colours_are_applied(self):
         response = self.client.get(
             reverse("institution_public", args=[self.institution.slug])
+        )
+        self.assertContains(response, "#123456")
+        self.assertContains(response, "#abcdef")
+        self.assertContains(response, "institution-page")
+
+    def test_an_invalid_colour_falls_back_to_the_platform_default(self):
+        self.institution.primary_color = "not-a-colour"
+        self.institution.save(update_fields=["primary_color"])
+        response = self.client.get(
+            reverse("institution_public", args=[self.institution.slug])
+        )
+        self.assertContains(response, DEFAULT_PRIMARY)
+        self.assertNotContains(response, "not-a-colour")
+
+    def test_the_institution_colours_stay_off_the_login_page(self):
+        response = self.client.get(
+            reverse("institution_login", args=[self.institution.slug])
         )
         self.assertNotContains(response, "#123456")
         self.assertNotContains(response, "#abcdef")
-        self.assertNotContains(response, "abcdef")
 
-    def test_a_logo_gets_a_cream_backing_and_initials_cover_the_rest(self):
+    def test_a_logo_gets_a_light_backing_and_initials_cover_the_rest(self):
         response = self.client.get(
             reverse("institution_public", args=[self.institution.slug])
         )
-        # No logo is set, so the initials fall back inside the cream badge.
         self.assertContains(response, "brand-badge")
         self.assertContains(response, "MC")
 
@@ -380,11 +465,17 @@ class PublicThemeToggleTests(PublicPageRenderTests):
             reverse("login"),
             reverse("register_choice"),
             reverse("learn_index"),
+            reverse("institution_public", args=[self.institution.slug]),
         ):
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertContains(response, "data-theme-toggle")
                 self.assertContains(response, "edusphere.public.theme")
+
+    def test_the_stylesheet_honours_a_remembered_choice(self):
+        text = CSS_PATH.read_text(encoding="utf-8")
+        self.assertIn(':root[data-theme="dark"]', text)
+        self.assertIn(':root:not([data-theme="light"])', text)
 
     def test_the_signed_in_app_keeps_its_own_theme(self):
         staff = User.objects.create_user(
@@ -400,8 +491,8 @@ class PublicThemeToggleTests(PublicPageRenderTests):
         self.assertNotContains(response, "css/public.css")
 
 
-class BrownEmailTests(PublicPageRenderTests):
-    """Verification, invitation and reset emails carry the brown palette."""
+class PublicEmailTests(PublicPageRenderTests):
+    """Verification, invitation and reset emails carry the green palette."""
 
     def test_the_verification_email_has_html_and_plain_text(self):
         from accounts.registration import send_email_verification
@@ -412,8 +503,8 @@ class BrownEmailTests(PublicPageRenderTests):
             recipient=self.user.email
         ).latest("pk")
         self.assertIn(str(verification.token), message.body)
-        self.assertIn("#5d4037", message.html_body)
-        self.assertIn("#3e2723", message.html_body)
+        self.assertIn("#12403c", message.html_body)
+        self.assertIn("#f7f5ef", message.html_body)
 
     def test_the_invitation_email_has_html_and_plain_text(self):
         from accounts.user_admin import create_invitation
@@ -423,9 +514,9 @@ class BrownEmailTests(PublicPageRenderTests):
             recipient=self.user.email
         ).latest("pk")
         self.assertIn(str(invitation.token), message.body)
-        self.assertIn("#5d4037", message.html_body)
+        self.assertIn("#12403c", message.html_body)
 
-    def test_the_password_reset_email_template_renders_in_brown(self):
+    def test_the_password_reset_email_template_renders_in_green(self):
         html = render_to_string(
             "emails/password_reset.html",
             {
@@ -436,7 +527,7 @@ class BrownEmailTests(PublicPageRenderTests):
                 "token": "xyz",
             },
         )
-        self.assertIn("#5d4037", html)
+        self.assertIn("#12403c", html)
         self.assertIn("/reset/", html)
 
     def test_a_password_reset_sends_an_html_alternative(self):
@@ -449,6 +540,6 @@ class BrownEmailTests(PublicPageRenderTests):
         message = mail.outbox[0]
         alternatives = [content for content, _ in message.alternatives]
         self.assertTrue(alternatives)
-        self.assertIn("#5d4037", alternatives[0])
+        self.assertIn("#12403c", alternatives[0])
         # The plain-text version is kept alongside the rich one.
         self.assertIn("/reset/", message.body)

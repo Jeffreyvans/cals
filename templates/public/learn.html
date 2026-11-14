@@ -1,52 +1,52 @@
 {% extends "public_base.html" %}
-{% block title %}Learn with EduSphere{% endblock %}
-{% block description %}How students and staff learn and teach on EduSphere: course sites, assignments, quizzes and gradebooks.{% endblock %}
+{% block title %}Learn about EduSphere{% endblock %}
+{% block description %}Plain-English pages about EduSphere: features, schools, colleges, parents and students, security and privacy, pricing and contact, and frequently asked questions.{% endblock %}
+{% block og_title %}Learn about EduSphere{% endblock %}
+{% block og_description %}Plain-English pages about what EduSphere does and who it is for.{% endblock %}
 {% block content %}
-<div class="page-shell">
-  <div class="page-title">
-    <a class="back-link" href="{% url 'login' %}">&larr; Back to sign in</a>
-    <h1>Learn on EduSphere</h1>
-    <p>Course sites, assignments, quizzes, forums and gradebooks live beside the timetable and results, so teaching and administration stay in step.</p>
+<section class="learn-hero">
+  <div class="wrap">
+    <span class="eyebrow">Learn about EduSphere</span>
+    <h1>Start with the part you need.</h1>
+    <p class="lede">Short, plain-English pages about the system, the people who use it and the way records are kept. No jargon and no invented numbers.</p>
+    <nav class="learn-nav" aria-label="Learn pages">
+      {% for page in learn_pages %}
+        <a href="{% url page.name %}">{{ page.nav_label }}</a>
+      {% endfor %}
+    </nav>
   </div>
+</section>
 
-  <div class="card-grid">
-    <article class="card">
-      <span class="card-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5ZM4 5.5v16M8 7h8M8 11h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-      </span>
-      <h3>Course sites</h3>
-      <p>Sections, materials and live sessions arranged the way the course is taught.</p>
-    </article>
-    <article class="card">
-      <span class="card-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M5 4h11l3 3v13H5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 11h8M8 15h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-      </span>
-      <h3>Assignments</h3>
-      <p>Set work, collect submissions and give feedback with a clear due date.</p>
-    </article>
-    <article class="card">
-      <span class="card-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m8 12 2.5 2.5L16 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </span>
-      <h3>Quizzes</h3>
-      <p>Short checks with automatic marking and a results view for the teacher.</p>
-    </article>
-    <article class="card">
-      <span class="card-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 20h18M6.5 20v-8M12 20V4M17.5 20v-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-      </span>
-      <h3>Gradebooks</h3>
-      <p>Categories and items that feed the term mark, report card and transcript.</p>
-    </article>
-  </div>
+<section class="section">
+  <div class="wrap">
+    <div class="card-grid">
+      {% for page in learn_pages %}
+        <article class="card">
+          <span class="card-icon" aria-hidden="true">
+            {% if page.slug == "features" %}<svg><use href="#i-logo"/></svg>
+            {% elif page.slug == "for-schools" %}<svg><use href="#i-home"/></svg>
+            {% elif page.slug == "for-colleges" %}<svg><use href="#i-building"/></svg>
+            {% elif page.slug == "for-parents-and-students" %}<svg><use href="#i-users"/></svg>
+            {% elif page.slug == "security-and-privacy" %}<svg><use href="#i-shield"/></svg>
+            {% elif page.slug == "pricing-and-contact" %}<svg><use href="#i-cash"/></svg>
+            {% else %}<svg><use href="#i-message"/></svg>{% endif %}
+          </span>
+          <h3><a href="{% url page.name %}">{{ page.nav_label }}</a></h3>
+          <p>{{ page.description }}</p>
+        </article>
+      {% endfor %}
+    </div>
 
-  <div class="panel" style="margin-top: 1.4rem;">
-    <h2>Ready to start?</h2>
-    <p class="sub">Sign in with the account your institution gave you, or register if you are a student or member of staff.</p>
-    <p style="margin-top: 1.2rem;">
-      <a class="btn" href="{% url 'login' %}">Sign in</a>
-      <a class="btn btn-ghost" href="{% url 'register_choice' %}">Register</a>
-    </p>
+    <div class="cta-band" style="margin-top: 2rem;">
+      <div>
+        <h2>Ready to see it?</h2>
+        <p>Tell us about your institution and we will walk through the parts that fit your work.</p>
+      </div>
+      <div class="btn-row">
+        <a class="btn btn-marigold" href="{% url 'learn_pricing_and_contact' %}">Request a demo</a>
+        <a class="btn btn-ghost" href="{% url 'login' %}">Sign in</a>
+      </div>
+    </div>
   </div>
-</div>
+</section>
 {% endblock %}
