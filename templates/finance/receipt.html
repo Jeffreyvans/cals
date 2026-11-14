@@ -13,4 +13,10 @@
   <p class="muted">Fiscal day {{ fiscal.fiscal_day.fiscal_day_no }} · Receipt {{ fiscal.receipt_counter }}</p>
 </div>
 {% endif %}
-<button class="btn noprint" onclick="print()">Print receipt</button></div>{% endblock %}
+<div class="noprint" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+  <a class="btn" href="{% url 'receipt_pdf' p.pk %}">Download PDF</a>
+  <form method="post" action="{% url 'email_receipt' p.pk %}" style="display:inline;">{% csrf_token %}
+    <button class="btn ghost" type="submit">Email receipt</button>
+  </form>
+  <button class="btn ghost" onclick="print()">Print receipt</button>
+</div></div>{% endblock %}

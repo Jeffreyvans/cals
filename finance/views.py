@@ -10,6 +10,7 @@ from django.db.models import DecimalField, ExpressionWrapper, F, Sum, Value
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from academics.models import Guardian, Student, balances_by_student
@@ -285,15 +286,87 @@ def audit_log(request):
         "export_query": (f"?action={action}&from={raw_from}"
                          f"&to={raw_to}&")})
 
+def _receipt_payment(request, pk):
+    """The payment a receipt view may show, or a 403 response for another student.
+
+    Returns ``(payment, None)`` when the caller may see it, otherwise
+    ``(None, response)``.
+    """
+    payment = get_object_or_404(
+        Payment.objects.select_related("invoice__student__user",
+                                       "invoice__institution", "received_by"),
+        pk=pk)
+    if request.user.role == "student" and payment.invoice.student.user != request.user:
+        return None, render(request, "403.html", status=403)
+    return payment, None
+
+
 @module_required("finance")
 @role_required("bursar", "registrar", "student")
 def receipt(request, pk):
-    p = get_object_or_404(Payment.objects.select_related("invoice__student__user", "received_by"), pk=pk)
-    if request.user.role == "student" and p.invoice.student.user != request.user:
-        return render(request, "403.html", status=403)
+    p, denied = _receipt_payment(request, pk)
+    if denied is not None:
+        return denied
     return render(request, "finance/receipt.html",
                   {"p": p, "s": p.invoice.student,
                    "fiscal": _fiscal_for(p, DocumentType.RECEIPT)})
+
+
+@module_required("finance")
+@role_required("bursar", "registrar", "student")
+def receipt_pdf(request, pk):
+    p, denied = _receipt_payment(request, pk)
+    if denied is not None:
+        return denied
+    from .receipts import build_receipt_pdf
+
+    pdf = build_receipt_pdf(p, request=request,
+                            fiscal=_fiscal_for(p, DocumentType.RECEIPT))
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'attachment; filename="receipt-{p.receipt_no or p.pk}.pdf"')
+    return response
+
+
+@module_required("finance")
+@role_required("bursar", "registrar", "student")
+def email_receipt(request, pk):
+    """Email the student their receipt. A POST, so it is never sent by a link."""
+    if request.method != "POST":
+        return redirect("receipt", pk=pk)
+    p, denied = _receipt_payment(request, pk)
+    if denied is not None:
+        return denied
+    student_user = p.invoice.student.user
+    if not student_user.email:
+        messages.error(request, "This student has no email address on file.")
+        return redirect("receipt", pk=p.pk)
+
+    from core.logo import absolute_logo_url
+    from core.notifications import queue_message, render_email_html, send_message
+
+    institution = p.invoice.institution
+    currency = p.currency or institution.currency
+    url = reverse("verify_receipt", args=[p.verification_token])
+    html_body = render_email_html("emails/receipt.html", {
+        "user": student_user, "institution": institution, "payment": p,
+        "student": p.invoice.student, "currency": currency,
+        "verify_url": request.build_absolute_uri(url),
+        "logo_url": absolute_logo_url(institution, request, 160)})
+    body = (
+        f"Hello {student_user.get_full_name() or student_user.username},\n\n"
+        f"We received your payment of {currency}{p.amount} "
+        f"for {p.invoice.description}.\n"
+        f"Receipt number: {p.receipt_no}\n\n"
+        f"Verify this receipt: {request.build_absolute_uri(url)}\n"
+    )
+    message = queue_message(
+        "email", student_user.email, body,
+        subject=f"Payment receipt {p.receipt_no} from {institution.name}",
+        institution=institution, related_object=p, html_body=html_body)
+    send_message(message)
+    messages.success(request, f"Receipt {p.receipt_no} emailed to {student_user.email}.")
+    return redirect("receipt", pk=p.pk)
 
 
 # ---------- reports ----------

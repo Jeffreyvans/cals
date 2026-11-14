@@ -1,0 +1,20 @@
+{% extends "emails/base_email.html" %}
+{% block title %}Receipt {{ payment.receipt_no }} from {{ institution.name }}{% endblock %}
+{% block preheader %}{{ institution.name }} received {{ currency }}{{ payment.amount }}.{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Hello {{ user.get_full_name|default:user.username }},</p>
+<p style="margin:0 0 18px;">{{ institution.name }} has received your payment. Here is your receipt.</p>
+<p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e;">
+  Receipt <strong style="color:#2b1a12;">{{ payment.receipt_no }}</strong><br>
+  Amount <strong style="color:#2b1a12;">{{ currency }}{{ payment.amount }}</strong><br>
+  For {{ payment.invoice.description }}<br>
+  Method {{ payment.get_method_display }}{% if payment.reference %} · {{ payment.reference }}{% endif %}<br>
+  Date {{ payment.paid_on }}
+</p>
+<p style="margin:0 0 18px;">Keep this email as proof of payment. The link below opens a page that confirms the receipt is genuine.</p>
+<p style="margin:0 0 18px;">
+  <a href="{{ verify_url }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">Verify this receipt</a>
+</p>
+<p style="margin:0; color:#6f4a36; font-size:14px;">If the button does not work, copy this address into your browser:<br>
+  <span style="color:#4e342e; word-break:break-all;">{{ verify_url }}</span></p>
+{% endblock %}

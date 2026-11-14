@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-11-14 (session 23, added a branded sign-in page for each institution at /i/<slug>/login/).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-14 (session 24, added a printable/PDF receipt and an emailed receipt for every payment).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -407,6 +407,15 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
 - [x] Made the link shareable: `templates/public/institution.html` now links to the institution sign-in page, and `core/views.settings_view` passes `institution_login_url` (an absolute URL) to `templates/core/institution_settings.html`, which shows it with a copy button.
 - [x] Added `accounts/tests/test_institution_login.py` (16 tests) covering the branded page and the initials fallback, the colours staying off the public page, the public-page link, 404s for unknown and inactive institutions, a successful sign-in, the refusal for another institution, superuser access, a wrong password, login with public registration off, `next`, the signed-in redirect, a counted failed attempt, an inactive account and the settings link. Added the new page to the public-page render sweep in `core/tests/test_public_theme.py`.
 - [x] Verification: 1113 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
+
+## Printable/PDF receipt and emailed receipt (Part 4, session 24)
+- [x] Added `finance/receipts.py` with `build_receipt_pdf(payment, request=None, fiscal=None)`. It renders a real PDF with reportlab: the institution's logo (`logo_flowable`), name, tagline, address and contacts, the primary colour for the headings, and a details table (receipt number, student, what the payment was for, amount, method and reference, date, received by, balance on the invoice, and the ZIMRA verification code when fiscalisation is on).
+- [x] The PDF carries a QR code (`qrcode`, the same approach as the admissions documents) that opens the public `verify_receipt` page; `receipts.verify_url` builds the path and makes it absolute when a request is given. The verify page shows no more than the receipt already does.
+- [x] Added the `receipt_pdf` view at `receipt/<int:pk>/pdf/` (name `receipt_pdf`) and the `email_receipt` POST view at `receipt/<int:pk>/email/` (name `email_receipt`, `finance/urls.py`). Both share a `_receipt_payment` helper with the on-screen `receipt` view, so a student can only open or email their own receipts and the other finance roles can use any.
+- [x] `email_receipt` reuses the notification pipeline (`queue_message` + `send_message`) and a new brown HTML template `templates/emails/receipt.html` that carries the institution's logo and the public verify link. A student with no email address on file gets an error message instead of a silent failure, and a GET never sends anything.
+- [x] `templates/finance/receipt.html` now offers "Download PDF" and "Email receipt" beside "Print receipt". No model change or migration was needed: the receipt number, verification token and branding already existed.
+- [x] Added `finance/tests/test_receipt_documents.py` (15 tests): the PDF download and headers, the request/fiscal passed to the builder, the student ownership rule, the sign-in requirement, the on-screen buttons, the email send (channel, recipient, subject, status and HTML), the verify link, a GET not sending, a missing address, a student emailing only their own receipt, the verify URL helper and the PDF building with and without a stored logo.
+- [x] Verification: 1128 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
 
 ## Next up
 - Phase 7B/7C are complete, Phase 2 is complete apart from optional hardening, and Phase 8 is complete except for the honest integration gaps above (real SMS/WhatsApp adapters and OIDC SSO). The public landing page and self-registration are complete, and the public surface now uses one all-brown theme (Part 3B). The next phase is Phase 9 (security and compliance).
