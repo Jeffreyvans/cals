@@ -8,6 +8,11 @@ from . import user_views, views
 urlpatterns = [
     path("", views.EduSphereLandingView.as_view(), name="landing"),
     path("login/", views.EduSphereLoginView.as_view(), name="login"),
+    path(
+        "i/<slug:slug>/login/",
+        views.InstitutionLoginView.as_view(),
+        name="institution_login",
+    ),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("password-reset/", auth_views.PasswordResetView.as_view(
         template_name="registration/password_reset_form.html",

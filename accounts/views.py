@@ -14,9 +14,14 @@ from django.utils import timezone
 
 from core.access import permission_required_code
 from core.audit import log_action
-from core.models import Department
+from core.models import Department, Institution
 
-from .forms import ContactForm, StaffRegistrationForm, StudentRegistrationForm
+from .forms import (
+    ContactForm,
+    InstitutionAuthenticationForm,
+    StaffRegistrationForm,
+    StudentRegistrationForm,
+)
 from .models import (
     EmailVerification,
     SignupLink,
@@ -53,22 +58,12 @@ from .signup_links import (
 )
 
 
-class EduSphereLoginView(LoginView):
-    """The public landing page and the sign-in form on one screen."""
+class LoginLockoutMixin:
+    """Count failed passwords and lock an account for a short while.
 
-    template_name = "registration/login.html"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context.setdefault("contact_form", ContactForm())
-        context.setdefault("contact_sent", False)
-        context.setdefault("contact_rate_limited", False)
-        return context
-
-    def post(self, request, *args, **kwargs):
-        if request.POST.get("form") == "contact":
-            return self._contact(request)
-        return super().post(request, *args, **kwargs)
+    Both the platform sign-in and the institution sign-in use this, so a
+    wrong password is treated the same whichever door the visitor used.
+    """
 
     def form_valid(self, form):
         from .user_admin import clear_failed_logins
@@ -91,6 +86,24 @@ class EduSphereLoginView(LoginView):
             else:
                 note_failed_login(account, request=self.request)
         return super().form_invalid(form)
+
+
+class EduSphereLoginView(LoginLockoutMixin, LoginView):
+    """The public landing page and the sign-in form on one screen."""
+
+    template_name = "registration/login.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.setdefault("contact_form", ContactForm())
+        context.setdefault("contact_sent", False)
+        context.setdefault("contact_rate_limited", False)
+        return context
+
+    def post(self, request, *args, **kwargs):
+        if request.POST.get("form") == "contact":
+            return self._contact(request)
+        return super().post(request, *args, **kwargs)
 
     def _contact(self, request):
         form = ContactForm(request.POST)
@@ -143,6 +156,38 @@ class EduSphereLandingView(EduSphereLoginView):
         if request.user.is_authenticated:
             return redirect("dashboard")
         return super().dispatch(request, *args, **kwargs)
+
+
+class InstitutionLoginView(LoginLockoutMixin, LoginView):
+    """A branded sign-in page for one institution at ``/i/<slug>/login/``.
+
+    The page shows the institution's own logo, name and tagline, and it only
+    accepts accounts that belong to that institution (a platform superuser
+    may still sign in). It is a shareable door: an institution can put this
+    link on its website so its people land on the right page. The ordinary
+    platform sign-in at ``/login/`` keeps working for everyone.
+    """
+
+    template_name = "registration/institution_login.html"
+    form_class = InstitutionAuthenticationForm
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return redirect("dashboard")
+        self.institution = get_object_or_404(
+            Institution.objects.filter(is_active=True), slug=kwargs["slug"]
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["institution"] = self.institution
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["institution"] = self.institution
+        return context
 
 
 def _public_page(request, template, context=None, status=200):

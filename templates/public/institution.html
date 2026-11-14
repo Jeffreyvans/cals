@@ -32,6 +32,12 @@
     </section>
   {% endif %}
 
+  <section class="panel" aria-labelledby="signin-title">
+    <h2 id="signin-title">Already have an account?</h2>
+    <p class="sub">Sign in to the {{ institution.name }} workspace with the username and password you were given. Only accounts of this institution can sign in here.</p>
+    <p style="margin-top: 1.2rem;"><a class="btn" href="{% url 'institution_login' institution.slug %}">Sign in to {{ institution.name }}</a></p>
+  </section>
+
   <section class="panel" aria-labelledby="contact-title">
     <h2 id="contact-title">Contact</h2>
     <ul class="contact-list">

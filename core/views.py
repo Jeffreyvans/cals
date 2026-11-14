@@ -191,6 +191,9 @@ def settings_view(request):
         "staff_position_choices": staff_position_choices,
         "vat_status_choices": Institution.VatStatus.choices,
         "can_brand": user_has_code(request.user, "admin.manage_branding"),
+        "institution_login_url": request.build_absolute_uri(
+            reverse("institution_login", args=[inst.slug])
+        ),
     })
 
 

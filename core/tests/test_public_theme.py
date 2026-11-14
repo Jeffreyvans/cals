@@ -282,6 +282,7 @@ class PublicPageRenderTests(TestCase):
             reverse("login"),
             reverse("learn_index"),
             reverse("institution_public", args=[self.institution.slug]),
+            reverse("institution_login", args=[self.institution.slug]),
             reverse("register_choice"),
             reverse("register_student"),
             reverse("register_staff"),

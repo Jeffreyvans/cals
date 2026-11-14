@@ -131,6 +131,37 @@
     <a class="btn ghost" href="{% url 'signup_link_list' %}">Share a sign-up link</a></p>
 </form>
 
+<h3>Institution sign-in link</h3>
+<p class="muted">Share this link so your staff, students and parents land on a sign-in page branded for {{ inst.name }}. Only accounts of this institution can sign in there.</p>
+<p class="row" id="institution-login-link">
+  <input type="text" readonly value="{{ institution_login_url }}" class="share-link" data-copy-source style="flex:1;min-width:16rem;">
+  <button type="button" class="btn ghost btn-sm" data-copy="{{ institution_login_url }}">Copy</button>
+  <a class="btn ghost btn-sm" href="{{ institution_login_url }}" target="_blank" rel="noopener">Open</a>
+</p>
+<script>
+  (function () {
+    var box = document.getElementById("institution-login-link");
+    if (!box) { return; }
+    var button = box.querySelector("[data-copy]");
+    if (!button) { return; }
+    button.addEventListener("click", function () {
+      var text = button.getAttribute("data-copy");
+      var done = function () {
+        var old = button.textContent;
+        button.textContent = "Copied";
+        window.setTimeout(function () { button.textContent = old; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, done);
+      } else {
+        var input = box.querySelector("[data-copy-source]");
+        if (input) { input.select(); document.execCommand("copy"); }
+        done();
+      }
+    });
+  })();
+</script>
+
 <h2>Modules</h2>
 <p class="muted">Switch off what this institution does not use. The menu and the pages follow these switches.</p>
 <div class="tbl-wrap">

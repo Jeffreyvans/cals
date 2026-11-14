@@ -1,0 +1,68 @@
+{% extends "public_base.html" %}
+{% load branding %}
+{% block title %}Sign in to {{ institution.name }} — EduSphere{% endblock %}
+{% block description %}Sign in to your {{ institution.name }} account on EduSphere.{% endblock %}
+{% block content %}
+<section class="institution-hero">
+  <div class="page-shell">
+    <div class="institution-head">
+      {% institution_logo institution 160 as logo_url %}
+      <span class="brand-badge">
+        {% if logo_url %}
+          <img src="{{ logo_url }}" alt="{{ institution.name }} logo">
+        {% else %}
+          <span class="brand-initials" aria-hidden="true">{{ institution.initials }}</span>
+        {% endif %}
+      </span>
+      <div>
+        <h1>{{ institution.name }}</h1>
+        {% if institution.tagline %}<p class="tagline">{{ institution.tagline }}</p>{% endif %}
+        <p class="sub">Sign in to your {{ institution.name }} account</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="page-shell narrow">
+  <div class="panel">
+    {% if form.errors %}
+      <div class="alert alert-error" role="alert">Wrong username or password. Try again.</div>
+    {% endif %}
+    <form method="post" action="{{ request.path }}" class="form-stack">
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <div class="field">
+        <label for="id_username">Username</label>
+        <input id="id_username" name="username" type="text" autocomplete="username" required autofocus placeholder="e.g. admin" value="{{ form.username.value|default:'' }}">
+      </div>
+      <div class="field">
+        <label for="id_password">Password</label>
+        <input id="id_password" name="password" type="password" autocomplete="current-password" required placeholder="Your password">
+      </div>
+      <div class="form-row">
+        <span class="help">Your account is personal. Do not share it.</span>
+        <a href="{% url 'password_reset' %}">Forgot password?</a>
+      </div>
+      <button class="btn btn-block" type="submit">Sign in</button>
+    </form>
+    <p class="signin-foot">
+      {% if institution.public_registration %}
+        New to {{ institution.name }}? <a href="{% url 'register_choice' %}">Register for an account</a>
+      {% else %}
+        Not a member yet? Contact the {{ institution.name }} office for an account.
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="institution-contact">
+    {% if logo_url %}<img class="contact-logo" src="{{ logo_url }}" alt="{{ institution.name }} logo">{% endif %}
+    <strong>{{ institution.name }}</strong><br>
+    {% if institution.contact_phone %}Phone: {{ institution.contact_phone }}<br>{% endif %}
+    {% if institution.contact_email %}Email: {{ institution.contact_email }}<br>{% endif %}
+    {% if institution.website %}Website: {{ institution.website }}<br>{% endif %}
+    {% if institution.address %}{{ institution.address }}{% endif %}
+  </div>
+
+  <p style="margin-top: 1.4rem;"><a class="back-link" href="{% url 'login' %}">&larr; Back to EduSphere sign in</a></p>
+</div>
+{% endblock %}

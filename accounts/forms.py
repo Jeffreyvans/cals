@@ -3,6 +3,7 @@
 import re
 
 from django import forms
+from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 
 from core.models import Department, Institution
@@ -47,6 +48,31 @@ def _clean_contact(contact):
             "Enter a valid phone number, for example 0771234567, or an email address."
         )
     return contact
+
+
+class InstitutionAuthenticationForm(AuthenticationForm):
+    """Sign-in that only accepts accounts belonging to one institution.
+
+    The institution page is branded for a single school, so a valid login for
+    a different school is refused with the same message as a wrong password.
+    The page never reveals whether the account exists somewhere else.
+    """
+
+    def __init__(self, request=None, *args, institution=None, **kwargs):
+        self.institution = institution
+        super().__init__(request, *args, **kwargs)
+
+    def confirm_login_allowed(self, user):
+        super().confirm_login_allowed(user)
+        if getattr(user, "is_superuser", False):
+            return
+        institution = self.institution
+        if institution is not None and user.institution_id != institution.pk:
+            raise ValidationError(
+                self.error_messages["invalid_login"],
+                code="invalid_login",
+                params={"username": self.username_field.verbose_name},
+            )
 
 
 class StudentRegistrationForm(forms.Form):
