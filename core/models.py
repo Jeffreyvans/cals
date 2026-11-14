@@ -268,6 +268,43 @@ class StaffProfile(TenantModel):
     def __str__(self):
         return f"{self.user.get_full_name() or self.user.username} - {self.job_title}"
 
+    def save(self, *a, **kw):
+        adding = self._state.adding
+        super().save(*a, **kw)
+        if adding and not self.employee_no:
+            from core.numbering import next_number
+
+            self.employee_no = next_number(self.institution, "staff")
+            super().save(update_fields=["employee_no"])
+
+
+class NumberSequence(TenantModel):
+    """The last student or staff number issued by an institution.
+
+    One row per institution and kind. The number is advanced with an atomic
+    database update inside a row lock, so two clerks admitting at the same
+    moment never share a number. The prefix, year and padding come from the
+    institution's number-format settings.
+    """
+
+    class Kind(models.TextChoices):
+        STUDENT = "student", "Student number"
+        STAFF = "staff", "Staff number"
+
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    last_number = models.PositiveIntegerField(default=0)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["kind"]
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "kind"],
+                                    name="uniq_number_sequence")
+        ]
+
+    def __str__(self):
+        return f"{self.kind}: {self.last_number}"
+
 
 # ---------- bulk import ----------
 

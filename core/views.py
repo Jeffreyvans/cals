@@ -163,6 +163,26 @@ def settings_view(request):
                        after={"changed": changed}, request=request)
             messages.success(request, "The words this institution uses were saved.")
             return redirect("institution_settings")
+        if action == "numbering":
+            from core.numbering import save_format
+
+            kind = request.POST.get("kind", "")
+            try:
+                save_format(
+                    inst, kind,
+                    prefix=request.POST.get("prefix", ""),
+                    include_year=request.POST.get("include_year") == "on",
+                    padding=request.POST.get("padding", ""),
+                    next_value=request.POST.get("next", ""),
+                )
+            except ValidationError as exc:
+                for problem in exc.messages:
+                    messages.error(request, problem)
+                return redirect("institution_settings")
+            log_action(request.user, "institution.numbering_updated", inst,
+                       after={"kind": kind}, request=request)
+            messages.success(request, f"{kind.title()} number format saved.")
+            return redirect("institution_settings")
     switches = []
     for code in ALL_MODULES:
         switches.append({"code": code, "on": is_enabled(code, inst)})
@@ -182,6 +202,9 @@ def settings_view(request):
         }
         for code in POSITION_ORDER
     ]
+    from core.numbering import formats_for
+
+    number_formats = formats_for(inst)
     return render(request, "core/institution_settings.html", {
         "inst": inst,
         "switches": switches,
@@ -189,6 +212,7 @@ def settings_view(request):
         "terms": terms,
         "term_fields": term_fields,
         "staff_position_choices": staff_position_choices,
+        "number_formats": number_formats,
         "vat_status_choices": Institution.VatStatus.choices,
         "can_brand": user_has_code(request.user, "admin.manage_branding"),
         "institution_login_url": request.build_absolute_uri(

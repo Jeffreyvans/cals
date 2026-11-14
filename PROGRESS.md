@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-11-14 (session 24, added a printable/PDF receipt and an emailed receipt for every payment).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-14 (session 25, made student and staff numbers configurable per institution).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -416,6 +416,14 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
 - [x] `templates/finance/receipt.html` now offers "Download PDF" and "Email receipt" beside "Print receipt". No model change or migration was needed: the receipt number, verification token and branding already existed.
 - [x] Added `finance/tests/test_receipt_documents.py` (15 tests): the PDF download and headers, the request/fiscal passed to the builder, the student ownership rule, the sign-in requirement, the on-screen buttons, the email send (channel, recipient, subject, status and HTML), the verify link, a GET not sending, a missing address, a student emailing only their own receipt, the verify URL helper and the PDF building with and without a stored logo.
 - [x] Verification: 1128 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
+
+## Configurable student and staff numbers (Part 5, session 25)
+- [x] Added `core/numbering.py`: `get_format`, `format_number`, `peek_next`, `next_number`, `save_format` and `formats_for`. A format is a prefix, whether the year is included, the sequence padding and the next number to issue, stored in `institution.settings["numbering"]`.
+- [x] Added `core.models.NumberSequence` (one row per institution and kind) and the migration `core/0012_numbersequence`. `next_number` advances it with an atomic `F()` update inside a row lock and retries on a rare SQLite double insert or "database is locked", so simultaneous admissions never share a number. This mirrors the proven `finance.services.next_document_number`.
+- [x] `academics.models.Student.save` now calls `next_number(self.institution, "student")` instead of the hard-coded `f"{created.year}{pk:05d}"`, and `core.models.StaffProfile.save` fills a blank `employee_no` with `next_number(self.institution, "staff")`. Both only generate on creation and only when no number was supplied, so an explicit or imported number is always kept.
+- [x] Added a "Number formats" section to `templates/core/institution_settings.html` (a form per kind) and the `numbering` action in `core/views.settings_view`, guarded by the existing `admin.manage_settings` permission and written to the audit log as `institution.numbering_updated`. The screen shows the next number each kind will receive.
+- [x] Added `core/tests/test_numbering.py` (24 tests): the defaults and formatting, saving a format and seeding the counter, the prefix/padding/next validation, sequential and year-less allocation, the separate sequences, the preview, student and staff generation, an explicit number kept, the format change taking effect, per-institution isolation, and the settings screen (section shown, save, audit, a bad value, the permission gate).
+- [x] Verification: 1152 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
 
 ## Next up
 - Phase 7B/7C are complete, Phase 2 is complete apart from optional hardening, and Phase 8 is complete except for the honest integration gaps above (real SMS/WhatsApp adapters and OIDC SSO). The public landing page and self-registration are complete, and the public surface now uses one all-brown theme (Part 3B). The next phase is Phase 9 (security and compliance).

@@ -592,7 +592,9 @@ class Student(TenantModel):
         adding = self._state.adding
         super().save(*a, **kw)
         if adding and not self.student_no:
-            self.student_no = f"{self.created.year}{self.pk:05d}"
+            from core.numbering import next_number
+
+            self.student_no = next_number(self.institution, "student")
             super().save(update_fields=["student_no"])
 
     @property

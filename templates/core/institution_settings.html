@@ -162,6 +162,23 @@
   })();
 </script>
 
+<h2>Number formats</h2>
+<p class="muted">Choose how student and staff numbers are built. The next number is the sequence position that will be issued next; changing it does not rename existing records.</p>
+{% for key, nf in number_formats.items %}
+<h3>{{ key|title }} numbers</h3>
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="numbering">
+  <input type="hidden" name="kind" value="{{ nf.kind }}">
+  <p><label>Prefix<input name="prefix" value="{{ nf.prefix }}" maxlength="12" placeholder="{{ key|upper }}"></label></p>
+  <p><label>Sequence padding<input name="padding" type="number" min="1" max="8" value="{{ nf.padding }}"></label>
+    <span class="helptext">How many digits the number part is padded to.</span></p>
+  <p><label class="check"><input type="checkbox" name="include_year" {% if nf.include_year %}checked{% endif %}> Include the year in the number</label></p>
+  <p><label>Next number<input name="next" type="number" min="1" value="{{ nf.next }}"></label></p>
+  <p class="muted">Next {{ key }} number: <strong>{{ nf.preview }}</strong></p>
+  <button class="btn">Save {{ key }} format</button>
+</form>
+{% endfor %}
+
 <h2>Modules</h2>
 <p class="muted">Switch off what this institution does not use. The menu and the pages follow these switches.</p>
 <div class="tbl-wrap">
