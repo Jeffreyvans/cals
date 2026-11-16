@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Access request {{ access_request.pk }}{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Access request #{{ access_request.pk }}</h1>
+    <p class="muted">{{ institution.name }} &middot; {{ access_request.get_status_display }}</p>
+  </div>
+</div>
+<p><strong>EduSphere staff:</strong> {{ access_request.requested_by.get_full_name|default:access_request.requested_by.username }}</p>
+<p><strong>Asked for:</strong> {{ access_request.categories|join:", " }} &middot; {{ access_request.get_mode_display }}{% if access_request.include_export %} &middot; export{% endif %} &middot; {{ access_request.duration_hours }} hour{{ access_request.duration_hours|pluralize }}</p>
+<p><strong>Reason:</strong> {{ access_request.reason }}</p>
+<p><strong>Related reference:</strong> {{ access_request.reference|default:"None" }}</p>
+{% if access_request.is_emergency %}<div class="msg warning">This is an emergency break-glass request. It is read-only, lasts at most two hours and is flagged for review.</div>{% endif %}
+
+{% if is_pending %}
+<h2>Decide</h2>
+<p class="muted">You may narrow the categories or the time. You cannot widen what was asked for. Health and counselling need the data protection officer or principal.</p>
+<form method="post" action="{% url 'platform_admin:institution_access_decide' access_request.pk %}" class="inline wide">
+  {% csrf_token %}
+  <p class="full"><span class="field-label">Approve these categories only</span>
+    {% for value, label in form.fields.categories.choices %}
+      <label style="display:block"><input type="checkbox" name="categories" value="{{ value }}" {% if value in access_request.categories %}checked{% endif %} {% if value == 'health' or value == 'counselling' %}{% if not may_approve_high %}disabled{% endif %}{% endif %}> {{ label }}</label>
+    {% endfor %}
+  </p>
+  {% if form.fields.categories.choices and not may_approve_high %}
+    <p class="muted">Health and counselling are locked until the institution sets a data protection officer or principal.</p>
+  {% endif %}
+  <p><label>Mode<select name="mode">{% for value, label in form.fields.mode.choices %}<option value="{{ value }}" {% if access_request.mode == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></p>
+  <p><label>Hours (at most {{ institution.access_grant_max_hours }})<input type="number" name="hours" min="1" max="{{ institution.access_grant_max_hours }}" value="{{ access_request.duration_hours }}"></label></p>
+  {% if access_request.include_export %}<p><label><input type="checkbox" name="include_export" checked> Allow export</label></p>{% endif %}
+  <p class="full"><label>Optional note to EduSphere<textarea name="reason" rows="3"></textarea></label></p>
+  <p><button class="btn" type="submit" name="decision" value="approve">Approve</button></p>
+  <p><button class="btn ghost" type="submit" name="decision" value="deny">Deny</button></p>
+</form>
+{% else %}
+  <table class="tbl">
+    <tr><th>Status</th><td>{{ access_request.get_status_display }}</td></tr>
+    <tr><th>Decided by</th><td>{% firstof access_request.decided_by.get_full_name access_request.decided_by.username "—" %}</td></tr>
+    <tr><th>Decided at</th><td>{{ access_request.decided_at|date:"j M Y H:i"|default:"—" }}</td></tr>
+    <tr><th>Approved categories</th><td>{{ access_request.approved_categories|join:", "|default:"—" }}</td></tr>
+    <tr><th>Decision note</th><td>{{ access_request.decision_reason|default:"—" }}</td></tr>
+  </table>
+{% endif %}
+
+{% if grant %}
+<h2>Grant</h2>
+<p>{{ grant.banner }}. Grant #{{ grant.pk }}.</p>
+{% if grant.is_active %}
+<form method="post" action="{% url 'platform_admin:institution_grant_revoke' grant.pk %}" onsubmit="return confirm('Revoke this access now?');">
+  {% csrf_token %}
+  <p><label>Reason<textarea name="reason" rows="2"></textarea></label></p>
+  <button class="btn ghost" type="submit">Revoke immediately</button>
+</form>
+{% else %}
+<p class="muted">This grant is no longer active.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

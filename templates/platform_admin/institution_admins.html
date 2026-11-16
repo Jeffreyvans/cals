@@ -1,0 +1,26 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Administrators of {{ institution.name }}{% endblock %}
+{% block platform_heading %}Administrator accounts &middot; {{ institution.name }}{% endblock %}
+{% block platform_content %}
+<table class="tbl">
+  <tr><th>Name</th><th>Username</th><th>Email</th><th>Active</th><th>Actions</th></tr>
+  {% for admin in admins %}
+    <tr>
+      <td>{{ admin.get_full_name|default:admin.username }}</td>
+      <td>{{ admin.username }}</td>
+      <td>{{ admin.email }}</td>
+      <td>{{ admin.is_active|yesno:"Yes,No" }}</td>
+      <td>
+        <form method="post" style="display:inline">
+          {% csrf_token %}<input type="hidden" name="user" value="{{ admin.pk }}">
+          <button class="btn ghost btn-sm" type="submit" name="action" value="{% if admin.is_active %}deactivate{% else %}activate{% endif %}">{% if admin.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+          <button class="btn ghost btn-sm" type="submit" name="action" value="invite">Send password link</button>
+        </form>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No administrator accounts.</td></tr>
+  {% endfor %}
+</table>
+<p class="muted">Creating, resetting and deactivating institution administrators never gives platform staff access to institution data.</p>
+{% endblock %}

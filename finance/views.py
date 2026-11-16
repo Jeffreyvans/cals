@@ -385,7 +385,7 @@ def email_receipt(request, pk):
 
     from core.document_header import header_context
     from core.logo import absolute_logo_url
-    from core.notifications import queue_message, render_email_html, send_message
+    from core.notifications import absolute_url, queue_message, render_email_html, send_message
 
     institution = p.invoice.institution
     currency = p.currency or institution.currency
@@ -396,7 +396,7 @@ def email_receipt(request, pk):
     html_body = render_email_html("emails/receipt.html", {
         "user": student_user, "institution": institution, "payment": p,
         "student": p.invoice.student, "currency": currency,
-        "verify_url": request.build_absolute_uri(url),
+        "verify_url": absolute_url(url),
         "header": header,
         "logo_url": header["logo_url"] or absolute_logo_url(institution, request, 160)})
     body = (
@@ -404,7 +404,7 @@ def email_receipt(request, pk):
         f"We received your payment of {currency}{p.amount} "
         f"for {p.invoice.description}.\n"
         f"Receipt number: {p.receipt_no}\n\n"
-        f"Verify this receipt: {request.build_absolute_uri(url)}\n"
+        f"Verify this receipt: {absolute_url(url)}\n"
     )
     message = queue_message(
         "email", student_user.email, body,

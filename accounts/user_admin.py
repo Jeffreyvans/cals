@@ -223,10 +223,9 @@ def _send_email(user, subject, body, related_object=None, html_body=""):
 
 
 def _invitation_link(invitation, request=None):
-    path = reverse("accept_invitation", args=[invitation.token])
-    if request is not None:
-        return request.build_absolute_uri(path)
-    return path
+    from core.notifications import absolute_url
+
+    return absolute_url(reverse("accept_invitation", args=[invitation.token]))
 
 
 def _invitation_body(user, invitation, request=None):
@@ -248,7 +247,7 @@ def _invitation_html(user, invitation, request=None):
             "user": user,
             "institution": user.institution,
             "link": _invitation_link(invitation, request),
-            "logo_url": absolute_logo_url(user.institution, request, 160),
+            "logo_url": absolute_logo_url(user.institution, size=160),
         },
     )
 
@@ -650,10 +649,12 @@ def reset_password(user, actor=None, request=None):
     password = generate_temporary_password()
     user.set_password(password)
     user.must_change_password = True
+    user.password_set_from_env = False
     user.failed_login_count = 0
     user.locked_until = None
     user.save(update_fields=["password", "must_change_password",
-                             "failed_login_count", "locked_until"])
+                             "password_set_from_env", "failed_login_count",
+                             "locked_until"])
     record_action(actor, "reset")
     log_action(actor, "user.password_reset", instance=user, request=request)
     send_password_reset_notice(user)
@@ -687,14 +688,40 @@ def accept_invitation(invitation, password, request=None):
     user = invitation.user
     user.set_password(password)
     user.must_change_password = False
+    user.password_set_from_env = False
     user.is_active = True
     user.failed_login_count = 0
     user.locked_until = None
-    user.save(update_fields=["password", "must_change_password", "is_active",
+    user.save(update_fields=["password", "must_change_password",
+                             "password_set_from_env", "is_active",
                              "failed_login_count", "locked_until"])
     invitation.used_at = timezone.now()
     invitation.save(update_fields=["used_at"])
     log_action(user, "user.invitation_accepted", instance=user, request=request)
+
+    # The first administrator of an approved institution chooses the password
+    # that makes the institution live. Every later invitation changes nothing.
+    institution = getattr(user, "institution", None)
+    source_application = getattr(institution, "source_application", None) if institution else None
+    if (
+        institution is not None
+        and source_application is not None
+        and source_application.status == "approved"
+        and not institution.is_active
+        and institution.suspended_at is None
+        and institution.archived_at is None
+        and institution.deleted_at is None
+        and user.role == User.Role.ADMIN
+    ):
+        institution.is_active = True
+        institution.save(update_fields=["is_active"])
+        log_action(
+            user,
+            "institution.activated_by_first_administrator",
+            institution=institution,
+            after={"reference": source_application.reference},
+            request=request,
+        )
     return user
 
 

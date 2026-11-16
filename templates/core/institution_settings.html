@@ -28,6 +28,15 @@
   <button class="btn">Save details</button>
 </form>
 
+<h2>Data protection and platform access</h2>
+<p class="muted">Your institution is the data controller; EduSphere is the processor. EduSphere platform staff cannot open student, staff, health, finance, results or personnel data unless you approve a time-limited consent request. You can narrow, refuse or revoke any grant, and every view or change is recorded.</p>
+<p class="row">
+  <a class="btn ghost" href="{% url 'platform_admin:institution_access_requests' %}">Consent requests</a>
+  <a class="btn ghost" href="{% url 'platform_admin:institution_data_access' %}">Who accessed our data</a>
+  <a class="btn ghost" href="{% url 'platform_admin:institution_consent_log' %}">Data processing consent</a>
+</p>
+<p class="muted">Accepted data processing statement: {% if inst.data_processing_accepted_at %}version {{ inst.data_processing_version }} on {{ inst.data_processing_accepted_at|date:"j M Y H:i" }}{% else %}not recorded yet{% endif %}.</p>
+
 <h2>Logo and branding</h2>
 {% if can_brand %}
 <p class="muted">The logo appears in the sidebar, on receipts, statements, report cards, transcripts, certificates, emails and your public institution page. Your colours are used in the signed-in app, receipts, documents and on your public page; text colours are chosen automatically so the page stays readable.</p>

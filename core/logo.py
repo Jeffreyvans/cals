@@ -197,12 +197,21 @@ def institution_logo_bytes(institution, size=160, png=False):
 
 
 def absolute_logo_url(institution, request=None, size=160):
-    """The logo URL made absolute, for emails and other off-site documents."""
+    """The logo URL made absolute, for emails and other off-site documents.
+
+    Without a request the public SITE_URL is used, so background jobs never
+    publish a Render-internal hostname in an email.
+    """
     url = institution_logo_url(institution, size)
     if not url:
         return ""
     if request is not None:
         return request.build_absolute_uri(url)
+    from django.conf import settings
+
+    site_url = (getattr(settings, "SITE_URL", "") or "").rstrip("/")
+    if site_url and not url.startswith(("http://", "https://")):
+        return site_url + (url if url.startswith("/") else "/" + url)
     return url
 
 

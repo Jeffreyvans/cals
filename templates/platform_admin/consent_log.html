@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Data consent log{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Data processing consent</h1>
+    <p class="muted">{{ institution.name }} is the data controller; EduSphere is the processor. This record supports your duties under the Zimbabwe Cyber and Data Protection Act.</p>
+  </div>
+  <div>
+    <a class="btn ghost" href="?export=csv">Download the consent log</a>
+    <a class="btn ghost" href="{% url 'platform_admin:institution_data_access' %}">Who accessed our data</a>
+  </div>
+</div>
+<table class="tbl">
+  <tr><th>Kind</th><th>Version</th><th>Accepted</th><th>By</th><th>Email</th><th>Hash</th></tr>
+  {% for log in logs %}
+    <tr>
+      <td>{{ log.get_kind_display }}</td>
+      <td>{{ log.version }}</td>
+      <td>{{ log.accepted_at|date:"j M Y H:i" }}</td>
+      <td>{{ log.accepted_by_name }}</td>
+      <td>{{ log.accepted_by_email }}</td>
+      <td><code>{{ log.statement_hash|truncatechars:20 }}</code></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No consent record yet.</td></tr>
+  {% endfor %}
+</table>
+<h2>Accept the statement again</h2>
+<form method="post" action="{% url 'platform_admin:institution_accept_data_processing' %}" class="inline wide">
+  {% csrf_token %}
+  <div class="panel full" style="white-space: pre-line; max-height: 320px; overflow:auto;">{{ statement }}</div>
+  <p class="full"><label>Your full name<input name="confirmed_by" maxlength="200" required></label></p>
+  <p><label><input type="checkbox" name="accepted" required> I accept version {{ version }} for {{ institution.name }}.</label></p>
+  <p><button class="btn" type="submit">Record acceptance</button></p>
+</form>
+{% endblock %}

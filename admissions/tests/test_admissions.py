@@ -159,17 +159,17 @@ class AcceptanceTests(TestCase):
         with self.assertRaises(services.AdmissionError):
             services.accept_offer(self.offer, deposit_method="")
 
-    @patch("admissions.services.send_message")
-    def test_failure_rolls_back_the_student(self, send_message):
-        send_message.side_effect = RuntimeError("mail server down")
-        with self.assertRaises(RuntimeError):
-            services.accept_offer(
-                self.offer, deposit_method=Offer.DepositMethod.RECORDED)
-        self.assertFalse(Student.objects.exists())
-        self.assertFalse(User.objects.filter(role="student").exists())
-        self.assertFalse(Invoice.objects.exists())
-        self.offer.refresh_from_db()
-        self.assertEqual(self.offer.status, Offer.Status.PENDING)
+    @patch("core.notifications.DjangoEmailProvider.send")
+    def test_a_failed_email_does_not_roll_back_the_student(self, provider_send):
+        # Email is now non-raising: a provider failure must never undo an
+        # admission that already happened.
+        provider_send.return_value = {"ok": False, "detail": "mail server down"}
+        student = services.accept_offer(
+            self.offer, deposit_method=Offer.DepositMethod.RECORDED)
+        self.assertTrue(Student.objects.exists())
+        self.assertTrue(User.objects.filter(role="student").exists())
+        self.assertTrue(Invoice.objects.exists())
+        self.assertEqual(student.pk, Student.objects.get().pk)
 
 
 @override_settings(

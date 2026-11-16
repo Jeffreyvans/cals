@@ -1,0 +1,15 @@
+{% extends "emails/base_email.html" %}
+{% block title %}More information needed for your EduSphere application{% endblock %}
+{% block preheader %}EduSphere needs a little more information about {{ institution_name }}.{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Hello {{ application.contact_person }},</p>
+<p style="margin:0 0 18px;">We are reviewing the application for <strong>{{ institution_name }}</strong> and need a little more information before we can continue.</p>
+<div style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-left:4px solid #5d4037; border-radius:10px; color:#4e342e; white-space:pre-line;">{{ message }}</div>
+<p style="margin:0 0 18px;">Reply securely using your private application link. The reference is <strong>{{ reference }}</strong>.</p>
+<p style="margin:0 0 18px;">
+  <a href="{{ status_url }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">Reply securely</a>
+</p>
+<p style="margin:0 0 18px; color:#6f4a36; font-size:14px;">If the button does not work, copy this address into your browser:<br>
+  <span style="color:#4e342e; word-break:break-all;">{{ status_url }}</span></p>
+<p style="margin:0; color:#6f4a36; font-size:14px;">Nothing is shared with platform staff until an institution approves it. If you were not expecting this message, ignore it.</p>
+{% endblock %}

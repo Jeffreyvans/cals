@@ -1,0 +1,39 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Email health{% endblock %}
+{% block platform_heading %}Email health{% endblock %}
+{% block platform_content %}
+<p><a class="btn ghost" href="{% url 'platform_admin:health' %}">Platform health</a> <a class="btn ghost" href="{% url 'platform_admin:errors' %}">Errors</a></p>
+
+<div class="stat-grid" style="display:flex; flex-wrap:wrap; gap:14px; margin-bottom:18px;">
+  <div class="card"><strong>{{ failures }}</strong><br>Failed messages</div>
+  <div class="card"><strong>{{ delivered }}</strong><br>Delivered</div>
+  <div class="card"><strong>{{ bounced }}</strong><br>Bounced</div>
+  <div class="card"><strong>{{ complained }}</strong><br>Complaints</div>
+  <div class="card"><strong>{{ suppressed }}</strong><br>Suppressed addresses</div>
+</div>
+
+<h2>Last 50 messages</h2>
+<table class="tbl">
+  <tr><th>When</th><th>Institution</th><th>Recipient</th><th>Subject</th><th>Status</th><th>Detail</th><th></th></tr>
+  {% for message in recent %}
+    <tr>
+      <td>{{ message.created|date:"j M Y H:i" }}</td>
+      <td>{{ message.institution.name|default:"EduSphere" }}</td>
+      <td>{{ message.recipient }}</td>
+      <td>{{ message.subject|truncatechars:60 }}</td>
+      <td>{{ message.status }}</td>
+      <td>{{ message.provider_response|truncatechars:120 }}</td>
+      <td>
+        {% if message.status == "failed" %}
+          <form method="post" action="{% url 'platform_admin:email_resend' message.pk %}">
+            {% csrf_token %}
+            <button class="btn ghost btn-sm" type="submit">Resend</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No messages yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

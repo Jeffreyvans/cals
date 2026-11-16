@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{% block platform_title %}Platform{% endblock %} &middot; EduSphere{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{% block platform_heading %}EduSphere platform{% endblock %}</h1>
+    <p class="muted">
+      {% if PLATFORM_STAFF %}
+        Signed in as {{ PLATFORM_STAFF.user.get_full_name|default:PLATFORM_STAFF.user.username }}
+        &middot; {{ PLATFORM_ROLE_NAME }}
+        {% if PLATFORM_IS_MAIN %} &middot; main administrator{% endif %}
+      {% endif %}
+    </p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'platform_admin:security' %}">Two-factor and password</a>
+    <a class="btn" href="{% url 'platform_admin:dashboard' %}">Platform home</a>
+  </div>
+</div>
+
+{% if PLATFORM_GRANT_BANNER %}
+<div class="msg warning" style="font-weight:600;">
+  {{ PLATFORM_GRANT_BANNER }}. Grant #{{ PLATFORM_GRANT.pk }}. The institution may revoke it at any time.
+</div>
+{% endif %}
+
+<nav class="tabs" aria-label="Platform sections" style="display:flex; flex-wrap:wrap; gap:10px; margin: 0 0 18px;">
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:inbox' %}">Inbox</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:applications' %}">Applications</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:institutions' %}">Institutions</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:plans' %}">Plans</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:subscriptions' %}">Subscriptions</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:invoices' %}">Invoices</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:access_requests' %}">Consent requests</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:email_health' %}">Email health</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:audit_log' %}">Audit</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:staff' %}">Staff</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:settings' %}">Settings</a>
+</nav>
+
+{% block platform_content %}{% endblock %}
+{% endblock %}

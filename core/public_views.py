@@ -1,17 +1,16 @@
 """Public, signed-out pages: the learn pages, the institution profile and SEO.
 
-These pages use the platform's green and marigold public theme
+These pages use the platform's all-brown public theme
 (``static/css/public.css``). An institution's logo, name, tagline, About text
-and contact details appear on its own page, together with its primary and
-accent colours. Only values that parse as real colours are applied, and the
-text colour on each colour is chosen for contrast, so an institution can never
-publish an unreadable page.
+and contact details appear on its own page, but the page colours always stay
+brown: an institution's primary and accent colours are reserved for receipts,
+documents and the signed-in application, so a public page can never publish an
+unreadable or off-palette page.
 """
 
 import json
 
-from django.conf import settings
-from django.core.mail import EmailMessage
+from django.contrib import messages
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -26,17 +25,10 @@ from accounts.registration import (
     record_contact_attempt,
 )
 from accounts.signup_links import open_signup_links
-from core.branding import (
-    INK,
-    WHITE,
-    accent_colour,
-    accent_text,
-    primary_colour,
-    readable_text,
-)
 from core.learn import LEARN_BY_SLUG, LEARN_PAGES
 from core.logo import absolute_logo_url
 from core.models import Institution
+from core.notifications import EMAIL_FAILURE_MESSAGE, send_platform_email
 
 # Routes that belong to the signed-in application. They are kept out of search
 # results; a few public check pages inside those prefixes are allowed back in.
@@ -188,14 +180,14 @@ def _pricing_page(request, context):
         f"Phone: {data.get('phone') or 'Not given'}\n\n"
         f"{data.get('message') or 'No extra notes.'}\n"
     )
-    message = EmailMessage(
+    message = send_platform_email(
         "EduSphere demo request",
         body,
-        getattr(settings, "EMAIL_FROM", "EduSphere <no-reply@edusphere.local>"),
-        [contact_recipient()],
+        contact_recipient(),
         reply_to=[data["email"]],
     )
-    message.send(fail_silently=True)
+    if getattr(message, "status", "") != "sent":
+        messages.error(request, EMAIL_FAILURE_MESSAGE)
     record_contact_attempt(request)
     context.update({"demo_form": DemoRequestForm(), "demo_sent": True})
     return render(request, "public/learn_page.html", context)
@@ -218,14 +210,8 @@ def institution_page(request, slug):
     if show_register:
         register_url = links[0].path() if links else reverse("register_choice")
 
-    primary = primary_colour(institution)
-    accent = accent_colour(institution)
     context = {
         "institution": institution,
-        "primary_color": primary,
-        "primary_text": readable_text(primary, (WHITE, INK)),
-        "accent_color": accent,
-        "accent_text": accent_text(accent),
         "show_register": show_register,
         "hide_register": not show_register,
         "register_url": register_url,

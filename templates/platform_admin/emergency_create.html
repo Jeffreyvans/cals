@@ -1,0 +1,18 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Emergency access{% endblock %}
+{% block platform_heading %}Emergency break-glass access{% endblock %}
+{% block platform_content %}
+<div class="msg warning">Use this only for a genuine security incident or outage. It is read-only, lasts at most two hours, needs a second platform administrator, alerts the institution at once and is flagged for review.</div>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error full">{{ form.non_field_errors }}</div>{% endif %}
+  <p><label>Institution<select name="institution" required>{% for institution in form.fields.institution.queryset %}<option value="{{ institution.pk }}">{{ institution.name }}</option>{% endfor %}</select></label></p>
+  <p class="full"><span class="field-label">Categories</span>
+    {% for value, label in form.fields.categories.choices %}
+      <label style="display:block"><input type="checkbox" name="categories" value="{{ value }}"> {{ label }}</label>
+    {% endfor %}
+  </p>
+  <p class="full"><label>What happened and why access is needed (at least 20 characters)<textarea name="justification" rows="5" required></textarea></label></p>
+  <p><button class="btn" type="submit">Record emergency request</button></p>
+</form>
+{% endblock %}

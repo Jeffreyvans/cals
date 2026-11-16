@@ -1,0 +1,7 @@
+{% extends "emails/base_email.html" %}
+{% block title %}{{ subject }}{% endblock %}
+{% block preheader %}{{ subject }}{% endblock %}
+{% block content %}
+<p style="margin:0 0 16px; white-space:pre-wrap; color:#2b1a12;">{{ body_html|safe }}</p>
+{% endblock %}
+{% block footer %}{% firstof institution.name "EduSphere" %}{% endblock %}

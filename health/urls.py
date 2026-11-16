@@ -8,4 +8,4 @@ from .registry import MODULES
 app_name = "health"
 urlpatterns = [
     path("safe-alerts/", views.safe_alerts, name="safe_alerts"),
-] + build_urls("health", MODULES, app_name)
+] + build_urls("health", MODULES, app_name, hub_path="hub/")

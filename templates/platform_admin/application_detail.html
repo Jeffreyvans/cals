@@ -1,0 +1,116 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}{{ application.reference }}{% endblock %}
+{% block platform_heading %}{{ application.institution_name }}{% endblock %}
+{% block platform_content %}
+<p class="muted">{{ application.reference }} &middot; {{ application.get_institution_type_display }} &middot; {{ application.town }}, {{ application.country }} &middot; received {{ application.created|date:"j M Y H:i" }}</p>
+<p><strong>Status:</strong> {{ application.get_status_display }}
+  {% if application.assigned_to %}&middot; <strong>Reviewer:</strong> {{ application.assigned_to.get_full_name|default:application.assigned_to.username }}{% endif %}
+  {% if application.decided_by %}&middot; <strong>Decided by:</strong> {{ application.decided_by.get_full_name|default:application.decided_by.username }}{% endif %}
+</p>
+
+{% if application.status == 'approved' and application.created_institution %}
+<div class="msg success">Approved. <a href="{% url 'platform_admin:institution_detail' application.created_institution.pk %}">Open {{ application.created_institution.name }}</a>.</div>
+{% endif %}
+{% if application.decision_reason %}<div class="panel"><strong>Decision reason</strong><p>{{ application.decision_reason }}</p></div>{% endif %}
+
+<h2>Application</h2>
+<table class="tbl">
+  <tr><th>Contact person</th><td>{{ application.contact_person }}{% if application.position %} ({{ application.position }}){% endif %}</td></tr>
+  <tr><th>Email</th><td>{{ application.email }}</td></tr>
+  <tr><th>Phone</th><td>{{ application.phone }}</td></tr>
+  <tr><th>Website</th><td>{{ application.website|default:"Not supplied" }}</td></tr>
+  <tr><th>Registration number</th><td>{{ application.registration_number|default:"Not supplied" }}</td></tr>
+  <tr><th>Expected students / staff</th><td>{{ application.expected_students }} / {{ application.expected_staff }}</td></tr>
+  <tr><th>Preferred plan</th><td>{{ application.preferred_plan.name|default:"No preference" }}</td></tr>
+  <tr><th>Modules</th><td>{{ application.modules|join:", "|default:"Not chosen" }}</td></tr>
+  <tr><th>Terms and data processing</th><td>{{ application.agreed_to_terms|yesno:"Accepted,Not accepted" }} (version {{ application.consent_statement_version|default:"—" }})</td></tr>
+</table>
+
+<h2>Documents</h2>
+<table class="tbl">
+  <tr><th>Kind</th><th>File</th><th>Size</th><th>Uploaded</th></tr>
+  {% for document in documents %}
+    <tr>
+      <td>{{ document.get_kind_display }}</td>
+      <td><a href="{% url 'platform_admin:application_document' application.pk document.pk %}" target="_blank" rel="noopener">{{ document.original_name }}</a></td>
+      <td>{{ document.size }} bytes</td>
+      <td>{{ document.uploaded_at|date:"j M Y H:i" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">No documents uploaded.</td></tr>
+  {% endfor %}
+</table>
+
+{% if can_manage %}
+<h2>Review actions</h2>
+
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="assign">
+  <p><label>Assign reviewer<select name="reviewer"><option value="">Choose</option>{% for reviewer in reviewers %}<option value="{{ reviewer.pk }}" {% if application.assigned_to_id == reviewer.pk %}selected{% endif %}>{{ reviewer.get_full_name|default:reviewer.username }}</option>{% endfor %}</select></label></p>
+  <p><button class="btn" type="submit">Assign</button></p>
+</form>
+
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="note">
+  <p class="full"><label>Internal note (never shown to the applicant)<textarea name="note" rows="3"></textarea></label></p>
+  <p><button class="btn" type="submit">Save note</button></p>
+</form>
+
+<h2>Approve</h2>
+<p class="muted">Approval creates an inactive institution, the first administrator, a single-use password link and a trial or subscription on the chosen plan. It happens exactly once.</p>
+<form method="post" class="inline wide" onsubmit="return confirm('Approve and create this institution?');">
+  {% csrf_token %}<input type="hidden" name="action" value="approve">
+  <p><label>Plan<select name="plan"><option value="">Use the applicant's preference</option>{% for plan in plans %}<option value="{{ plan.pk }}" {% if application.preferred_plan_id == plan.pk %}selected{% endif %}>{{ plan.name }} ({{ plan.trial_days }} trial days)</option>{% endfor %}</select></label></p>
+  <p><button class="btn" type="submit">Approve and create institution</button></p>
+</form>
+<p class="muted">Approve with a different plan by choosing it above.</p>
+
+<h2>Ask for more information</h2>
+<form method="post" class="inline wide">
+  {% csrf_token %}<input type="hidden" name="action" value="more_information">
+  <p class="full"><label>Message to the applicant<textarea name="message" rows="4" required></textarea></label></p>
+  <p><button class="btn" type="submit">Send secure reply link</button></p>
+</form>
+
+<h2>Reject</h2>
+<form method="post" class="inline wide" onsubmit="return confirm('Reject this application?');">
+  {% csrf_token %}<input type="hidden" name="action" value="reject">
+  <p class="full"><label>Reason (included in the email)<textarea name="reason" rows="3" required></textarea></label></p>
+  <p><button class="btn" type="submit">Reject application</button></p>
+</form>
+{% endif %}
+
+<h2>Messages</h2>
+{% for message in messages_list %}
+  <div class="panel">
+    <strong>{% if message.author_kind == 'staff' %}{% firstof message.author.get_full_name message.author.username "EduSphere" %}{% else %}Applicant{% endif %}</strong>
+    <span class="muted">{{ message.created|date:"j M Y H:i" }}</span>
+    <p style="white-space: pre-line;">{{ message.body }}</p>
+  </div>
+{% empty %}
+  <p class="muted">No messages yet.</p>
+{% endfor %}
+
+<h2>Activity history</h2>
+<table class="tbl">
+  <tr><th>Time</th><th>Action</th><th>By</th><th>Note</th></tr>
+  {% for event in events %}
+    <tr>
+      <td>{{ event.created|date:"j M Y H:i" }}</td>
+      <td>{{ event.action }}</td>
+      <td>{% firstof event.actor.get_full_name event.actor.username "Applicant" %}</td>
+      <td>{{ event.note|truncatechars:200 }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">No history yet.</td></tr>
+  {% endfor %}
+</table>
+
+{% if application.internal_notes %}
+<h2>Internal notes</h2>
+<div class="panel" style="white-space: pre-line;">{{ application.internal_notes }}</div>
+{% endif %}
+
+<h2>Data processing statement shown at approval</h2>
+<div class="panel" style="white-space: pre-line; max-height: 300px; overflow:auto;">{{ statement }}</div>
+{% endblock %}

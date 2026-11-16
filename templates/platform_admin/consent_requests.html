@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Platform access requests{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Who wants to see our data</h1>
+    <p class="muted">{{ institution.name }}. Approve only what is needed, for the shortest useful time. Doing nothing leaves the request waiting until it expires; it is never approved automatically.</p>
+  </div>
+  <div>
+    <a class="btn ghost" href="{% url 'platform_admin:institution_data_access' %}">Who accessed our data</a>
+    <a class="btn ghost" href="{% url 'platform_admin:institution_consent_log' %}">Data consent log</a>
+  </div>
+</div>
+
+{% if pending_count %}<div class="msg warning">{{ pending_count }} request{{ pending_count|pluralize }} waiting for your decision.</div>{% endif %}
+<p>
+  <a class="btn ghost btn-sm" href="?status=pending">Waiting</a>
+  <a class="btn ghost btn-sm" href="?status=approved">Approved</a>
+  <a class="btn ghost btn-sm" href="?status=denied">Denied</a>
+  <a class="btn ghost btn-sm" href="?status=">All</a>
+</p>
+<table class="tbl">
+  <tr><th>#</th><th>Platform staff</th><th>Categories</th><th>Mode</th><th>For</th><th>Status</th><th>Asked</th></tr>
+  {% for access_request in access_requests %}
+    <tr>
+      <td><a href="{% url 'platform_admin:institution_access_request_detail' access_request.pk %}">{{ access_request.pk }}</a></td>
+      <td>{{ access_request.requested_by.get_full_name|default:access_request.requested_by.username }}</td>
+      <td>{{ access_request.categories|join:", " }}</td>
+      <td>{{ access_request.get_mode_display }}{% if access_request.include_export %} + export{% endif %}</td>
+      <td>{{ access_request.duration_hours }} hour{{ access_request.duration_hours|pluralize }}</td>
+      <td>{{ access_request.get_status_display }}</td>
+      <td>{{ access_request.created|date:"j M Y H:i" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No requests.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

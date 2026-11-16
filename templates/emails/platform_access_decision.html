@@ -1,0 +1,21 @@
+{% extends "emails/base_email.html" %}
+{% block title %}Decision on your EduSphere access request{% endblock %}
+{% block preheader %}{{ institution.name }} has answered your access request.{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Hello,</p>
+{% if approved %}
+<p style="margin:0 0 18px;"><strong>{{ institution.name }}</strong> approved your request for consent to see protected data.</p>
+<p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e; white-space:pre-line;">{{ body }}</p>
+<p style="margin:0 0 18px;">The grant is time-limited and the institution may revoke it at any time. Only open the categories it names. Every view, export and change is recorded in the tamper-evident audit log.</p>
+{% else %}
+<p style="margin:0 0 18px;"><strong>{{ institution.name }}</strong> denied your request for consent to see protected data.</p>
+<p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e; white-space:pre-line;">{{ body }}</p>
+<p style="margin:0 0 18px;">Do not try to reach the data another way. If the need is still there, ask again with a narrower request.</p>
+{% endif %}
+<p style="margin:0 0 18px;">
+  <a href="{{ link }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">Open the request</a>
+</p>
+<p style="margin:0 0 18px; color:#6f4a36; font-size:14px;">If the button does not work, copy this address into your browser:<br>
+  <span style="color:#4e342e; word-break:break-all;">{{ link }}</span></p>
+<p style="margin:0; color:#6f4a36; font-size:14px;">This message was sent because an EduSphere platform staff member asked an institution for consent.</p>
+{% endblock %}

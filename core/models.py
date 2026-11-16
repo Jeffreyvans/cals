@@ -133,6 +133,41 @@ class Institution(models.Model):
         help_text="Staff positions this institution accepts for public registration.",
     )
     is_active = models.BooleanField(default=True)
+    # Lifecycle. A suspended institution keeps its data but nobody can sign in.
+    suspended_at = models.DateTimeField(null=True, blank=True)
+    suspended_reason = models.TextField(blank=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_reason = models.TextField(blank=True)
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Set when the institution was deleted. The row is kept so the "
+                  "audit trail and data processing records stay intact.",
+    )
+    # Consent to the data processing statement.
+    data_processing_accepted_at = models.DateTimeField(null=True, blank=True)
+    data_processing_version = models.CharField(max_length=20, blank=True)
+    # The people who may approve health and counselling access requests.
+    data_protection_officer = models.ForeignKey(
+        "accounts.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="dpo_institutions",
+        help_text="Approves the most sensitive consent requests.",
+    )
+    principal = models.ForeignKey(
+        "accounts.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="principal_institutions",
+        help_text="Approves the most sensitive consent requests.",
+    )
+    access_grant_max_hours = models.PositiveSmallIntegerField(
+        default=24,
+        help_text="Longest consent grant this institution will allow (hard cap 168).",
+    )
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -668,7 +703,9 @@ class OutboundMessage(TenantModel):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.QUEUED)
     provider = models.CharField(max_length=40, blank=True)
     provider_response = models.TextField(blank=True)
+    provider_message_id = models.CharField(max_length=255, blank=True, db_index=True)
     retries = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
     related_object_type = models.CharField(max_length=60, blank=True)
     related_object_id = models.CharField(max_length=40, blank=True)
     created = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -679,6 +716,49 @@ class OutboundMessage(TenantModel):
 
     def __str__(self):
         return f"{self.channel} to {self.recipient}: {self.status}"
+
+
+class EmailSuppression(models.Model):
+    """An address the platform must not email again (hard bounce/complaint).
+
+    Suppression is platform-wide: a bad address is bad for every institution.
+    """
+
+    class Reason(models.TextChoices):
+        BOUNCED = "bounced", "Hard bounce"
+        COMPLAINED = "complained", "Complaint"
+
+    email = models.EmailField(unique=True)
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    def __str__(self):
+        return f"{self.email} ({self.reason})"
+
+
+class EmailEvent(TenantModel):
+    """A delivery event received from the Resend webhook."""
+
+    class Kind(models.TextChoices):
+        DELIVERED = "delivered", "Delivered"
+        BOUNCED = "bounced", "Bounced"
+        COMPLAINED = "complained", "Complained"
+
+    message = models.ForeignKey(
+        OutboundMessage, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="events",
+    )
+    recipient = models.EmailField()
+    kind = models.CharField(max_length=20, choices=Kind.choices, db_index=True)
+    provider_event_id = models.CharField(max_length=255, blank=True)
+    detail = models.TextField(blank=True)
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+
+    def __str__(self):
+        return f"{self.kind} to {self.recipient}"
 
 
 # ---------- audit ----------

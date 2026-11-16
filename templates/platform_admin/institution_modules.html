@@ -1,0 +1,22 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Modules for {{ institution.name }}{% endblock %}
+{% block platform_heading %}Modules &middot; {{ institution.name }}{% endblock %}
+{% block platform_content %}
+<table class="tbl">
+  <tr><th>Module</th><th>State</th><th></th></tr>
+  {% for module in modules %}
+    <tr>
+      <td>{{ module.label }}<br><span class="muted">{{ module.code }}</span></td>
+      <td>{% if module.enabled %}<strong>On</strong>{% else %}Off{% endif %}</td>
+      <td>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="code" value="{{ module.code }}">
+          <input type="hidden" name="enabled" value="{% if module.enabled %}0{% else %}1{% endif %}">
+          <button class="btn ghost btn-sm" type="submit">{% if module.enabled %}Switch off{% else %}Switch on{% endif %}</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}{{ role.name }}{% endblock %}
+{% block platform_heading %}Platform role &middot; {{ role.name }}{% endblock %}
+{% block platform_content %}
+<p>{{ role.description }}{% if role.is_system %} &middot; built in{% endif %}</p>
+<form method="post">
+  {% csrf_token %}
+  <table class="tbl">
+    <tr><th>Use</th><th>Permission</th><th>Description</th><th>Category</th></tr>
+    {% for code, description, category in permissions %}
+      <tr>
+        <td><input type="checkbox" name="permissions" value="{{ code }}" {% if code in held %}checked{% endif %} {% if role.is_system %}disabled{% endif %}></td>
+        <td><code>{{ code }}</code></td>
+        <td>{{ description }}</td>
+        <td>{{ category }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+  {% if not role.is_system %}<button class="btn" type="submit">Save permissions</button>{% else %}<p class="muted">Built-in roles keep their permissions.</p>{% endif %}
+</form>
+{% endblock %}

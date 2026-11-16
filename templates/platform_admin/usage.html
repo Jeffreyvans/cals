@@ -1,0 +1,20 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Usage{% endblock %}
+{% block platform_heading %}Per-institution usage{% endblock %}
+{% block platform_content %}
+<table class="tbl">
+  <tr><th>Institution</th><th>Users</th><th>Students</th><th>Plan</th><th>Last activity</th></tr>
+  {% for row in rows %}
+    <tr>
+      <td>{{ row.institution.name }}</td>
+      <td>{{ row.users }}</td>
+      <td>{{ row.students }}</td>
+      <td>{{ row.plan.plan.name|default:"No subscription" }}</td>
+      <td>{{ row.last_activity|date:"j M Y H:i"|default:"No activity" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No institutions.</td></tr>
+  {% endfor %}
+</table>
+<p class="muted">Counts only. No names, contacts, marks or balances appear here.</p>
+{% endblock %}

@@ -71,7 +71,17 @@
     </div>
     <nav>
       {% modules request as on %}
-      {% if user.role == 'student' %}
+      {% if PLATFORM_STAFF %}
+        <p class="nav-label">EduSphere platform</p>
+        <a href="{% url 'platform_admin:dashboard' %}"><svg class="ico"><use href="#i-grid"/></svg><span>Platform dashboard</span></a>
+        <a href="{% url 'platform_admin:inbox' %}"><svg class="ico"><use href="#i-clipboard"/></svg><span>Inbox</span></a>
+        <a href="{% url 'platform_admin:applications' %}"><svg class="ico"><use href="#i-file"/></svg><span>Applications</span></a>
+        <a href="{% url 'platform_admin:institutions' %}"><svg class="ico"><use href="#i-building"/></svg><span>Institutions</span></a>
+        <a href="{% url 'platform_admin:access_requests' %}"><svg class="ico"><use href="#i-shield"/></svg><span>Access requests</span></a>
+        <a href="{% url 'platform_admin:grants' %}"><svg class="ico"><use href="#i-key"/></svg><span>Consent grants</span></a>
+        <a href="{% url 'platform_admin:audit_log' %}"><svg class="ico"><use href="#i-shield"/></svg><span>Platform audit</span></a>
+        <a href="{% url 'platform_admin:security' %}"><svg class="ico"><use href="#i-lock"/></svg><span>Security and 2FA</span></a>
+      {% elif user.role == 'student' %}
         <p class="nav-label">My workspace</p>
         <a href="{% url 'student_portal' %}"><svg class="ico"><use href="#i-grid"/></svg><span>My account</span></a>
         <a href="{% url 'my_registration' %}"><svg class="ico"><use href="#i-clipboard"/></svg><span>Course registration</span></a>
@@ -173,6 +183,9 @@
             <a href="{% url 'role_list' %}"><svg class="ico"><use href="#i-key"/></svg><span>Roles and permissions</span></a>
             <a href="{% url 'department_list' %}"><svg class="ico"><use href="#i-layers"/></svg><span>Departments</span></a>
             <a href="{% url 'workflow_list' %}"><svg class="ico"><use href="#i-workflow"/></svg><span>Workflows</span></a>
+            <a href="{% url 'platform_admin:institution_access_requests' %}"><svg class="ico"><use href="#i-shield"/></svg><span>Data access requests</span></a>
+            <a href="{% url 'platform_admin:institution_data_access' %}"><svg class="ico"><use href="#i-shield"/></svg><span>Who accessed our data</span></a>
+            <a href="{% url 'platform_admin:institution_consent_log' %}"><svg class="ico"><use href="#i-file"/></svg><span>Data processing consent</span></a>
             <a href="{% url 'api_keys' %}"><svg class="ico"><use href="#i-key"/></svg><span>API keys</span></a>
             <a href="{% url 'admin:index' %}"><svg class="ico"><use href="#i-wrench"/></svg><span>Administration</span></a>
           {% endif %}

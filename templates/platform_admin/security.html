@@ -1,0 +1,29 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Two-factor and password{% endblock %}
+{% block platform_heading %}Two-factor and fresh password{% endblock %}
+{% block platform_content %}
+<p>Two-factor: <strong>{{ staff.two_factor_enabled|yesno:"On,Off" }}</strong>.
+{% if staff.last_reauth_at %}Last password check {{ staff.last_reauth_at|date:"j M Y H:i" }}.{% else %}No password check recorded yet.{% endif %}</p>
+
+{% if staff.two_factor_enabled %}
+  <div class="msg success">Two-factor authentication protects your platform account. To act under a grant, enter your password again on the <a href="{% url 'platform_admin:reauth' %}">re-authentication page</a>.</div>
+  <form method="post">{% csrf_token %}<button class="btn ghost" type="submit" name="action" value="disable">Switch 2FA off</button></form>
+{% else %}
+  {% if secret %}
+    <h2>Scan and confirm</h2>
+    <p>Add this secret to your authenticator app:</p>
+    <p><code style="font-size:1.1rem;">{{ secret }}</code></p>
+    <p class="muted">{{ uri }}</p>
+    <form method="post" class="inline wide">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="enable">
+      <p><label>Six-digit code<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></label></p>
+      <p><button class="btn" type="submit">Switch 2FA on</button></p>
+    </form>
+  {% else %}
+    <form method="post">{% csrf_token %}<button class="btn" type="submit" name="action" value="start">Start 2FA setup</button></form>
+  {% endif %}
+{% endif %}
+<p><a class="btn ghost" href="{% url 'password_change' %}">Change the password</a></p>
+<p class="muted">Platform staff cannot ask for institution data, or act under a grant, without 2FA and a password check in the last 15 minutes.</p>
+{% endblock %}

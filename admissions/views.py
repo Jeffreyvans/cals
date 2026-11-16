@@ -89,7 +89,9 @@ def _message(request, form, prefix=""):
 
 
 def _tracking_url(request, application):
-    return request.build_absolute_uri(reverse(
+    from core.notifications import absolute_url
+
+    return absolute_url(reverse(
         "admissions:track_application", args=[application.tracking_token]))
 
 

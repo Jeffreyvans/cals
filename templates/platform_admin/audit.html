@@ -1,0 +1,32 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Platform audit{% endblock %}
+{% block platform_heading %}Platform audit log{% endblock %}
+{% block platform_content %}
+{% if chain_ok %}<div class="msg success">The hash chain is intact. Every entry matches the one before it.</div>
+{% else %}<div class="msg error">The hash chain could not be verified. Do not delete anything; contact the compliance lead.</div>{% endif %}
+<p class="muted">Append-only. Platform administrators have no screen that edits or deletes an entry, and the model refuses both. Keep this log for at least six years.</p>
+<p><a class="btn ghost" href="{% url 'platform_admin:audit_export' %}">Download CSV</a></p>
+<form method="get" class="inline wide">
+  <p><input name="q" value="{{ search }}" placeholder="Record id or detail"></p>
+  <p><input name="action" value="{{ action }}" placeholder="Action prefix, e.g. access."></p>
+  <p><select name="institution"><option value="">Any institution</option>{% for institution in institutions %}<option value="{{ institution.pk }}" {% if institution_id == institution.pk|stringformat:"s" %}selected{% endif %}>{{ institution.name }}</option>{% endfor %}</select></p>
+  <p><button class="btn" type="submit">Filter</button></p>
+</form>
+<table class="tbl">
+  <tr><th>Time</th><th>Who</th><th>Action</th><th>Institution</th><th>Record</th><th>Grant</th><th>IP</th><th>Detail</th></tr>
+  {% for entry in entries %}
+    <tr>
+      <td>{{ entry.created|date:"j M Y H:i:s" }}</td>
+      <td>{% firstof entry.actor.get_full_name entry.actor.username "system" %}</td>
+      <td>{{ entry.action }}</td>
+      <td>{{ entry.institution.name|default:"Platform" }}</td>
+      <td>{{ entry.record_type }} {{ entry.record_id }}</td>
+      <td>{{ entry.grant_id|default:"—" }}</td>
+      <td>{{ entry.ip_address|default:"—" }}</td>
+      <td>{{ entry.detail|truncatechars:160 }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="8" class="muted">No entries match.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

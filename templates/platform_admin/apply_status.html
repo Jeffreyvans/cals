@@ -1,0 +1,67 @@
+{% extends "public_base.html" %}
+{% block title %}Your EduSphere application {{ application.reference }}{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap" style="max-width: 900px;">
+    <p class="eyebrow">Application {{ application.reference }}</p>
+    <h1>{{ application.institution_name }}</h1>
+    <p class="lede">Status: <strong>{{ application.get_status_display }}</strong>. This private link is the only way to check or update the application. Do not share it.</p>
+
+    {% if application.status == 'more_information_needed' %}
+      <div class="panel">
+        <h2>EduSphere needs more information</h2>
+        <p style="white-space: pre-line;">{{ application.more_information_message }}</p>
+      </div>
+    {% endif %}
+
+    <div class="panel">
+      <h2>What we received</h2>
+      <dl class="detail-list">
+        <dt>Contact person</dt><dd>{{ application.contact_person }}{% if application.position %} ({{ application.position }}){% endif %}</dd>
+        <dt>Email</dt><dd>{{ application.email }}</dd>
+        <dt>Phone</dt><dd>{{ application.phone }}</dd>
+        <dt>Institution type</dt><dd>{{ application.get_institution_type_display }}</dd>
+        <dt>Town</dt><dd>{{ application.town }}, {{ application.country }}</dd>
+        <dt>Students and staff</dt><dd>{{ application.expected_students }} students, {{ application.expected_staff }} staff</dd>
+        <dt>Preferred plan</dt><dd>{% if application.preferred_plan %}{{ application.preferred_plan.name }}{% else %}No preference{% endif %}</dd>
+        <dt>Documents</dt><dd>{% for document in documents %}<a href="#" onclick="return false;">{{ document.get_kind_display }}</a>{% empty %}None uploaded{% endfor %}</dd>
+      </dl>
+    </div>
+
+    {% if messages %}{% endif %}
+    {% for message in messages %}<div class="msg {{ message.tags }}">{{ message }}</div>{% endfor %}
+
+    {% if conversation %}
+    <div class="panel">
+      <h2>Messages</h2>
+      {% for item in conversation %}
+        <div style="border-top:1px solid #dcc8b6; padding:12px 0;">
+          <strong>{% if item.author_kind == 'staff' %}EduSphere{% else %}You{% endif %}</strong>
+          <span class="muted">{{ item.created|date:"j M Y H:i" }}</span>
+          <p style="white-space: pre-line;">{{ item.body }}</p>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if can_reply %}
+    <div class="panel">
+      <h2>Reply securely</h2>
+      <form method="post" action="{% url 'platform_admin:apply_reply' application.applicant_token %}">
+        {% csrf_token %}
+        <div class="field"><label for="message">Your reply</label><textarea id="message" name="message" rows="5" required></textarea></div>
+        <button class="btn btn-deep" type="submit">Send reply</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if application.is_open %}
+    <form method="post" action="{% url 'platform_admin:apply_withdraw' application.applicant_token %}" onsubmit="return confirm('Withdraw this application?');">
+      {% csrf_token %}
+      <button class="btn btn-ghost" type="submit">Withdraw application</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

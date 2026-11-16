@@ -1,0 +1,23 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Errors{% endblock %}
+{% block platform_heading %}Errors and refusals{% endblock %}
+{% block platform_content %}
+<h2>Failed outbound messages</h2>
+<table class="tbl">
+  <tr><th>When</th><th>Channel</th><th>Institution</th><th>Status</th><th>Detail</th></tr>
+  {% for message in failed %}
+    <tr><td>{{ message.created|date:"j M Y H:i" }}</td><td>{{ message.channel }}</td><td>{{ message.institution.name }}</td><td>{{ message.status }}</td><td>{{ message.provider_response|truncatechars:120 }}</td></tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No failed messages.</td></tr>
+  {% endfor %}
+</table>
+<h2>Refused platform access</h2>
+<table class="tbl">
+  <tr><th>When</th><th>Who</th><th>Action</th><th>Institution</th><th>Detail</th></tr>
+  {% for entry in denials %}
+    <tr><td>{{ entry.created|date:"j M Y H:i" }}</td><td>{% firstof entry.actor.get_full_name entry.actor.username "system" %}</td><td>{{ entry.action }}</td><td>{{ entry.institution.name|default:"—" }}</td><td>{{ entry.detail|truncatechars:120 }}</td></tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No refusals.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

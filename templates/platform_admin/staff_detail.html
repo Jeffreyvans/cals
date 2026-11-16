@@ -1,0 +1,17 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}{{ row.user.get_full_name|default:row.user.username }}{% endblock %}
+{% block platform_heading %}Platform staff &middot; {{ row.user.get_full_name|default:row.user.username }}{% endblock %}
+{% block platform_content %}
+<p>{{ row.user.email }} &middot; {{ row.role.name|default:"No role" }} &middot; 2FA {{ row.two_factor_enabled|yesno:"on,off" }} &middot; {{ row.is_active|yesno:"active,disabled" }}</p>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Role<select name="role">{% for role in roles %}<option value="{{ role.pk }}" {% if row.role_id == role.pk %}selected{% endif %}>{{ role.name }}</option>{% endfor %}</select></label></p>
+  <p><button class="btn" type="submit" name="action" value="role">Change role</button></p>
+  {% if row.is_active %}
+    <p><button class="btn ghost" type="submit" name="action" value="deactivate">Deactivate</button></p>
+  {% else %}
+    <p><button class="btn" type="submit" name="action" value="activate">Activate</button></p>
+  {% endif %}
+</form>
+<p class="muted">Platform staff still need the 2FA and fresh password checks before they may ask an institution for consent.</p>
+{% endblock %}

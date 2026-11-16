@@ -125,7 +125,7 @@ class LandingPageTests(RegistrationBase):
         self.assertNotContains(response, self.institution.name)
         self.assertContains(response, "EduSphere")
         self.assertContains(response, "+263774573765")
-        self.assertContains(response, "vanhuvaonejeffrey@gmail.com")
+        self.assertContains(response, "sphereeedu@gmail.com")
         self.assertContains(response, 'name="username"')
         self.assertContains(response, 'name="password"')
 
@@ -158,7 +158,7 @@ class LandingPageTests(RegistrationBase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Thank you")
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("vanhuvaonejeffrey@gmail.com", mail.outbox[0].to)
+        self.assertIn("sphereeedu@gmail.com", mail.outbox[0].to)
 
     def test_contact_honeypot_does_not_send(self):
         response = self.client.post(

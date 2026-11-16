@@ -1,0 +1,22 @@
+{% extends "emails/base_email.html" %}
+{% block title %}Welcome to EduSphere, {{ institution.name }}{% endblock %}
+{% block preheader %}{{ institution.name }} has been approved on EduSphere.{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Hello {{ user.get_full_name|default:user.username }},</p>
+<p style="margin:0 0 18px;"><strong>{{ institution.name }}</strong> has been approved on EduSphere{% if plan %} on the {{ plan.name }} plan{% endif %}.</p>
+<p style="margin:0 0 12px;">Your setup steps:</p>
+<ol style="margin:0 0 18px; padding-left:22px; color:#4e342e;">
+  <li>Open the invitation email and choose your password.</li>
+  <li>Sign in and check the institution details and branding.</li>
+  <li>Set the academic year, terms and the classes or programmes you use.</li>
+  <li>Switch on the modules you need and invite your staff.</li>
+  <li>Add students or import them from a spreadsheet.</li>
+</ol>
+<p style="margin:0 0 18px;">The institution stays inactive until you choose your password. The invitation link can be used once and expires in 72 hours.</p>
+<p style="margin:0 0 18px;">
+  <a href="{{ login_url }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">Sign in to {{ institution.name }}</a>
+</p>
+<p style="margin:0 0 18px; color:#6f4a36; font-size:14px;">If the button does not work, copy this address into your browser:<br>
+  <span style="color:#4e342e; word-break:break-all;">{{ login_url }}</span></p>
+<p style="margin:0; color:#6f4a36; font-size:14px;">Your institution is the data controller and EduSphere is the processor. Platform staff see protected data only with your recorded consent.</p>
+{% endblock %}

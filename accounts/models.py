@@ -45,16 +45,28 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STUDENT)
     phone = models.CharField(max_length=30, blank=True)
     institution = models.ForeignKey(
-        "core.Institution", null=False, blank=True, on_delete=models.CASCADE, related_name="users"
+        "core.Institution", null=True, blank=True, on_delete=models.CASCADE,
+        related_name="users",
     )
     primary_role = models.ForeignKey(
         "core.Role", null=True, blank=True, on_delete=models.SET_NULL, related_name="primary_users"
     )
     extra_roles = models.ManyToManyField("core.Role", blank=True, related_name="extra_users")
 
+    # A platform administrator belongs to EduSphere itself, not to a school.
+    # The explicit flag makes the intent clear in the database and lets the
+    # account exist without an institution.
+    is_platform_admin = models.BooleanField(
+        default=False,
+        help_text="A main administrator of the EduSphere platform itself.",
+    )
+
     # Account lifecycle. A temporary password is only ever shown once, so the
     # account is flagged and the middleware sends the person to change it.
     must_change_password = models.BooleanField(default=False)
+    # True while the current password was set from PLATFORM_ADMIN_PASSWORD.
+    # The platform dashboard warns until the person chooses their own password.
+    password_set_from_env = models.BooleanField(default=False)
     failed_login_count = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
     deactivated_at = models.DateTimeField(null=True, blank=True)
@@ -78,13 +90,15 @@ class User(AbstractUser):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.institution_id is None:
+        # Platform administrators deliberately have no institution; every other
+        # account is attached to the current (or default) institution.
+        if self.institution_id is None and not self.is_platform_admin:
             from core.tenancy import current_institution_id, default_institution_id
 
             self.institution_id = current_institution_id() or default_institution_id()
 
     def save(self, *args, **kwargs):
-        if self.institution_id is None:
+        if self.institution_id is None and not self.is_platform_admin:
             from core.tenancy import current_institution_id, default_institution_id
 
             self.institution_id = current_institution_id() or default_institution_id()
@@ -234,9 +248,10 @@ class SignupLink(models.Model):
         return reverse("signup_link", args=[self.token])
 
     def url(self, request=None):
-        """The absolute link to share."""
-        path = self.path()
-        return request.build_absolute_uri(path) if request is not None else path
+        """The absolute link to share, based on SITE_URL."""
+        from core.notifications import absolute_url
+
+        return absolute_url(self.path())
 
 
 class SignupLinkUse(models.Model):

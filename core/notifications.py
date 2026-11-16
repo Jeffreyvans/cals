@@ -1,16 +1,53 @@
 """Notifications: in-app messages plus outbound email, SMS and WhatsApp.
 
-Providers are pluggable. In development the console provider prints the
-message so the flow can be tested without a gateway account.
+All email is delivered through Django's single configured email backend:
+Anymail's Resend HTTPS backend on Render, the console backend in local
+development and Django's in-memory backend in tests. Nothing here opens an
+SMTP connection, so the blocked SMTP ports on Render's free plan are never
+used. Every attempt is recorded in :class:`~core.models.OutboundMessage`.
 """
 
+import hashlib
 import logging
+import re
+from datetime import timedelta
+from email.utils import formataddr, parseaddr
 
+from django.conf import settings
+from django.core.cache import cache
+from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils import timezone
 
-from core.models import Notification, OutboundMessage
+from core.models import EmailSuppression, Notification, OutboundMessage
 
 logger = logging.getLogger(__name__)
+
+# The user-facing wording when delivery fails. A failed email must never break
+# the request that triggered it.
+EMAIL_FAILURE_MESSAGE = "We could not send the email. Try again in a few minutes"
+
+_SECRET_PATTERNS = (
+    (re.compile(r"(?i)bearer\s+[\w.\-]+"), "Bearer [redacted]"),
+    (re.compile(r"(?i)(api[_-]?key|token|secret|password)(\s*[=:]\s*)(\S+)"),
+     r"\1\2[redacted]"),
+    (re.compile(r"(?i)([?&](?:token|key|code|sig|signature)=)[^&\s]+"),
+     r"\1[redacted]"),
+    (re.compile(r"\b[0-9a-f]{32,}\b", re.I), "[redacted]"),
+)
+
+try:  # pragma: no cover - Celery is optional
+    from celery import current_app, shared_task
+except ImportError:  # pragma: no cover - the common small-school case
+    current_app = None
+    shared_task = None
+
+
+def sanitize_detail(value, limit=500):
+    """Strip keys, tokens and token-bearing links from provider error text."""
+    text = "" if value is None else str(value)
+    for pattern, replacement in _SECRET_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text[:limit]
 
 
 class BaseProvider:
@@ -18,85 +55,46 @@ class BaseProvider:
 
     name = "base"
 
-    def send(self, channel, recipient, subject, body, html_body=""):
+    def send(self, channel, recipient, subject, body, html_body="",
+             from_email=None, reply_to=None):
         """Send the message. Returns a dict with 'ok' and a 'detail' string."""
         raise NotImplementedError
 
 
-class ConsoleProvider(BaseProvider):
-    """Prints the message instead of sending it. Used in development."""
+class DjangoEmailProvider(BaseProvider):
+    """Send email through Django's configured backend (Anymail on Render).
 
-    name = "console"
+    There is no HTTP client of our own here: django-anymail translates the
+    Django message into a Resend HTTPS API call. That keeps one code path for
+    every message and makes Django's locmem backend work in tests.
+    """
 
-    def send(self, channel, recipient, subject, body, html_body=""):
-        logger.info("[%s] to=%s subject=%s body=%s", channel, recipient, subject, body)
-        print(f"[{channel}] to {recipient}: {subject} {body}")
-        return {"ok": True, "detail": "printed to console"}
+    def __init__(self, name=None):
+        self.name = name or _email_backend_name()
 
-
-class ResendProvider(BaseProvider):
-    """Sends email through Resend's HTTPS API."""
-
-    name = "resend"
-
-    def send(self, channel, recipient, subject, body, html_body=""):
-        import json
-        from urllib.error import HTTPError, URLError
-        from urllib.request import Request, urlopen
-
-        from django.conf import settings
-
-        api_key = getattr(settings, "RESEND_API_KEY", "")
-        if not api_key:
-            return {"ok": False, "detail": "RESEND_API_KEY is not set"}
-        payload = {
-            "from": getattr(settings, "RESEND_FROM", "") or settings.EMAIL_FROM,
-            "to": [recipient],
-            "subject": subject or "EduSphere",
-            "text": body,
-        }
-        if html_body:
-            payload["html"] = html_body
-        data = json.dumps(payload).encode("utf-8")
-        request = Request(
-            getattr(settings, "RESEND_API_URL", "https://api.resend.com/emails"),
-            data=data,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
+    def send(self, channel, recipient, subject, body, html_body="",
+             from_email=None, reply_to=None):
+        connection = get_connection()
+        email = EmailMultiAlternatives(
+            subject or "(no subject)",
+            body,
+            from_email or _from_email(),
+            [recipient],
+            reply_to=reply_to or None,
+            connection=connection,
         )
+        if html_body:
+            email.attach_alternative(html_body, "text/html")
         try:
-            with urlopen(request, timeout=15) as response:
-                detail = response.read().decode("utf-8", errors="replace")
-            return {"ok": 200 <= response.status < 300, "detail": detail[:500]}
-        except (HTTPError, URLError, OSError) as exc:
-            return {"ok": False, "detail": str(exc)[:500]}
-
-
-class SmtpProvider(BaseProvider):
-    """Sends email over SMTP. Configured through environment variables."""
-
-    name = "smtp"
-
-    def send(self, channel, recipient, subject, body, html_body=""):
-        from django.conf import settings
-        from django.core.mail import EmailMultiAlternatives
-
-        try:
-            message = EmailMultiAlternatives(
-                subject or "",
-                body,
-                settings.EMAIL_FROM or None,
-                [recipient],
-            )
-            if html_body:
-                message.attach_alternative(html_body, "text/html")
-            sent = message.send(fail_silently=False)
-        except Exception as exc:  # pragma: no cover - depends on the mail server
-            return {"ok": False, "detail": str(exc)}
-        return {"ok": bool(sent), "detail": f"{sent} message(s) sent"}
+            sent = email.send(fail_silently=False)
+        except Exception as exc:  # never leak a provider response to a view
+            return {"ok": False, "detail": sanitize_detail(exc)}
+        message_id = getattr(getattr(email, "anymail_status", None), "message_id", "")
+        return {
+            "ok": bool(sent),
+            "detail": f"{sent} message(s) accepted by {self.name}",
+            "message_id": str(message_id or "")[:255],
+        }
 
 
 class StubSmsProvider(BaseProvider):
@@ -104,8 +102,9 @@ class StubSmsProvider(BaseProvider):
 
     name = "sms-stub"
 
-    def send(self, channel, recipient, subject, body, html_body=""):
-        logger.info("[sms-stub] to=%s body=%s", recipient, body)
+    def send(self, channel, recipient, subject, body, html_body="",
+             from_email=None, reply_to=None):
+        logger.info("[sms-stub] to=%s", recipient)
         return {"ok": True, "detail": "stub provider accepted the message"}
 
 
@@ -114,26 +113,125 @@ class StubWhatsAppProvider(BaseProvider):
 
     name = "whatsapp-stub"
 
-    def send(self, channel, recipient, subject, body, html_body=""):
-        logger.info("[whatsapp-stub] to=%s body=%s", recipient, body)
+    def send(self, channel, recipient, subject, body, html_body="",
+             from_email=None, reply_to=None):
+        logger.info("[whatsapp-stub] to=%s", recipient)
         return {"ok": True, "detail": "stub provider accepted the message"}
+
+
+def _email_backend_name():
+    """A short, secret-free name for the backend currently in use."""
+    backend = getattr(settings, "EMAIL_BACKEND", "").lower()
+    for name in ("resend", "console", "locmem", "smtp", "filebased"):
+        if name in backend:
+            return name
+    return "django"
 
 
 def get_provider(channel):
     """The provider used for a channel, chosen by environment settings."""
-    from django.conf import settings
-
     if channel == OutboundMessage.Channel.EMAIL:
-        if getattr(settings, "RESEND_API_KEY", ""):
-            return ResendProvider()
-        if getattr(settings, "EMAIL_BACKEND", "") and "locmem" not in settings.EMAIL_BACKEND:
-            return SmtpProvider()
-        return ConsoleProvider()
+        return DjangoEmailProvider()
     if channel == OutboundMessage.Channel.SMS:
         return StubSmsProvider()
     if channel == OutboundMessage.Channel.WHATSAPP:
         return StubWhatsAppProvider()
-    return ConsoleProvider()
+    return BaseProvider()
+
+
+def _from_email(institution=None):
+    """Institution name as display name, address on the verified domain.
+
+    The address always comes from DEFAULT_FROM_EMAIL; only the human-readable
+    display name changes, so a tenant can never send from an unverified domain.
+    """
+    default = getattr(settings, "DEFAULT_FROM_EMAIL", "") or "EduSphere <no-reply@edusphere.local>"
+    _name, address = parseaddr(default)
+    if not address:
+        address = getattr(settings, "SERVER_EMAIL", "") or "no-reply@edusphere.local"
+    display = getattr(institution, "name", "") or "EduSphere"
+    return formataddr((display, address))
+
+
+def _reply_to(institution=None):
+    contact = getattr(institution, "contact_email", "") if institution is not None else ""
+    return [contact] if contact else None
+
+
+def absolute_url(path):
+    """Build a public link from SITE_URL, never from the request host."""
+    base = (getattr(settings, "SITE_URL", "") or "").rstrip("/")
+    if not path:
+        return base
+    if not str(path).startswith("/"):
+        path = "/" + str(path)
+    return f"{base}{path}" if base else path
+
+
+def _generic_html(message):
+    """A themed HTML part for messages that did not supply one."""
+    from core.notifications_html import render_generic_email_html
+
+    return render_generic_email_html(
+        message.subject or "EduSphere", message.body, message.institution
+    )
+
+
+def _rate_key(scope, kind, value):
+    digest = hashlib.sha256(str(value).strip().lower().encode("utf-8")).hexdigest()[:24]
+    return f"edusphere.email.{scope}.{kind}.{digest}"
+
+
+def _client_ip(request):
+    if request is None:
+        return ""
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "")
+
+
+def _rate_targets(scope, address="", request=None, ip=""):
+    targets = []
+    if address:
+        limit = getattr(settings, "EMAIL_VERIFY_LIMIT", 5)
+        if scope == "reset":
+            limit = getattr(settings, "EMAIL_RESET_LIMIT", 5)
+        targets.append((_rate_key(scope, "address", address), limit))
+    ip = ip or _client_ip(request)
+    if ip:
+        targets.append((_rate_key(scope, "ip", ip), getattr(settings, "EMAIL_IP_LIMIT", 20)))
+    return targets
+
+
+def email_rate_limited(scope, address="", request=None, ip=""):
+    """True when an address or an IP has reached its email limit."""
+    return any(cache.get(key, 0) >= limit
+               for key, limit in _rate_targets(scope, address, request, ip))
+
+
+def record_email_attempt(scope, address="", request=None, ip=""):
+    """Record one attempt against the address and IP buckets."""
+    window = getattr(settings, "EMAIL_RATE_WINDOW_SECONDS", 3600)
+    for key, _limit in _rate_targets(scope, address, request, ip):
+        cache.set(key, cache.get(key, 0) + 1, window)
+
+
+def _bulk_key(institution):
+    pk = institution.pk if institution is not None else "platform"
+    return f"edusphere.email.bulk.{pk}"
+
+
+def bulk_email_limit_reached(institution, limit=None):
+    """True when an institution has reached its per-window bulk cap."""
+    cap = limit if limit is not None else getattr(settings, "EMAIL_BULK_LIMIT", 500)
+    return cache.get(_bulk_key(institution), 0) >= cap
+
+
+def record_bulk_email(institution, count=1):
+    window = getattr(settings, "EMAIL_RATE_WINDOW_SECONDS", 3600)
+    key = _bulk_key(institution)
+    cache.set(key, cache.get(key, 0) + count, window)
 
 
 def notify(user, title, body="", link="", category="general", institution=None):
@@ -183,6 +281,26 @@ def queue_message(
     )
 
 
+def send_platform_email(subject, body, recipient, reply_to=None, institution=None,
+                        related_object=None, html_body=""):
+    """Queue and send a platform message (contact and demo forms)."""
+    message = queue_message(
+        "email", recipient, body, subject=subject, institution=institution,
+        related_object=related_object,
+        html_body=html_body or _generic_html_for(subject, body, institution),
+    )
+    # Platform form replies carry the sender's address, not the institution's.
+    if reply_to:
+        message.reply_to_override = ", ".join(reply_to)
+    return send_message(message)
+
+
+def _generic_html_for(subject, body, institution=None):
+    from core.notifications_html import render_generic_email_html
+
+    return render_generic_email_html(subject, body, institution)
+
+
 def render_email_html(template_name, context):
     """Render a brown HTML email from a template. Returns an empty string on failure."""
     from django.template.loader import render_to_string
@@ -194,33 +312,159 @@ def render_email_html(template_name, context):
         return ""
 
 
-def send_message(message):
-    """Try to send one queued message. Returns the updated message."""
-    provider = get_provider(message.channel)
-    result = provider.send(
-        message.channel,
-        message.recipient,
-        message.subject,
-        message.body,
-        getattr(message, "html_body", ""),
-    )
-    message.provider = provider.name
-    message.provider_response = result.get("detail", "")
-    if result.get("ok"):
-        message.status = OutboundMessage.Status.SENT
-        message.sent_at = timezone.now()
-    else:
-        message.status = OutboundMessage.Status.FAILED
-        message.retries += 1
-    message.save(update_fields=["status", "sent_at", "provider", "provider_response", "retries"])
+def _suppressed(recipient):
+    return EmailSuppression.objects.filter(email__iexact=recipient.strip()).exists()
+
+
+def _retry_delay(attempt):
+    base = max(0, getattr(settings, "EMAIL_RETRY_BACKOFF_SECONDS", 60))
+    return base * (2 ** max(0, attempt - 1))
+
+
+def _should_send_async():
+    if not getattr(settings, "EMAIL_ASYNC", False) or shared_task is None:
+        return False
+    # Only dispatch when a broker is actually configured (or tasks run eager).
+    conf = getattr(current_app, "conf", None) if current_app is not None else None
+    return bool(conf and (conf.broker_url or conf.task_always_eager))
+
+
+def _attempt_delivery(message):
+    """Try one delivery. Never raises, and records every attempt."""
+    try:
+        if message.channel != OutboundMessage.Channel.EMAIL:
+            provider = get_provider(message.channel)
+            result = provider.send(
+                message.channel, message.recipient, message.subject, message.body,
+                getattr(message, "html_body", ""),
+            )
+            message.provider = provider.name
+            message.provider_response = sanitize_detail(result.get("detail", ""))
+            message.status = (OutboundMessage.Status.SENT if result.get("ok")
+                              else OutboundMessage.Status.FAILED)
+            if result.get("ok"):
+                message.sent_at = timezone.now()
+            message.save(update_fields=[
+                "status", "sent_at", "provider", "provider_response", "retries",
+            ])
+            return message
+
+        if _suppressed(message.recipient):
+            message.provider = get_provider(message.channel).name
+            message.provider_response = "Address suppressed after a bounce or complaint"
+            message.status = OutboundMessage.Status.CANCELLED
+            message.next_attempt_at = None
+            message.save(update_fields=[
+                "status", "provider", "provider_response", "next_attempt_at",
+            ])
+            return message
+
+        provider = get_provider(message.channel)
+        html_body = getattr(message, "html_body", "") or _generic_html(message)
+        message.html_body = html_body
+        reply_to = getattr(message, "reply_to_override", None)
+        if not reply_to:
+            reply_to = _reply_to(message.institution)
+        elif isinstance(reply_to, str):
+            reply_to = [reply_to]
+        result = provider.send(
+            message.channel,
+            message.recipient,
+            message.subject,
+            message.body,
+            html_body,
+            from_email=_from_email(message.institution),
+            reply_to=reply_to,
+        )
+        if getattr(message, "reply_to_override", None):
+            delattr(message, "reply_to_override")
+        message.provider = provider.name
+        message.provider_response = sanitize_detail(result.get("detail", ""))
+        message.provider_message_id = sanitize_detail(result.get("message_id", ""), 255)
+        if result.get("ok"):
+            message.status = OutboundMessage.Status.SENT
+            message.sent_at = timezone.now()
+            message.next_attempt_at = None
+        else:
+            message.retries += 1
+            max_retries = max(1, getattr(settings, "EMAIL_MAX_RETRIES", 5))
+            if message.retries < max_retries:
+                message.status = OutboundMessage.Status.QUEUED
+                message.next_attempt_at = timezone.now() + timedelta(
+                    seconds=_retry_delay(message.retries))
+                if _should_send_async():
+                    _schedule_retry(message)
+            else:
+                message.status = OutboundMessage.Status.FAILED
+                message.next_attempt_at = None
+        message.save(update_fields=[
+            "status", "sent_at", "provider", "provider_response",
+            "provider_message_id", "retries", "next_attempt_at", "html_body",
+        ])
+    except Exception as exc:  # a broken message must never break a request
+        logger.warning("Email delivery failed for message %s: %s",
+                       getattr(message, "pk", "?"), sanitize_detail(exc))
+        try:
+            message.status = OutboundMessage.Status.FAILED
+            message.provider_response = sanitize_detail(exc)
+            message.next_attempt_at = None
+            message.save(update_fields=["status", "provider_response", "next_attempt_at"])
+        except Exception:  # pragma: no cover - the database itself is down
+            logger.exception("Could not record email failure")
     return message
 
 
+def _schedule_retry(message):
+    if shared_task is None:
+        return
+    try:
+        send_message_task.apply_async(
+            args=[message.pk], countdown=_retry_delay(message.retries))
+    except Exception:  # pragma: no cover - broker temporarily unavailable
+        logger.warning("Could not schedule an email retry")
+
+
+def send_message(message, force_inline=False):
+    """Send one queued message now, or hand it to Celery when configured.
+
+    Returns the message with its updated status. This function is deliberately
+    non-raising: callers can carry on even when the provider is down.
+    """
+    if message.channel == OutboundMessage.Channel.EMAIL and not force_inline and _should_send_async():
+        if shared_task is not None:
+            try:
+                send_message_task.delay(message.pk)
+            except Exception:  # pragma: no cover - fall back to inline delivery
+                logger.warning("Celery dispatch failed; sending inline")
+            else:
+                return message
+    return _attempt_delivery(message)
+
+
+if shared_task is not None:  # pragma: no cover - depends on the deployment
+    @shared_task(name="core.send_email_message")
+    def send_message_task(message_id):
+        message = OutboundMessage.all_objects.filter(pk=message_id).first()
+        if message is None or message.status != OutboundMessage.Status.QUEUED:
+            return None
+        return _attempt_delivery(message)
+else:  # pragma: no cover
+    def send_message_task(message_id):
+        message = OutboundMessage.all_objects.filter(pk=message_id).first()
+        return _attempt_delivery(message) if message else None
+
+
 def send_pending(limit=100):
-    """Send queued messages. Called by the Celery task."""
+    """Send due queued messages. Called by the Celery task or a cron command."""
+    from django.db.models import Q
+
+    due = OutboundMessage.objects.filter(
+        Q(next_attempt_at__isnull=True) | Q(next_attempt_at__lte=timezone.now()),
+        status=OutboundMessage.Status.QUEUED,
+    )[:limit]
     sent = 0
-    for message in OutboundMessage.objects.filter(status=OutboundMessage.Status.QUEUED)[:limit]:
-        send_message(message)
+    for message in due:
+        _attempt_delivery(message)
         sent += 1
     return sent
 
@@ -242,4 +486,4 @@ def mark_read(user, notification_id):
 
 def mark_all_read(user):
     """Mark every notification for this user as read."""
-    return Notification.objects.filter(user=user, read_at__isnull=True).update(read_at=timezone.now())
+    return Notification.objects.filter(user=user, read_at__isnull=True).update(read_at=timezone.now())  # noqa: E501

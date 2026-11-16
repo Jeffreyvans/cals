@@ -1,0 +1,15 @@
+{% extends "emails/base_email.html" %}
+{% block title %}EduSphere is asking for access to your data{% endblock %}
+{% block preheader %}An EduSphere staff member asked {{ institution.name }} for consent.{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Hello,</p>
+<p style="margin:0 0 18px;">A member of EduSphere platform staff asked <strong>{{ institution.name }}</strong> for consent to see protected data.</p>
+<div style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e; white-space:pre-line;">{{ body }}</div>
+<p style="margin:0 0 18px;">You can approve only the categories and time you are comfortable with, or deny the request. Nothing is shared until you approve.</p>
+<p style="margin:0 0 18px;">
+  <a href="{{ link }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">Review the request</a>
+</p>
+<p style="margin:0 0 18px; color:#6f4a36; font-size:14px;">If the button does not work, copy this address into your browser:<br>
+  <span style="color:#4e342e; word-break:break-all;">{{ link }}</span></p>
+<p style="margin:0; color:#6f4a36; font-size:14px;">If nobody answers, the request waits and then expires. It is never approved automatically.</p>
+{% endblock %}

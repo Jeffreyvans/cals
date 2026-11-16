@@ -1,0 +1,17 @@
+{% extends "emails/base_email.html" %}
+{% block title %}We received your EduSphere application{% endblock %}
+{% block preheader %}Your application {{ reference }} has been received.{% endblock %}
+{% block content %}
+<p style="margin:0 0 14px;">Hello {{ application.contact_person }},</p>
+<p style="margin:0 0 18px;">Thank you for applying to use EduSphere for <strong>{{ institution_name }}</strong>. Our team will review the application and contact you if anything else is needed.</p>
+<p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e;">
+  Your reference is <strong style="color:#2b1a12;">{{ reference }}</strong>
+</p>
+<p style="margin:0 0 18px;">Follow the progress of your application with the private link below. Keep it to yourself: it is the only way to check or update the application without signing in.</p>
+<p style="margin:0 0 18px;">
+  <a href="{{ status_url }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">Check my application</a>
+</p>
+<p style="margin:0 0 18px; color:#6f4a36; font-size:14px;">If the button does not work, copy this address into your browser:<br>
+  <span style="color:#4e342e; word-break:break-all;">{{ status_url }}</span></p>
+<p style="margin:0; color:#6f4a36; font-size:14px;">We will never ask you to send a password by email.</p>
+{% endblock %}

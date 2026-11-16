@@ -1,0 +1,13 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Confirm your password{% endblock %}
+{% block platform_heading %}Confirm your password{% endblock %}
+{% block platform_content %}
+<p>Enter your password again before asking an institution for data or acting under a grant. The confirmation lasts 15 minutes.</p>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <p><label>Password<input type="password" name="password" autocomplete="current-password" required></label></p>
+  <p><button class="btn" type="submit">Confirm</button></p>
+</form>
+{% if form.password.errors %}<div class="msg error">{{ form.password.errors }}</div>{% endif %}
+{% endblock %}

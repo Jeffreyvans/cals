@@ -117,8 +117,11 @@ def decide_leave(leave, user, approve, note=""):
 @transaction.atomic
 def send_newsletter(newsletter, actor=None):
     """Queue the newsletter to every active student and staff email address."""
+    from django.conf import settings
+
     from academics.models import Student
     from core.models import StaffProfile
+    from core.notifications import bulk_email_limit_reached, record_bulk_email
 
     if newsletter.status == Newsletter.Status.SENT:
         raise ValidationError("This newsletter has already been sent.")
@@ -132,6 +135,9 @@ def send_newsletter(newsletter, actor=None):
         if email:
             recipients.append(email)
     recipients = sorted(set(recipients))
+    if len(recipients) > getattr(settings, "EMAIL_BULK_LIMIT", 500) or bulk_email_limit_reached(newsletter.institution):
+        raise ValidationError("Too many recipients. Try again later or send a smaller newsletter.")
+    record_bulk_email(newsletter.institution, len(recipients))
     for email in recipients:
         queue_message(
             "email",

@@ -1,0 +1,19 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Platform settings{% endblock %}
+{% block platform_heading %}Platform settings{% endblock %}
+{% block platform_content %}
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p class="full"><label>Email settings<textarea name="email" rows="3" placeholder="From name, reply-to, Resend key reference">{{ current.email }}</textarea></label></p>
+  <p class="full"><label>Branding<textarea name="branding" rows="3" placeholder="Platform name, support contact">{{ current.branding }}</textarea></label></p>
+  <p class="full"><label>Legal pages<textarea name="legal" rows="3" placeholder="Terms, privacy notice, data processing statement version">{{ current.legal }}</textarea></label></p>
+  <p class="full"><label>Support<textarea name="support" rows="3">{{ current.support }}</textarea></label></p>
+  <p><button class="btn" type="submit">Save settings</button></p>
+</form>
+
+<h2>Data processing statement (version {{ version }})</h2>
+<div class="panel" style="white-space: pre-line; max-height: 320px; overflow:auto;">{{ statement }}</div>
+<h2>Platform privacy notice</h2>
+<div class="panel" style="white-space: pre-line; max-height: 320px; overflow:auto;">{{ privacy }}</div>
+<p class="muted">A lawyer should review both pages before they are relied on.</p>
+{% endblock %}

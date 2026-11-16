@@ -358,6 +358,9 @@ def _report_context(s, user):
 @login_required
 def dashboard(request):
     u = request.user
+    if getattr(u, "is_platform_admin", False):
+        # A platform administrator belongs to EduSphere, not to a school.
+        return redirect("platform_admin:dashboard")
     if u.role == "student":
         return redirect("student_portal")
     if u.role == "lecturer":

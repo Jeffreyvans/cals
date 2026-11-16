@@ -29,7 +29,14 @@ from django.utils import timezone
 from core.audit import log_action
 from core.logo import absolute_logo_url
 from core.models import Role
-from core.notifications import notify, queue_message, render_email_html, send_message
+from core.notifications import (
+    email_rate_limited,
+    notify,
+    queue_message,
+    record_email_attempt,
+    render_email_html,
+    send_message,
+)
 from core.roles import ensure_roles
 from core.tenancy import use_institution
 
@@ -51,7 +58,7 @@ STUDENT_RATE_WINDOW = 15 * 60
 CONTACT_RATE_LIMIT = 5
 CONTACT_RATE_WINDOW = 60 * 60
 
-CONTACT_EMAIL = "vanhuvaonejeffrey@gmail.com"
+CONTACT_EMAIL = "sphereeedu@gmail.com"
 CONTACT_PHONE = "+263774573765"
 CONTACT_WHATSAPP = "https://wa.me/263774573765"
 
@@ -301,16 +308,18 @@ def student_has_login(student):
 
 
 def _verification_link(request, verification):
-    path = reverse("register_verify_email", args=[verification.token])
-    if request is not None:
-        return request.build_absolute_uri(path)
-    return path
+    from core.notifications import absolute_url
+
+    return absolute_url(reverse("register_verify_email", args=[verification.token]))
 
 
 def send_email_verification(user, request=None):
     """Create a one-time token and email the link through the existing system."""
     if not user.email:
         return None
+    if email_rate_limited("verify", user.email, request=request):
+        return None
+    record_email_attempt("verify", user.email, request=request)
     verification = EmailVerification.objects.create(user=user)
     link = _verification_link(request, verification)
     body = (
@@ -322,7 +331,7 @@ def send_email_verification(user, request=None):
     html_body = render_email_html(
         "emails/verify_email.html",
         {"user": user, "link": link, "institution": user.institution,
-         "logo_url": absolute_logo_url(user.institution, request, 160)},
+         "logo_url": absolute_logo_url(user.institution, size=160)},
     )
     message = queue_message(
         "email",

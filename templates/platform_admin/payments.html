@@ -1,0 +1,20 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Payments{% endblock %}
+{% block platform_heading %}Platform payments{% endblock %}
+{% block platform_content %}
+<table class="tbl">
+  <tr><th>When</th><th>Invoice</th><th>Institution</th><th>Amount</th><th>Method</th><th>Reference</th></tr>
+  {% for payment in payments %}
+    <tr>
+      <td>{{ payment.paid_at|date:"j M Y H:i" }}</td>
+      <td>{{ payment.invoice.number }}</td>
+      <td>{{ payment.invoice.institution.name }}</td>
+      <td>{{ payment.invoice.currency }} {{ payment.amount }}</td>
+      <td>{{ payment.get_method_display }}</td>
+      <td>{{ payment.reference }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No payments recorded.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

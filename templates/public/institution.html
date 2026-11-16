@@ -7,16 +7,6 @@
 {% block og_description %}{{ institution.tagline|default:institution.name }}{% endblock %}
 {% block og_image %}{% if og_image %}{{ og_image }}{% else %}{{ request.scheme }}://{{ request.get_host }}{% static 'img/landing/hero-classroom-1040.jpg' %}{% endif %}{% endblock %}
 {% block body_class %}institution-page{% endblock %}
-{% block head %}
-  <style>
-    .institution-page {
-      --inst-primary: {{ primary_color }};
-      --inst-on-primary: {{ primary_text }};
-      --inst-accent: {{ accent_color }};
-      --inst-on-accent: {{ accent_text }};
-    }
-  </style>
-{% endblock %}
 {% block content %}
 <section class="institution-hero">
   <div class="page-shell">
@@ -35,7 +25,7 @@
         <p class="sub">{{ institution.get_type_display }}</p>
         {% if show_register %}
           <div class="institution-actions">
-            <a class="btn btn-marigold" href="{{ register_url }}">Register</a>
+            <a class="btn btn-deep" href="{{ register_url }}">Register</a>
             <a class="btn btn-ghost" href="{% url 'institution_login' institution.slug %}">Sign in</a>
           </div>
         {% else %}

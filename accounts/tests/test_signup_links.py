@@ -64,8 +64,10 @@ class SignupLinkModelTests(TestCase):
         self.assertFalse(self.link.is_open)
 
     def test_the_path_and_url_use_the_token(self):
+        from django.conf import settings
+
         self.assertIn(str(self.link.token), self.link.path())
-        self.assertEqual(self.link.url(), self.link.path())
+        self.assertEqual(self.link.url(), f"{settings.SITE_URL}{self.link.path()}")
 
     def test_the_position_label_is_readable(self):
         self.link.position = "librarian"

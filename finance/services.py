@@ -593,6 +593,8 @@ def send_overdue_reminders(as_of=None, send=True):
         if instalment.plan.name not in row["plans"]:
             row["plans"].append(instalment.plan.name)
 
+    from core.notifications import bulk_email_limit_reached, record_bulk_email
+
     summary = {"students": 0, "notifications": 0, "messages": 0}
     for row in grouped.values():
         student = row["student"]
@@ -615,6 +617,11 @@ def send_overdue_reminders(as_of=None, send=True):
             contacts.append((OutboundMessage.Channel.SMS,
                              student.guardian_phone))
         for channel, recipient in contacts:
+            if channel == OutboundMessage.Channel.EMAIL and bulk_email_limit_reached(
+                student.institution
+            ):
+                # One institution must not use up the platform's quota.
+                continue
             sent_already = OutboundMessage.objects.filter(
                 channel=channel, recipient=recipient, subject=title,
                 related_object_type="Student",
@@ -641,6 +648,8 @@ def send_overdue_reminders(as_of=None, send=True):
                           related_object=student,
                           institution=student.institution,
                           html_body=html_body)
+            if channel == OutboundMessage.Channel.EMAIL:
+                record_bulk_email(student.institution)
             summary["messages"] += 1
         summary["students"] += 1
 

@@ -1,0 +1,22 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Announcements{% endblock %}
+{% block platform_heading %}Announcements{% endblock %}
+{% block platform_content %}
+<table class="tbl">
+  <tr><th>Title</th><th>Audience</th><th>Published</th><th>Active</th></tr>
+  {% for announcement in announcements %}
+    <tr><td>{{ announcement.title }}</td><td>{{ announcement.get_audience_display }}</td><td>{{ announcement.published_at|date:"j M Y H:i" }}</td><td>{{ announcement.is_active|yesno:"Yes,No" }}</td></tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">No announcements.</td></tr>
+  {% endfor %}
+</table>
+<h2>Publish an announcement</h2>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p class="full"><label>Title<input name="title" required maxlength="200"></label></p>
+  <p class="full"><label>Body<textarea name="body" rows="4" required></textarea></label></p>
+  <p><label>Audience<select name="audience">{% for value, label in form.fields.audience.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label></p>
+  <p><label><input type="checkbox" name="is_active" checked> Active</label></p>
+  <p><button class="btn" type="submit">Publish</button></p>
+</form>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "public_base.html" %}
+{% block title %}Apply to use EduSphere{% endblock %}
+{% block description %}Apply to use EduSphere for your school or college. Tell us about your institution and we will review your application.{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap" style="max-width: 900px;">
+    <p class="eyebrow">Institution applications</p>
+    <h1>Apply to use EduSphere</h1>
+    <p class="lede">EduSphere runs admissions, student records, fees, results, attendance and communication for schools and colleges. Tell us about your institution and our team will review the application.</p>
+
+    <div class="panel">
+      <h2>Before you start</h2>
+      <p>You will get a reference number and a private status link by email. Keep the link: it is the only way to check or update the application without signing in.</p>
+      <p class="muted">This form does not tell you whether an institution already has an account. If it does, we will merge the application safely.</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+      {{ form.website_url }}
+
+      <h2>Institution</h2>
+      <div class="form-grid">
+        <div class="field full"><label for="{{ form.institution_name.id_for_label }}">Institution name</label>{{ form.institution_name }}{{ form.institution_name.errors }}</div>
+        <div class="field"><label for="{{ form.institution_type.id_for_label }}">Institution type</label>{{ form.institution_type }}{{ form.institution_type.errors }}</div>
+        <div class="field"><label for="{{ form.country.id_for_label }}">Country</label>{{ form.country }}{{ form.country.errors }}</div>
+        <div class="field"><label for="{{ form.town.id_for_label }}">Town or city</label>{{ form.town }}{{ form.town.errors }}</div>
+        <div class="field"><label for="{{ form.registration_number.id_for_label }}">Registration number</label>{{ form.registration_number }}{{ form.registration_number.errors }}</div>
+        <div class="field"><label for="{{ form.expected_students.id_for_label }}">Expected students</label>{{ form.expected_students }}{{ form.expected_students.errors }}</div>
+        <div class="field"><label for="{{ form.expected_staff.id_for_label }}">Expected staff</label>{{ form.expected_staff }}{{ form.expected_staff.errors }}</div>
+      </div>
+
+      <h2>Contact person</h2>
+      <div class="form-grid">
+        <div class="field"><label for="{{ form.contact_person.id_for_label }}">Full name</label>{{ form.contact_person }}{{ form.contact_person.errors }}</div>
+        <div class="field"><label for="{{ form.position.id_for_label }}">Position</label>{{ form.position }}{{ form.position.errors }}</div>
+        <div class="field"><label for="{{ form.phone.id_for_label }}">Phone</label>{{ form.phone }}{{ form.phone.errors }}</div>
+        <div class="field"><label for="{{ form.email.id_for_label }}">Email</label>{{ form.email }}{{ form.email.errors }}</div>
+        <div class="field full"><label for="{{ form.website.id_for_label }}">Website</label>{{ form.website }}{{ form.website.errors }}</div>
+      </div>
+
+      <h2>Plan and modules</h2>
+      <div class="form-grid">
+        <div class="field"><label for="{{ form.preferred_plan.id_for_label }}">Preferred plan</label>{{ form.preferred_plan }}{{ form.preferred_plan.errors }}</div>
+        <div class="field full"><span class="field-label">Modules you are interested in</span>{{ form.modules }}{{ form.modules.errors }}</div>
+      </div>
+
+      <h2>Documents (optional)</h2>
+      <div class="form-grid">
+        <div class="field"><label for="{{ form.registration_certificate.id_for_label }}">Registration certificate</label>{{ form.registration_certificate }}<span class="help">{{ form.registration_certificate.help_text }}</span>{{ form.registration_certificate.errors }}</div>
+        <div class="field"><label for="{{ form.authorisation_letter.id_for_label }}">Authorisation letter</label>{{ form.authorisation_letter }}<span class="help">{{ form.authorisation_letter.help_text }}</span>{{ form.authorisation_letter.errors }}</div>
+      </div>
+
+      <h2>Data processing and terms</h2>
+      <div class="panel" style="max-height: 320px; overflow: auto; white-space: pre-line;">{{ statement }}</div>
+      <div class="field">{{ form.agreed_to_terms }}<label for="{{ form.agreed_to_terms.id_for_label }}">I accept the data processing statement and the terms of service.</label>{{ form.agreed_to_terms.errors }}</div>
+      <p class="muted">Version {{ statement_version }}. A lawyer should review the final contract before an institution relies on it.</p>
+
+      <button class="btn btn-deep" type="submit">Send application</button>
+      <a class="btn btn-ghost" href="{% url 'platform_admin:privacy' %}">Read the platform privacy notice</a>
+    </form>
+  </div>
+</section>
+{% endblock %}

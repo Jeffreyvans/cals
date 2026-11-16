@@ -444,11 +444,10 @@ def create_student_record(
 
 
 def _welcome_body(student, username, password, request=None):
+    from core.notifications import absolute_url
+
     line = f"Student number: {student.student_no}\nUsername: {username}\nTemporary password: {password}"
-    if request is not None:
-        portal = request.build_absolute_uri("/me/")
-    else:
-        portal = "/me/"
+    portal = absolute_url("/me/")
     return (
         f"Welcome to {student.institution.name}, {student.name}.\n\n"
         f"Your place has been confirmed.\n{line}\n\n"

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="EduSphere runs admissions, student records, fees, results, attendance, timetables and parent communication for schools and colleges in one place.">
-  <meta name="theme-color" content="#12403c">
+  <meta name="theme-color" content="#3e2723">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
   <title>EduSphere — Run your school or college in one place</title>
@@ -86,7 +86,8 @@
         <svg class="icon-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></svg>
       </button>
       <a class="btn btn-ghost btn-sm" href="{% url 'login' %}">Sign in</a>
-      <a class="btn btn-marigold btn-sm" href="{% url 'register_choice' %}">Register</a>
+      <a class="btn btn-ghost btn-sm" href="{% url 'register_choice' %}">Register</a>
+      <a class="btn btn-deep btn-sm" href="{% url 'platform_admin:apply' %}">Apply to use EduSphere</a>
     </div>
   </div>
 </header>
@@ -343,7 +344,7 @@
           <ul class="contact-list">
             <li><a href="tel:+263774573765"><svg aria-hidden="true"><use href="#p-phone"/></svg>+263 774 573 765</a></li>
             <li><a href="https://wa.me/263774573765" rel="noopener"><svg aria-hidden="true"><use href="#p-whatsapp"/></svg>WhatsApp us</a></li>
-            <li><a href="mailto:vanhuvaonejeffrey@gmail.com"><svg aria-hidden="true"><use href="#p-mail"/></svg>vanhuvaonejeffrey@gmail.com</a></li>
+            <li><a href="mailto:sphereeedu@gmail.com"><svg aria-hidden="true"><use href="#p-mail"/></svg>sphereeedu@gmail.com</a></li>
           </ul>
         </div>
         <div class="contact-card">
@@ -417,9 +418,12 @@
         <ul class="foot-links" style="margin-top: 0.7rem;">
           <li><a href="{% url 'login' %}">Sign in</a></li>
           <li><a href="{% url 'register_choice' %}">Register</a></li>
+          <li><a href="{% url 'platform_admin:apply' %}">Apply to use EduSphere</a></li>
           <li><a href="{% url 'privacy_notice' %}">Privacy notice</a></li>
+          <li><a href="{% url 'platform_admin:privacy' %}">Platform privacy</a></li>
+          <li><a href="{% url 'platform_admin:data_processing' %}">Data processing statement</a></li>
           <li><a href="tel:+263774573765">+263 774 573 765</a></li>
-          <li><a href="mailto:vanhuvaonejeffrey@gmail.com">vanhuvaonejeffrey@gmail.com</a></li>
+          <li><a href="mailto:sphereeedu@gmail.com">sphereeedu@gmail.com</a></li>
         </ul>
       </div>
     </div>

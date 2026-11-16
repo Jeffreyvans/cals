@@ -1,0 +1,25 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Ask for institution access{% endblock %}
+{% block platform_heading %}Ask an institution for consent{% endblock %}
+{% block platform_content %}
+<p class="muted">Give a real reason, choose only the categories you need, and keep it short. Health and counselling need the institution's data protection officer or principal. Export needs its own explicit approval.</p>
+{% if request.platform_staff.two_factor_enabled == False %}
+  <div class="msg warning">Switch on two-factor authentication first. <a href="{% url 'platform_admin:security' %}">Set it up</a>.</div>
+{% endif %}
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error full">{{ form.non_field_errors }}</div>{% endif %}
+  <p><label>Institution<select name="institution" required>{% for institution in form.fields.institution.queryset %}<option value="{{ institution.pk }}">{{ institution.name }}</option>{% endfor %}</select></label></p>
+  <p><label>Mode<select name="mode">{% for value, label in form.fields.mode.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label></p>
+  <p><label>Hours<input type="number" name="duration_hours" value="24" min="1" max="168"></label></p>
+  <p><label><input type="checkbox" name="include_export"> Include export permission</label></p>
+  <p class="full"><span class="field-label">Categories</span>
+    {% for value, label in form.fields.categories.choices %}
+      <label style="display:block"><input type="checkbox" name="categories" value="{{ value }}"> {{ label }}</label>
+    {% endfor %}
+  </p>
+  <p class="full"><label>Reason (at least 20 characters)<textarea name="reason" rows="4" required></textarea></label></p>
+  <p class="full"><label>Related ticket or application reference<input name="reference" maxlength="120"></label></p>
+  <p><button class="btn" type="submit">Send request to the institution</button></p>
+</form>
+{% endblock %}

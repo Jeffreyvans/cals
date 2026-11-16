@@ -1,0 +1,48 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Access request {{ access_request.pk }}{% endblock %}
+{% block platform_heading %}Access request #{{ access_request.pk }}{% endblock %}
+{% block platform_content %}
+<p><strong>Institution:</strong> {{ access_request.institution.name }} &middot; <strong>Status:</strong> {{ access_request.get_status_display }}{% if access_request.is_emergency %} &middot; <strong style="color:#a33">Emergency</strong>{% endif %}</p>
+<p><strong>Requested by:</strong> {{ access_request.requested_by.get_full_name|default:access_request.requested_by.username }} on {{ access_request.created|date:"j M Y H:i" }}</p>
+<p><strong>Reason:</strong> {{ access_request.reason }}</p>
+<p><strong>Reference:</strong> {{ access_request.reference|default:"None" }}</p>
+<table class="tbl">
+  <tr><th>Requested categories</th><td>{{ access_request.categories|join:", " }}</td></tr>
+  <tr><th>Requested mode</th><td>{{ access_request.get_mode_display }}</td></tr>
+  <tr><th>Export</th><td>{{ access_request.include_export|yesno:"Requested,Not requested" }}</td></tr>
+  <tr><th>Requested hours</th><td>{{ access_request.duration_hours }}</td></tr>
+  <tr><th>Approved categories</th><td>{{ access_request.approved_categories|join:", "|default:"—" }}</td></tr>
+  <tr><th>Approved mode</th><td>{{ access_request.get_approved_mode_display|default:"—" }}</td></tr>
+  <tr><th>Approved export</th><td>{{ access_request.approved_include_export|yesno:"Yes,No" }}</td></tr>
+  <tr><th>Grant expires</th><td>{{ access_request.expires_at|date:"j M Y H:i"|default:"—" }}</td></tr>
+  <tr><th>Decision reason</th><td>{{ access_request.decision_reason|default:"—" }}</td></tr>
+</table>
+
+{% if grant %}
+<div class="panel">
+  <p><strong>Grant #{{ grant.pk }}</strong> &middot; {{ grant.mode_label }} &middot; {{ grant.categories|join:", " }} &middot; until {{ grant.expires_at|date:"j M Y H:i" }}</p>
+  <p class="muted">{{ grant.banner }}</p>
+</div>
+{% endif %}
+
+{% if access_request.is_pending %}
+<h2>Actions</h2>
+{% if can_second %}
+<form method="post" class="inline wide" onsubmit="return confirm('Approve emergency access for two hours?');">
+  {% csrf_token %}
+  <p><button class="btn" type="submit" name="action" value="emergency_approve">Second-approve emergency access (2 hours, read only)</button></p>
+</form>
+{% endif %}
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><button class="btn ghost" type="submit" name="action" value="cancel">Cancel request</button></p>
+  <p><button class="btn ghost" type="submit" name="action" value="flag">Flag for review</button></p>
+</form>
+{% endif %}
+
+{% if access_request.is_emergency %}
+<h2>Emergency record</h2>
+<p style="white-space: pre-line;">{{ access_request.emergency_justification }}</p>
+<p>Flagged for review: {{ access_request.flagged_for_review|yesno:"Yes,No" }}. Second approver: {% firstof access_request.second_approver.get_full_name access_request.second_approver.username "Not yet" %}.</p>
+{% endif %}
+{% endblock %}

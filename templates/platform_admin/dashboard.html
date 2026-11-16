@@ -1,0 +1,71 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Platform home{% endblock %}
+{% block platform_heading %}EduSphere platform{% endblock %}
+{% block platform_content %}
+<div class="cards" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:14px;">
+  <div class="panel"><h2>{{ institution_count }}</h2><p class="muted">Institutions</p></div>
+  <div class="panel"><h2>{{ active_institution_count }}</h2><p class="muted">Active institutions</p></div>
+  <div class="panel"><h2>{{ suspended_count }}</h2><p class="muted">Suspended</p></div>
+  <div class="panel"><h2>{{ application_count }}</h2><p class="muted">Open applications</p></div>
+  <div class="panel"><h2>{{ pending_access_count }}</h2><p class="muted">Waiting consent requests</p></div>
+  <div class="panel"><h2>{{ open_request_count }}</h2><p class="muted">Open platform requests</p></div>
+</div>
+
+{% if PLATFORM_PASSWORD_FROM_ENV %}
+<div class="msg warning" style="font-weight:600;">
+  This platform administrator still uses the password set from the deployment
+  environment. Change it now from
+  <a href="{% url 'platform_admin:security' %}">Two-factor and password</a>.
+</div>
+{% endif %}
+
+{% if not chain_ok %}
+<div class="msg error">The platform audit chain could not be verified. Tell the compliance lead at once.</div>
+{% endif %}
+
+<h2>Active consent grants</h2>
+<table class="tbl">
+  <tr><th>Institution</th><th>Platform staff</th><th>Categories</th><th>Mode</th><th>Until</th></tr>
+  {% for grant in active_grants %}
+    <tr>
+      <td>{{ grant.institution.name }}</td>
+      <td>{{ grant.platform_admin.get_full_name|default:grant.platform_admin.username }}</td>
+      <td>{{ grant.category_labels|join:", " }}</td>
+      <td>{{ grant.mode_label }}</td>
+      <td>{{ grant.expires_at|date:"j M Y H:i" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No institution has granted platform access right now.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Recent applications</h2>
+<table class="tbl">
+  <tr><th>Reference</th><th>Institution</th><th>Status</th><th>Received</th></tr>
+  {% for application in recent_applications %}
+    <tr>
+      <td><a href="{% url 'platform_admin:application_detail' application.pk %}">{{ application.reference }}</a></td>
+      <td>{{ application.institution_name }}</td>
+      <td>{{ application.get_status_display }}</td>
+      <td>{{ application.created|date:"j M Y H:i" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">No applications yet.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Recent platform activity</h2>
+<table class="tbl">
+  <tr><th>Time</th><th>Who</th><th>Action</th><th>Institution</th></tr>
+  {% for entry in recent_audit %}
+    <tr>
+      <td>{{ entry.created|date:"j M H:i" }}</td>
+      <td>{% firstof entry.actor.get_full_name entry.actor.username "system" %}</td>
+      <td>{{ entry.action }}</td>
+      <td>{{ entry.institution.name|default:"Platform" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">Nothing recorded yet.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

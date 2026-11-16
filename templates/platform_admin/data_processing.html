@@ -1,0 +1,12 @@
+{% extends "public_base.html" %}
+{% block title %}Data processing statement{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap" style="max-width: 860px;">
+    <h1>Data processing statement</h1>
+    <p class="muted">Version {{ version }}</p>
+    <div class="panel" style="white-space: pre-line;">{{ statement }}</div>
+    <p class="muted">This wording is a starting point. A qualified lawyer should review it against the Zimbabwe Cyber and Data Protection Act before an institution relies on it.</p>
+  </div>
+</section>
+{% endblock %}

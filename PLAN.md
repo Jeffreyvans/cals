@@ -188,7 +188,7 @@ resets. The suite is now 814 tests passing.
 
 ## Part 3C - Green public platform, learn pages and institution profiles
 - [x] One deep-green and marigold public identity (`#12403c` / `#e8a317`) on Figtree replaces the earlier brown palette for every signed-out page. `static/css/public.css` holds the tokens, the responsive mobile-first layout, the dark variant (system setting plus a remembered toggle) and the learn/institution styles.
-- [x] `/` is a platform login-and-marketing page: hero, sign-in card, an African classroom photo (WebP with a JPEG fallback and lazy loading below the fold), features, audience cards, how-it-works, role blocks, security band, contact section (phone `+263 774 573 765` and `vanhuvaonejeffrey@gmail.com`) and a footer. It carries no institution-specific content.
+- [x] `/` is a platform login-and-marketing page: hero, sign-in card, an African classroom photo (WebP with a JPEG fallback and lazy loading below the fold), features, audience cards, how-it-works, role blocks, security band, contact section (phone `+263 774 573 765` and `sphereeedu@gmail.com`) and a footer. It carries no institution-specific content.
 - [x] Seven plain-English learn pages linked from the header and footer: `/features/`, `/for-schools/`, `/for-colleges/`, `/for-parents-and-students/`, `/security-and-privacy/`, `/pricing-and-contact/` and `/faq/`, plus a `/learn/` hub. Content lives in `core/learn.py`; there are no invented statistics, client names, awards, testimonials or prices. The header uses a `<details class="nav-more">` menu so every page is reachable without JavaScript.
 - [x] `/pricing-and-contact/` carries a "Request a demo" form (`DemoRequestForm`) with a honeypot and the shared contact rate limit; it emails the platform contact address and never publishes a price.
 - [x] Branded institution page at `/i/<slug>/`: logo, validated primary/accent colours with computed readable text colours, name, tagline, About, contact details, sign-in card and a "Powered by EduSphere" footer linking to `/`. An institution can switch the page off and choose whether to show a Register button; the button only appears when public registration is on or an open sign-up link exists.
@@ -250,3 +250,73 @@ resets. The suite is now 814 tests passing.
 
 
 
+
+## PHASE 10 - Deployment, platform administrator provisioning and Render
+Status (2026-11-16): complete.
+
+- [x] Platform administrator auto-provisioning: new `ensure_platform_admin` management command reads `PLATFORM_ADMIN_USERNAME`, `PLATFORM_ADMIN_EMAIL`, `PLATFORM_ADMIN_PASSWORD`, `PLATFORM_ADMIN_RESET_PASSWORD` and `PLATFORM_ADMIN_FORCE_CHANGE` from the environment. It creates one account with `is_platform_admin`, `is_staff`, `is_superuser`, `is_active`, role `admin`, no institution, a verified email and a `PlatformStaff` `main_admin` row; reruns are idempotent and never duplicate the account.
+- [x] Password safety: the password is validated with Django's validators plus the project's `validate_strong_password`, stored only through `set_password`, and never printed or logged. It is not changed on a later run unless `PLATFORM_ADMIN_RESET_PASSWORD=true`; the first creation writes an audit entry with no secret material. Missing variables produce a clear warning and create nothing.
+- [x] Automatic run: `build.sh` runs the command after `migrate`; `platform_admin.startup.ensure_once()` is a guarded second chance from `AppConfig.ready()` that runs at most once per process, only when the variables are present, and never under tests, migrations, `collectstatic`, `check` or other management commands.
+- [x] First-login safety: `User.is_platform_admin` and `User.password_set_from_env` were added (migration `accounts/0009`); `User.institution` is now nullable so the platform administrator truly belongs to no school. `PLATFORM_ADMIN_FORCE_CHANGE` defaults to true, the existing forced-password-change middleware sends the administrator to a strong-password form, and the platform dashboard shows a warning banner until the password is changed. The platform sign-in redirects to the platform dashboard, not a school dashboard.
+- [x] Render settings: `config/settings.py` is environment-driven for `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `DATABASE_URL`, `EMAIL_BACKEND`, `RESEND_API_KEY`, `DEFAULT_FROM_EMAIL` and storage. `RENDER_EXTERNAL_HOSTNAME` is added to hosts and CSRF origins automatically; `DEBUG=false` enables secure cookies, `SECURE_PROXY_SSL_HEADER`, SSL redirect, HSTS, `SECURE_REFERRER_POLICY`, `SECURE_CONTENT_TYPE_NOSNIFF` and `X_FRAME_OPTIONS=DENY`. Local development still runs with no variables (SQLite, debug on, console email).
+- [x] Static and media: WhiteNoise with `CompressedManifestStaticFilesStorage`; `collectstatic` copies and post-processes 509 files. Uploads use local storage in development and S3-compatible storage (Supabase Storage, Cloudflare R2 or Backblaze B2) through `django-storages` + `boto3` when `STORAGE_BACKEND` says so.
+- [x] Required packages pinned in `requirements.txt` (Django, DRF, drf-spectacular, openpyxl, qrcode, pillow, reportlab, cryptography, celery, gunicorn, whitenoise, psycopg[binary], dj-database-url, django-storages, boto3, tzdata). A clean virtual environment install succeeded and `manage.py check` passed.
+- [x] `build.sh` (executable) installs dependencies, collects static files, migrates and ensures the administrator. `render.yaml` declares the Python web service, `./build.sh`, gunicorn start, `/health/`, pinned Python, generated `SECRET_KEY`, `DEBUG=false` and every secret as `sync: false`.
+- [x] `/health/` (`config/health.py`) runs one database query and returns `200 {"status":"ok","database":"ok"}` or `503` with `Cache-Control: no-store`.
+- [x] `.gitignore` covers local databases, `.env`, media, staticfiles, caches and virtual environments; `.env.example` lists every variable with obvious placeholders.
+- [x] `python manage.py check --deploy` with production settings reports zero issues. `ruff check .` is clean and `makemigrations --check` reports no changes.
+- [x] `DEPLOY.md` documents click-by-click Render setup, every environment variable, Supabase session-pooler PostgreSQL, S3-compatible uploads, Resend/SMTP email, a custom domain, password rotation, a go-live checklist, troubleshooting and useful commands.
+- [x] Tests: `platform_admin/tests/test_ensure_platform_admin.py` (creation, double run, unchanged password, reset flag, missing variables, weak password, no password in logs/output, force-change switch) and `config/tests/test_health.py` (200 and 503).
+- [x] Verification: 1385 tests pass, `ruff check .` is clean, `makemigrations --check` reports no changes, `check --deploy` with production settings reports zero issues, and `collectstatic` succeeds. Local development and tests use plain static storage; production uses the WhiteNoise compressed manifest. The health service module hub lives at `/health/hub/`, leaving `/health/` for the Render health check.
+
+## PHASE 11 - Reliable email on the Render free plan (Resend over HTTPS)
+Status (2026-11-16): complete.
+
+Every message now goes through one path: `queue_message()` -> `OutboundMessage` ->
+`send_message()`. There is no direct `EmailMessage.send()` left in a view and no
+SMTP setting anywhere, so Render's blocked outbound ports are never used.
+
+- [x] One backend: `config/settings.py` selects `anymail.backends.resend.EmailBackend`
+  when `RESEND_API_KEY` is set and the console backend otherwise. Django's test
+  runner still swaps in the in-memory backend, so `mail.outbox` keeps working.
+  `django-anymail[resend]==15.2` is pinned in `requirements.txt`. `EMAIL_HOST`,
+  `EMAIL_PORT`, `EMAIL_USE_TLS` and `EMAIL_USE_SSL` are gone from the project.
+- [x] Every email is themed: `core/notifications.py` renders a brown HTML part
+  (a supplied template, or `templates/emails/generic.html` via
+  `core/notifications_html.py` when none was given) alongside the plain text, so
+  no message is text-only. The sender display name is the institution's name
+  while the address stays on the verified domain; `Reply-To` is the institution's
+  contact address when one is set.
+- [x] Delivery is resilient: a send runs in the background only when a Celery
+  broker is configured and `EMAIL_ASYNC=true` (otherwise inline), with a 10 second
+  timeout, up to `EMAIL_MAX_RETRIES=5` attempts and exponential backoff. Every
+  attempt is recorded on `OutboundMessage` (`provider`, `provider_message_id`,
+  sanitized `provider_response`, `retries`, `next_attempt_at`). A failed send
+  never raises into a view; the user sees a calm message.
+- [x] Abuse limits: verification and password reset are limited per address and
+  per IP, and bulk sends (newsletter, fee reminders) are capped per institution.
+  Every limit is configurable (`EMAIL_VERIFY_LIMIT`, `EMAIL_RESET_LIMIT`,
+  `EMAIL_IP_LIMIT`, `EMAIL_BULK_LIMIT`, `EMAIL_RATE_WINDOW_SECONDS`).
+- [x] Secrets and links: provider error text is sanitized before it is stored
+  (keys, tokens and token-bearing URLs are redacted), the API key is never logged
+  or printed, and every link is built from `SITE_URL` (forced to https outside
+  debug) instead of the request host. Verification and reset links stay single
+  use and expiring (`PASSWORD_RESET_TIMEOUT=3600`).
+- [x] Operations: `python manage.py check_email --to you@example.com` sends a test
+  and prints the sanitized provider response; the platform **Email health** page
+  lists the last 50 messages, failure/bounce/complaint/suppression counts and a
+  Resend button for a failed message; `/webhooks/resend/` verifies the Svix
+  signature (`svix` from `django-anymail[resend]`, with an HMAC fallback) and
+  records delivered/bounced/complained events, suppressing hard-bounce and
+  complaint addresses (`EmailSuppression`).
+- [x] `render.yaml`, `.env.example` and `DEPLOY.md` document the Resend key, the
+  verified domain, `SITE_URL`, `SERVER_EMAIL` and the webhook secret, plus
+  troubleshooting.
+- [x] Tests: `core/tests/test_email_pipeline.py` (backend selection, no SMTP
+  settings, each email type with HTML and text, failures/retries/non-raising,
+  `SITE_URL` links, rate limits, webhook signature and suppression, tenant
+  isolation of email logs, the `check_email` command). `accounts/tests/test_signup_links.py`
+  now expects the `SITE_URL` link and `admissions/tests/test_admissions.py`
+  expects a failed email not to roll back an admission.
+- [x] Verification: 1409 tests pass, `ruff check .` is clean and
+  `makemigrations --check` reports no changes.

@@ -1,0 +1,33 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Invoice {{ invoice.number }}{% endblock %}
+{% block platform_heading %}Invoice {{ invoice.number }}{% endblock %}
+{% block platform_content %}
+<p>{{ invoice.institution.name }} &middot; {{ invoice.get_status_display }} &middot; {{ invoice.currency }} {{ invoice.amount }} &middot; balance {{ invoice.currency }} {{ invoice.balance }}</p>
+
+<h2>Payments</h2>
+<table class="tbl">
+  <tr><th>When</th><th>Amount</th><th>Method</th><th>Reference</th><th>Recorded by</th></tr>
+  {% for payment in payments %}
+    <tr>
+      <td>{{ payment.paid_at|date:"j M Y H:i" }}</td>
+      <td>{{ invoice.currency }} {{ payment.amount }}</td>
+      <td>{{ payment.get_method_display }}</td>
+      <td>{{ payment.reference }}</td>
+      <td>{% firstof payment.recorded_by.get_full_name payment.recorded_by.username "—" %}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No payments recorded.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Record a payment</h2>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <input type="hidden" name="invoice" value="{{ invoice.pk }}">
+  <p><label>Amount<input name="amount" type="number" step="0.01" required></label></p>
+  <p><label>Method<select name="method">{% for value, label in form.fields.method.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label></p>
+  <p><label>Reference<input name="reference" maxlength="100"></label></p>
+  <p><label>Paid at<input type="datetime-local" name="paid_at"></label></p>
+  <p><button class="btn" type="submit">Record payment</button></p>
+</form>
+{% endblock %}

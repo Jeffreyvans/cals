@@ -43,7 +43,64 @@ def log_action(actor, action, instance=None, before=None, after=None, request=No
         ip_address=_client_ip(request),
     )
     entry.save()
+    _mirror_to_platform(
+        entry,
+        action,
+        institution_id,
+        model_name,
+        object_id,
+        before,
+        after,
+        request,
+    )
     return entry
+
+
+def _mirror_to_platform(entry, action, institution_id, model_name, object_id,
+                        before, after, request):
+    """Copy a platform-staff change into the tamper-evident platform log.
+
+    Institution screen changes write the ordinary institution audit row above.
+    When the person making the change is EduSphere platform staff, the same
+    change is also written to :class:`platform_admin.models.PlatformAuditLog`
+    with its before and after values and the consent grant in force. Importing
+    at call time keeps the module import order simple and avoids a cycle.
+    """
+    actor = entry.actor
+    if actor is None:
+        return
+    try:
+        from platform_admin.services import (
+            active_grant_for,
+            is_platform_staff,
+            log_platform_action,
+        )
+    except Exception:  # pragma: no cover - platform app not installed
+        return
+    if not is_platform_staff(actor):
+        return
+    institution = None
+    if institution_id:
+        from core.models import Institution
+
+        institution = Institution.objects.filter(pk=institution_id).first()
+    grant = active_grant_for(actor, institution) if institution is not None else None
+    mirror_action = (
+        action
+        if action.startswith(("platform.", "access.", "application.", "institution."))
+        else f"institution.change.{action}"
+    )
+    log_platform_action(
+        actor,
+        mirror_action,
+        institution=institution,
+        grant=grant,
+        record_type=model_name,
+        record_id=object_id,
+        before=before,
+        after=after,
+        request=request,
+    )
 
 
 def _jsonify(value):

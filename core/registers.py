@@ -117,8 +117,13 @@ def _set_actor(obj, user):
             setattr(obj, field, user)
 
 
-def build_urls(module_code, registry, namespace):
-    """Build the URL patterns for one registry-driven department module."""
+def build_urls(module_code, registry, namespace, hub_path=""):
+    """Build the URL patterns for one registry-driven department module.
+
+    ``hub_path`` lets an app whose mount prefix is already used by another
+    view (the health app shares ``/health/`` with the deploy health check)
+    move its hub without moving the rest of its screens.
+    """
 
     def guard(request, permission=None):
         return _guard(request, module_code, registry, permission)
@@ -361,7 +366,7 @@ def build_urls(module_code, registry, namespace):
     patterns = [
         path("api/summary.json", login(api_summary), name="api_summary"),
         path("api/<slug:kind_slug>/", login(api_records), name="api_records"),
-        path("", login(hub), name="hub"),
+        path(hub_path, login(hub), name="hub"),
         path("<slug:kind_slug>/", login(record_list), name="list"),
         path("<slug:kind_slug>/new/", login(record_create), name="create"),
         path("<slug:kind_slug>/<int:pk>/", login(record_detail), name="detail"),

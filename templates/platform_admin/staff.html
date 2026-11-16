@@ -1,0 +1,33 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Platform staff{% endblock %}
+{% block platform_heading %}Platform staff{% endblock %}
+{% block platform_content %}
+<table class="tbl">
+  <tr><th>Name</th><th>Username</th><th>Role</th><th>Main admin</th><th>2FA</th><th>Active</th></tr>
+  {% for row in staff_rows %}
+    <tr>
+      <td><a href="{% url 'platform_admin:staff_detail' row.pk %}">{{ row.user.get_full_name|default:row.user.username }}</a></td>
+      <td>{{ row.user.username }}</td>
+      <td>{{ row.role.name|default:"No role" }}</td>
+      <td>{{ row.is_main_admin|yesno:"Yes,No" }}</td>
+      <td>{{ row.two_factor_enabled|yesno:"On,Off" }}</td>
+      <td>{{ row.is_active|yesno:"Yes,No" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No platform staff yet.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Add or update platform staff</h2>
+<p class="muted">An existing user with this email is linked. Otherwise a platform-only account is created attached to the first institution; the PlatformStaff row is what grants platform rights, never the institution role.</p>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Email<input name="email" type="email" required></label></p>
+  <p><label>First name<input name="first_name" required maxlength="150"></label></p>
+  <p><label>Last name<input name="last_name" maxlength="150"></label></p>
+  <p><label>Role<select name="role">{% for role in form.fields.role.queryset %}<option value="{{ role.pk }}">{{ role.name }}</option>{% endfor %}</select></label></p>
+  <p><label><input type="checkbox" name="is_main_admin"> Main administrator</label></p>
+  <p><label><input type="checkbox" name="is_active" checked> Active</label></p>
+  <p><button class="btn" type="submit">Save platform staff member</button></p>
+</form>
+{% endblock %}

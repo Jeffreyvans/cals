@@ -1,0 +1,14 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Backups{% endblock %}
+{% block platform_heading %}Backups{% endblock %}
+{% block platform_content %}
+<div class="panel">
+  <p>Backups are run by the host, not by a web page. This screen records a request and the audit trail so compliance can see who asked and when.</p>
+  {% if setting %}<p>{{ setting }}</p>{% endif %}
+</div>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p class="full"><label>Note<textarea name="note" rows="3" placeholder="What needs backing up and why"></textarea></label></p>
+  <p><button class="btn" type="submit">Record a backup request</button></p>
+</form>
+{% endblock %}

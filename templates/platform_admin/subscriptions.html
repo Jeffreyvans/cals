@@ -1,0 +1,34 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Subscriptions{% endblock %}
+{% block platform_heading %}Subscriptions{% endblock %}
+{% block platform_content %}
+<table class="tbl">
+  <tr><th>Institution</th><th>Plan</th><th>Status</th><th>Cycle</th><th>Period ends</th></tr>
+  {% for subscription in subscriptions %}
+    <tr>
+      <td>{{ subscription.institution.name }}</td>
+      <td>{{ subscription.plan.name }}</td>
+      <td>{{ subscription.get_status_display }}</td>
+      <td>{{ subscription.get_billing_cycle_display }}</td>
+      <td>{{ subscription.current_period_end|date:"j M Y"|default:"—" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No subscriptions yet.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Add a subscription</h2>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Institution<select name="institution">{% for institution in form.fields.institution.queryset %}<option value="{{ institution.pk }}">{{ institution.name }}</option>{% endfor %}</select></label></p>
+  <p><label>Plan<select name="plan">{% for plan in form.fields.plan.queryset %}<option value="{{ plan.pk }}">{{ plan.name }}</option>{% endfor %}</select></label></p>
+  <p><label>Status<select name="status">{% for value, label in form.fields.status.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label></p>
+  <p><label>Cycle<select name="billing_cycle">{% for value, label in form.fields.billing_cycle.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label></p>
+  <p><label>Trial ends<input type="datetime-local" name="trial_ends_at"></label></p>
+  <p><label>Period starts<input type="datetime-local" name="current_period_start"></label></p>
+  <p><label>Period ends<input type="datetime-local" name="current_period_end"></label></p>
+  <p><label>Seats<input type="number" name="seats" min="0"></label></p>
+  <p class="full"><label>Notes<textarea name="notes" rows="2"></textarea></label></p>
+  <p><button class="btn" type="submit">Save subscription</button></p>
+</form>
+{% endblock %}

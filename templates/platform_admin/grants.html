@@ -1,0 +1,30 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Consent grants{% endblock %}
+{% block platform_heading %}Consent grants{% endblock %}
+{% block platform_content %}
+<p class="muted">Every grant is time-limited, revocable and scoped to exact categories. An extension is a new request.</p>
+<p>
+  <a class="btn ghost btn-sm" href="?status=active">Active</a>
+  <a class="btn ghost btn-sm" href="?status=expired">Expired</a>
+  <a class="btn ghost btn-sm" href="?status=revoked">Revoked</a>
+  <a class="btn ghost btn-sm" href="?status=">All</a>
+</p>
+<table class="tbl">
+  <tr><th>#</th><th>Institution</th><th>Staff</th><th>Categories</th><th>Mode</th><th>Export</th><th>Starts</th><th>Expires</th><th>State</th></tr>
+  {% for grant in grants %}
+    <tr>
+      <td>{{ grant.pk }}</td>
+      <td>{{ grant.institution.name }}</td>
+      <td>{{ grant.platform_admin.get_full_name|default:grant.platform_admin.username }}</td>
+      <td>{{ grant.category_labels|join:", " }}</td>
+      <td>{{ grant.mode_label }}</td>
+      <td>{{ grant.include_export|yesno:"Yes,No" }}</td>
+      <td>{{ grant.starts_at|date:"j M H:i" }}</td>
+      <td>{{ grant.expires_at|date:"j M H:i" }}</td>
+      <td>{% if grant.is_revoked %}Revoked{% elif grant.is_expired %}Expired{% else %}Active{% endif %}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="9" class="muted">No grants.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

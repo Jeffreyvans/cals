@@ -1,12 +1,10 @@
 """Public landing, registration, email verification and admin review screens."""
 
 from django import forms
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import ValidationError
-from django.core.mail import EmailMessage
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -15,6 +13,7 @@ from django.utils import timezone
 from core.access import permission_required_code
 from core.audit import log_action
 from core.models import Department, Institution
+from core.notifications import EMAIL_FAILURE_MESSAGE, send_platform_email
 
 from .forms import (
     ContactForm,
@@ -129,15 +128,15 @@ class EduSphereLoginView(LoginLockoutMixin, LoginView):
                 f"Phone: {data.get('phone') or 'Not given'}\n\n"
                 f"{data['message']}\n"
             )
-            message = EmailMessage(
+            message = send_platform_email(
                 "EduSphere contact form",
                 body,
-                getattr(settings, "EMAIL_FROM", "EduSphere <no-reply@edusphere.local>"),
-                [contact_recipient()],
+                contact_recipient(),
                 reply_to=[data["email"]],
             )
-            message.send(fail_silently=True)
             record_contact_attempt(request)
+            if getattr(message, "status", "") != "sent":
+                messages.error(request, EMAIL_FAILURE_MESSAGE)
             return self.render_to_response(
                 self.get_context_data(contact_form=ContactForm(), contact_sent=True)
             )

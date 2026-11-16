@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Who accessed our data{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Who accessed our data</h1>
+    <p class="muted">{{ institution.name }}. Every platform view, export and change is recorded in a tamper-evident log and kept for at least six years.</p>
+  </div>
+  <div>
+    <a class="btn" href="{% url 'platform_admin:institution_data_access_export' %}">Download the log</a>
+    <a class="btn ghost" href="{% url 'platform_admin:institution_access_requests' %}">Consent requests</a>
+  </div>
+</div>
+
+<h2>Active consent grants</h2>
+<table class="tbl">
+  <tr><th>#</th><th>Staff</th><th>Categories</th><th>Mode</th><th>Until</th><th></th></tr>
+  {% for grant in active_grants %}
+    <tr>
+      <td>{{ grant.pk }}</td>
+      <td>{{ grant.platform_admin.get_full_name|default:grant.platform_admin.username }}</td>
+      <td>{{ grant.category_labels|join:", " }}</td>
+      <td>{{ grant.mode_label }}</td>
+      <td>{{ grant.expires_at|date:"j M Y H:i" }}</td>
+      <td>
+        <form method="post" action="{% url 'platform_admin:institution_grant_revoke' grant.pk %}">
+          {% csrf_token %}
+          <button class="btn ghost btn-sm" type="submit">Revoke</button>
+        </form>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No active grants. Nobody from EduSphere can see protected data right now.</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Access log</h2>
+<form method="get" class="inline wide">
+  <p><input name="action" value="{{ action }}" placeholder="Action, e.g. platform.view"></p>
+  <p><input name="grant" value="{{ grant_id }}" placeholder="Grant id"></p>
+  <p><button class="btn" type="submit">Filter</button></p>
+</form>
+<table class="tbl">
+  <tr><th>Time</th><th>Who</th><th>Action</th><th>Record</th><th>Grant</th><th>IP</th><th>Detail</th></tr>
+  {% for entry in entries %}
+    <tr>
+      <td>{{ entry.created|date:"j M Y H:i:s" }}</td>
+      <td>{% firstof entry.actor.get_full_name entry.actor.username "system" %}</td>
+      <td>{{ entry.action }}</td>
+      <td>{{ entry.record_type }} {{ entry.record_id }}</td>
+      <td>{{ entry.grant_id|default:"—" }}</td>
+      <td>{{ entry.ip_address|default:"—" }}</td>
+      <td>{{ entry.detail|truncatechars:160 }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No platform staff have accessed this institution's data.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

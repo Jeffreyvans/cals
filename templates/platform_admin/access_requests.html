@@ -1,0 +1,33 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Consent requests{% endblock %}
+{% block platform_heading %}Institution data consent requests{% endblock %}
+{% block platform_content %}
+<p>
+  <a class="btn" href="{% url 'platform_admin:access_request_create' %}">Ask an institution for access</a>
+  <a class="btn ghost" href="{% url 'platform_admin:emergency_access_create' %}">Emergency break-glass</a>
+  <a class="btn ghost" href="{% url 'platform_admin:grants' %}">Grants</a>
+</p>
+<p class="muted">Nothing inside an institution is visible until its administrator approves. A request that gets no answer waits and expires; it is never approved automatically.</p>
+<form method="get" style="margin-bottom:12px;">
+  <select name="status" onchange="this.form.submit()">
+    <option value="">Any status</option>
+    {% for value, label in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+</form>
+<table class="tbl">
+  <tr><th>#</th><th>Institution</th><th>Staff</th><th>Categories</th><th>Mode</th><th>Status</th><th>Requested</th></tr>
+  {% for access_request in access_requests %}
+    <tr>
+      <td><a href="{% url 'platform_admin:access_request_detail' access_request.pk %}">{{ access_request.pk }}</a></td>
+      <td>{{ access_request.institution.name }}</td>
+      <td>{{ access_request.requested_by.get_full_name|default:access_request.requested_by.username }}</td>
+      <td>{{ access_request.categories|join:", " }}</td>
+      <td>{{ access_request.get_mode_display }}{% if access_request.include_export %} + export{% endif %}</td>
+      <td>{{ access_request.get_status_display }}{% if access_request.is_emergency %} (emergency){% endif %}</td>
+      <td>{{ access_request.created|date:"j M Y H:i" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No consent requests.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

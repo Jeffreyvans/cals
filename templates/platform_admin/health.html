@@ -1,0 +1,15 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Platform health{% endblock %}
+{% block platform_heading %}Health and usage{% endblock %}
+{% block platform_content %}
+<div class="panel"><h2>{{ institution_count }}</h2><p class="muted">Institutions</p></div>
+<div class="panel"><h2>{{ user_count }}</h2><p class="muted">User accounts (all institutions)</p></div>
+<div class="panel"><h2>{{ student_count }}</h2><p class="muted">Student records (all institutions)</p></div>
+<div class="panel">
+  <h2>{% if chain_ok %}Verified{% else %}Broken{% endif %}</h2>
+  <p class="muted">Platform audit hash chain</p>
+</div>
+{% if last_audit %}<p class="muted">Last audit entry {{ last_audit.created|date:"j M Y H:i" }}: {{ last_audit.action }}.</p>{% endif %}
+<p><a class="btn ghost" href="{% url 'platform_admin:usage' %}">Per-institution usage</a> <a class="btn ghost" href="{% url 'platform_admin:errors' %}">Errors</a> <a class="btn ghost" href="{% url 'platform_admin:email_health' %}">Email health</a> <a class="btn ghost" href="{% url 'platform_admin:backups' %}">Backups</a></p>
+<p class="muted">These summaries are operational and carry no student, staff, health, finance or results personal data.</p>
+{% endblock %}

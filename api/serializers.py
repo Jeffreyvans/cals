@@ -192,7 +192,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
             "guardians_notified",
         ]
 
-    def get_recorded_by_name(self, obj):
+    def get_recorded_by_name(self, obj) -> str:
         if not obj.recorded_by_id:
             return ""
         return obj.recorded_by.get_full_name() or obj.recorded_by.username
@@ -283,7 +283,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
             "submitted_at",
         ]
 
-    def get_full_name(self, obj):
+    def get_full_name(self, obj) -> str:
         return f"{obj.first_name} {obj.last_name}".strip()
 
 

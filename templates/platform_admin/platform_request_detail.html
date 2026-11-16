@@ -1,0 +1,21 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Platform request{% endblock %}
+{% block platform_heading %}{{ item.title }}{% endblock %}
+{% block platform_content %}
+<p class="muted">{{ item.get_kind_display }} &middot; {{ item.reference|default:"No reference" }} &middot; {{ item.created|date:"j M Y H:i" }}</p>
+<p><strong>Status:</strong> {{ item.get_status_display }}{% if item.institution %} &middot; <strong>Institution:</strong> {{ item.institution.name }}{% endif %}</p>
+<div class="panel" style="white-space: pre-line;">{{ item.detail }}</div>
+{% if item.payload %}<h2>Details</h2><pre class="panel">{{ item.payload }}</pre>{% endif %}
+{% if item.decision_reason %}<h2>Decision</h2><div class="panel" style="white-space: pre-line;">{{ item.decision_reason }}</div>{% endif %}
+
+{% if item.status == 'open' %}
+<h2>Decide</h2>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p class="full"><label>Reason or reply<textarea name="reason" rows="3"></textarea></label></p>
+  <p><button class="btn" type="submit" name="action" value="approve">Approve</button></p>
+  <p><button class="btn ghost" type="submit" name="action" value="reject">Reject</button></p>
+  <p><button class="btn ghost" type="submit" name="action" value="close">Close</button></p>
+</form>
+{% endif %}
+{% endblock %}

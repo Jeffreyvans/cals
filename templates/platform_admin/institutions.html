@@ -1,0 +1,33 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Institutions{% endblock %}
+{% block platform_heading %}Institutions{% endblock %}
+{% block platform_content %}
+<form method="get" class="inline wide" style="margin-bottom:16px;">
+  <p><input name="q" value="{{ search }}" placeholder="Search name, slug or address"></p>
+  <p><select name="status">
+    <option value="">All</option>
+    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+    <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+    <option value="suspended" {% if status == 'suspended' %}selected{% endif %}>Suspended</option>
+    <option value="archived" {% if status == 'archived' %}selected{% endif %}>Archived</option>
+  </select></p>
+  <p><button class="btn" type="submit">Filter</button></p>
+</form>
+
+<table class="tbl">
+  <tr><th>Institution</th><th>Type</th><th>Users</th><th>Status</th><th>Created</th></tr>
+  {% for institution in institutions %}
+    <tr>
+      <td><a href="{% url 'platform_admin:institution_detail' institution.pk %}">{{ institution.name }}</a><br><span class="muted">{{ institution.slug }}</span></td>
+      <td>{{ institution.get_type_display }}</td>
+      <td>{{ institution.user_count }}</td>
+      <td>
+        {% if institution.suspended_at %}Suspended{% elif institution.archived_at %}Archived{% elif institution.is_active %}Active{% else %}Inactive{% endif %}
+      </td>
+      <td>{{ institution.created|date:"j M Y" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No institutions match.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

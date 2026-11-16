@@ -1,0 +1,19 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}{{ plan.name }}{% endblock %}
+{% block platform_heading %}Plan &middot; {{ plan.name }}{% endblock %}
+{% block platform_content %}
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <p><label>Name<input name="name" value="{{ plan.name }}" maxlength="100" required></label></p>
+  <p><label>Monthly price<input name="monthly_price" type="number" step="0.01" value="{{ plan.monthly_price }}"></label></p>
+  <p><label>Annual price<input name="annual_price" type="number" step="0.01" value="{{ plan.annual_price }}"></label></p>
+  <p><label>Currency<input name="currency" value="{{ plan.currency }}" maxlength="10"></label></p>
+  <p><label>Trial days<input name="trial_days" type="number" value="{{ plan.trial_days }}" min="0"></label></p>
+  <p><label>Max students<input name="max_students" type="number" value="{{ plan.max_students|default_if_none:'' }}"></label></p>
+  <p><label>Max staff<input name="max_staff" type="number" value="{{ plan.max_staff|default_if_none:'' }}"></label></p>
+  <p class="full"><label>Included modules</label>{{ form.modules }}</p>
+  <p class="full"><label>Description<textarea name="description" rows="3">{{ plan.description }}</textarea></label></p>
+  <p><label><input type="checkbox" name="is_active" {% if plan.is_active %}checked{% endif %}> Active</label></p>
+  <p><button class="btn" type="submit">Save plan</button></p>
+</form>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "public_base.html" %}
+{% block title %}Platform privacy notice{% endblock %}
+{% block description %}How EduSphere handles platform records, institution applications and staff access to institution data.{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap" style="max-width: 860px;">
+    <h1>Platform privacy notice</h1>
+    <div class="panel" style="white-space: pre-line;">{{ notice }}</div>
+    <h2>Data processing statement for institutions</h2>
+    <div class="panel" style="white-space: pre-line;">{{ statement }}</div>
+    <p class="muted">This wording is a plain-language summary and should be reviewed by a lawyer before it is relied on.</p>
+  </div>
+</section>
+{% endblock %}
