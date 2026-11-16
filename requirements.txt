@@ -10,7 +10,7 @@ cryptography==50.0.2
 celery==5.7.0
 gunicorn==23.0.0
 whitenoise==6.8.2
-psycopg[binary]==3.2.3
+psycopg[binary]==3.2.13
 dj-database-url==2.3.0
 django-storages==1.14.6
 boto3==1.35.90
