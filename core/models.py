@@ -528,6 +528,72 @@ class ImportBatch(TenantModel):
         return list((self.rows or [])[1:])
 
 
+# ---------- background jobs ----------
+
+class BackgroundJob(TenantModel):
+    """A long-running task and how far it has got.
+
+    Imports, bulk email, large exports and multi-card PDFs are handed to a
+    Celery worker when one is configured. The row is the single source of
+    truth for the progress bar: the request returns immediately, the page
+    polls ``job_status`` and follows ``result["url"]`` when the job finishes.
+    Without a broker the same function runs inline, so a small installation
+    never needs a worker.
+    """
+
+    class Kind(models.TextChoices):
+        IMPORT = "import", "Bulk import"
+        EXPORT = "export", "Export"
+        REPORT = "report", "Report"
+        BULK_EMAIL = "bulk_email", "Bulk email"
+        PDF = "pdf", "PDF"
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Waiting to start"
+        RUNNING = "running", "Running"
+        DONE = "done", "Finished"
+        FAILED = "failed", "Failed"
+
+    institution = models.ForeignKey(
+        Institution, on_delete=models.CASCADE, related_name="background_jobs")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="background_jobs")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    label = models.CharField(max_length=200)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.QUEUED)
+    progress = models.PositiveSmallIntegerField(default=0)
+    processed = models.PositiveIntegerField(default=0)
+    total = models.PositiveIntegerField(default=0)
+    message = models.CharField(max_length=255, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True)
+    # The row a job works on (an ImportBatch, a Newsletter, ...), so the
+    # worker can reload it by primary key after the request has finished.
+    object_id = models.PositiveBigIntegerField(null=True, blank=True)
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+    started = models.DateTimeField(null=True, blank=True)
+    finished = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+        indexes = [models.Index(fields=["institution", "status"])]
+
+    def __str__(self):
+        return f"{self.get_kind_display()}: {self.label} ({self.progress}%)"
+
+    @property
+    def is_finished(self):
+        return self.status in {self.Status.DONE, self.Status.FAILED}
+
+    @property
+    def percent(self):
+        if self.total:
+            return min(100, int(self.processed * 100 / self.total))
+        return self.progress
+
+
 # ---------- workflow ----------
 
 class WorkflowTemplate(TenantModel):

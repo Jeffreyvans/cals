@@ -14,6 +14,11 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from core.models import TenantModel
+from core.uploads import (
+    document_upload_validator,
+    image_upload_validator,
+    shrink_image_field,
+)
 
 
 def application_upload_to(instance, filename):
@@ -93,6 +98,11 @@ class Application(TenantModel):
             models.UniqueConstraint(fields=["institution", "reference"],
                                     name="uniq_application_reference"),
         ]
+        indexes = [
+            models.Index(fields=["institution", "status"], name="app_inst_status_idx"),
+            models.Index(fields=["institution", "-submitted_at"], name="app_inst_submitted_idx"),
+            models.Index(fields=["email"], name="app_email_idx"),
+        ]
 
     def save(self, *a, **kw):
         adding = self._state.adding
@@ -137,7 +147,8 @@ class ApplicantDocument(TenantModel):
     application = models.ForeignKey(Application, on_delete=models.CASCADE,
                                     related_name="documents")
     kind = models.CharField(max_length=30, choices=Kind.choices)
-    file = models.FileField(upload_to=application_upload_to)
+    file = models.FileField(
+        upload_to=application_upload_to, validators=[document_upload_validator])
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -441,7 +452,11 @@ class StudentCard(TenantModel):
                                    related_name="id_card")
     card_no = models.CharField(max_length=24, blank=True)
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    photo = models.ImageField(upload_to="students/cards/", blank=True)
+    photo = models.ImageField(
+        upload_to="students/cards/", blank=True,
+        validators=[image_upload_validator],
+        help_text="PNG, JPG or WebP up to 5 MB.",
+    )
     issued_on = models.DateField(default=timezone.localdate)
     valid_until = models.DateField()
     is_active = models.BooleanField(default=True)
@@ -451,6 +466,7 @@ class StudentCard(TenantModel):
 
     def save(self, *a, **kw):
         adding = self._state.adding
+        shrink_image_field(self, "photo")
         if adding and not self.card_no:
             self.card_no = f"TMP{uuid.uuid4().hex[:12].upper()}"
         super().save(*a, **kw)

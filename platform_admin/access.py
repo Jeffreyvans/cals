@@ -25,6 +25,10 @@ def platform_required(*codes, main_admin=False):
         @wraps(view)
         @login_required
         def wrapper(request, *args, **kwargs):
+            # A signed-in person with no active platform role is not told that
+            # this area exists: the platform is invisible to institution users.
+            if not is_platform_staff(request.user):
+                raise Http404("Page not found.")
             staff = require_platform_permission(
                 request.user, *codes, main_admin=main_admin
             )

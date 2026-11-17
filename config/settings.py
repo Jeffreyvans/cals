@@ -128,15 +128,23 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    # Compress HTML, JSON and CSV on the fly. WhiteNoise already serves the
+    # collected static files pre-compressed; this covers dynamic responses.
+    "django.middleware.gzip.GZipMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # Cheap ETag/304 handling for public pages and JSON.
+    "django.middleware.http.ConditionalGetMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "accounts.middleware.ForcePasswordChangeMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "core.middleware.LowDataMiddleware",
     "core.middleware.InstitutionMiddleware",
     "platform_admin.middleware.PlatformDataAccessMiddleware",
+    # Last, so it sees the final response and can record its size and timing.
+    "core.middleware.ResponseMetricsMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
 TEMPLATES = [{
@@ -174,11 +182,18 @@ AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"   # target of collectstatic
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / env_str("EDUSPHERE_MEDIA_PATH", "media")
+
+# Upload limits. The whole request is capped before Django buffers it, and the
+# per-file limits in ``core.uploads`` produce the friendly message a person
+# sees when their picture or document is too large.
+DATA_UPLOAD_MAX_MEMORY_SIZE = env_int("DATA_UPLOAD_MAX_MEMORY_SIZE", 12 * 1024 * 1024)
+FILE_UPLOAD_MAX_MEMORY_SIZE = env_int("FILE_UPLOAD_MAX_MEMORY_SIZE", 5 * 1024 * 1024)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = env_int("DATA_UPLOAD_MAX_NUMBER_FIELDS", 2000)
 
 # --- static and uploaded files --------------------------------------------
 # WhiteNoise serves the collected, hashed static files. Uploaded files use the
@@ -218,17 +233,27 @@ if USE_S3_STORAGE:
     ).strip()
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
-    AWS_QUERYSTRING_AUTH = True
+    AWS_QUERYSTRING_AUTH = env_bool("AWS_QUERYSTRING_AUTH", True)
+    AWS_QUERYSTRING_EXPIRE = env_int("AWS_QUERYSTRING_EXPIRE", 3600)
     AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_MAX_MEMORY_SIZE = 5 * 1024 * 1024
     AWS_LOCATION = _first("AWS_LOCATION", "EDUSPHERE_S3_PREFIX").strip()
+    # Uploaded pictures and documents are immutable (the stored name contains a
+    # random token), so a browser and the CDN may keep them for a year.
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": "public, max-age=31536000, immutable",
+    }
 
     _s3_options = {
         "bucket_name": AWS_STORAGE_BUCKET_NAME,
         "region_name": AWS_S3_REGION_NAME,
         "default_acl": None,
         "file_overwrite": False,
-        "querystring_auth": True,
+        "querystring_auth": AWS_QUERYSTRING_AUTH,
+        "querystring_expire": AWS_QUERYSTRING_EXPIRE,
         "signature_version": AWS_S3_SIGNATURE_VERSION,
+        "max_memory_size": AWS_S3_MAX_MEMORY_SIZE,
+        "object_parameters": AWS_S3_OBJECT_PARAMETERS,
     }
     if AWS_S3_ENDPOINT_URL:
         _s3_options["endpoint_url"] = AWS_S3_ENDPOINT_URL
@@ -236,6 +261,26 @@ if USE_S3_STORAGE:
         _s3_options["custom_domain"] = AWS_S3_CUSTOM_DOMAIN
     if AWS_LOCATION:
         _s3_options["location"] = AWS_LOCATION
+    if not DEBUG and not TESTING:
+        missing = [
+            name
+            for name, value in (
+                ("AWS_STORAGE_BUCKET_NAME", AWS_STORAGE_BUCKET_NAME),
+                ("AWS_ACCESS_KEY_ID", AWS_ACCESS_KEY_ID),
+                ("AWS_SECRET_ACCESS_KEY", AWS_SECRET_ACCESS_KEY),
+            )
+            if not value
+        ]
+        if STORAGE_BACKEND in {"r2", "b2", "supabase", "object"} and not AWS_S3_ENDPOINT_URL:
+            missing.append("AWS_S3_ENDPOINT_URL")
+        if missing:
+            raise ImproperlyConfigured(
+                "STORAGE_BACKEND is set to "
+                f"{STORAGE_BACKEND!r} but these settings are empty: "
+                + ", ".join(missing)
+                + ". Uploads would fail in production. Set them in the "
+                "environment (see DEPLOY.md)."
+            )
     STORAGES = {
         "default": {"BACKEND": "storages.backends.s3.S3Storage", "OPTIONS": _s3_options},
         "staticfiles": {"BACKEND": STATICFILES_BACKEND},
@@ -246,12 +291,136 @@ else:
         "staticfiles": {"BACKEND": STATICFILES_BACKEND},
     }
 
+# A production boot must never quietly write uploads to the container disk:
+# Render throws the filesystem away on the next deploy, so every logo and
+# document would disappear. Fail loudly instead, with the variables to set.
+from core.uploads import validate_storage_configuration  # noqa: E402
+
+validate_storage_configuration(
+    debug=DEBUG, testing=TESTING, backend=STORAGE_BACKEND
+)
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 TIME_ZONE = env_str("EDUSPHERE_TIME_ZONE", "Africa/Harare")
 USE_TZ = True
 INSTITUTION_NAME = env_str("EDUSPHERE_INSTITUTION_NAME",
                            "Lindenet Institute of Technology")   # change per school
 CURRENCY = env_str("EDUSPHERE_CURRENCY", "$")
+
+# --- cache -----------------------------------------------------------------
+# Redis is used when REDIS_URL is set (Render Redis, Upstash, ...). Without it
+# the process-local memory cache still removes repeated permission, branding and
+# dashboard queries, which is what a single small deployment needs. The cache
+# is deliberately conservative: nothing that must be instantly consistent is
+# stored for longer than a few minutes, and writes clear the keys they affect.
+REDIS_URL = _first("REDIS_URL", "EDUSPHERE_REDIS_URL").strip()
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "TIMEOUT": env_int("CACHE_TIMEOUT", 300),
+            "KEY_PREFIX": env_str("CACHE_KEY_PREFIX", "edusphere"),
+            "OPTIONS": {"socket_connect_timeout": 2, "socket_timeout": 2},
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "edusphere-local",
+            "TIMEOUT": env_int("CACHE_TIMEOUT", 300),
+            "OPTIONS": {"MAX_ENTRIES": 5000},
+        }
+    }
+
+# Branding and public pages change rarely; these are the TTLs (seconds) that
+# the cache helpers use. A settings save clears the affected institution.
+CACHE_TTL_PERMISSIONS = env_int("CACHE_TTL_PERMISSIONS", 300)
+CACHE_TTL_BRANDING = env_int("CACHE_TTL_BRANDING", 900)
+CACHE_TTL_PUBLIC = env_int("CACHE_TTL_PUBLIC", 600)
+CACHE_TTL_DASHBOARD = env_int("CACHE_TTL_DASHBOARD", 120)
+
+# --- background jobs (Celery) ---------------------------------------------
+# PDF reports, bulk email, imports and exports run on a worker so a request
+# never waits for them. With no broker configured the same functions run inline
+# (and the UI says so), so a small installation still works out of the box.
+CELERY_BROKER_URL = _first("CELERY_BROKER_URL", "REDIS_URL").strip() or REDIS_URL
+CELERY_RESULT_BACKEND = _first(
+    "CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL or "cache+memory://"
+)
+CELERY_TASK_ALWAYS_EAGER = env_bool(
+    "CELERY_TASK_ALWAYS_EAGER", not bool(CELERY_BROKER_URL)
+)
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = env_int("CELERY_TASK_TIME_LIMIT", 600)
+CELERY_TASK_SOFT_TIME_LIMIT = env_int("CELERY_TASK_SOFT_TIME_LIMIT", 540)
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# --- logging, slow queries and error reporting ----------------------------
+# One structured line per slow request and slow database query, so a free-tier
+# log viewer still shows the problem. Sentry is opt-in: set SENTRY_DSN and the
+# SDK (if installed) receives the same events.
+SLOW_REQUEST_SECONDS = float(env_str("SLOW_REQUEST_SECONDS", "1.5"))
+SLOW_QUERY_SECONDS = float(env_str("SLOW_QUERY_SECONDS", "0.25"))
+LOG_LEVEL = env_str("LOG_LEVEL", "INFO").upper()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "plain": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "plain",
+        },
+    },
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"], "level": "WARNING", "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console"], "level": "WARNING", "propagate": False,
+        },
+        "edusphere.slow": {
+            "handlers": ["console"], "level": "INFO", "propagate": False,
+        },
+        "edusphere.uploads": {
+            "handlers": ["console"], "level": "INFO", "propagate": False,
+        },
+    },
+}
+
+SENTRY_DSN = _first("SENTRY_DSN", "EDUSPHERE_SENTRY_DSN").strip()
+SENTRY_ENVIRONMENT = _first("SENTRY_ENVIRONMENT", default="production" if not DEBUG else "development")
+SENTRY_TRACES_SAMPLE_RATE = float(env_str("SENTRY_TRACES_SAMPLE_RATE", "0.05"))
+if SENTRY_DSN:
+    try:  # pragma: no cover - the package is optional in development
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            environment=SENTRY_ENVIRONMENT,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
+            send_default_pii=False,
+        )
+    except ImportError:
+        logger.warning(
+            "SENTRY_DSN is set but sentry-sdk is not installed; install "
+            "sentry-sdk[django] to send errors to Sentry."
+        )
 
 # --- email ----------------------------------------------------------------
 # Render blocks outbound SMTP on ports 25, 465 and 587. Every message goes

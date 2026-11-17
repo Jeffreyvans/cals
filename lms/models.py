@@ -8,6 +8,7 @@ from django.db import models
 from django.utils import timezone
 
 from core.models import TenantModel
+from core.uploads import document_upload_validator
 
 
 def _zero():
@@ -79,7 +80,8 @@ class ContentItem(TenantModel):
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.NOTE)
     title = models.CharField(max_length=150)
     body = models.TextField(blank=True)
-    file = models.FileField(upload_to="lms/content/", blank=True)
+    file = models.FileField(
+        upload_to="lms/content/", blank=True, validators=[document_upload_validator])
     url = models.URLField(blank=True)
     order = models.PositiveSmallIntegerField(default=0)
     visible_from = models.DateField(null=True, blank=True)
@@ -136,7 +138,9 @@ class Assignment(TenantModel):
     max_score = models.DecimalField(
         max_digits=7, decimal_places=2, default=100,
         validators=[MinValueValidator(Decimal("0.01"))])
-    attachment = models.FileField(upload_to="lms/assignments/", blank=True)
+    attachment = models.FileField(
+        upload_to="lms/assignments/", blank=True,
+        validators=[document_upload_validator])
     allow_resubmission = models.BooleanField(default=True)
     is_published = models.BooleanField(default=True)
     created_by = models.ForeignKey(
@@ -209,7 +213,9 @@ class Submission(TenantModel):
     student = models.ForeignKey(
         "academics.Student", on_delete=models.CASCADE, related_name="lms_submissions")
     text = models.TextField(blank=True)
-    file = models.FileField(upload_to="lms/submissions/", blank=True)
+    file = models.FileField(
+        upload_to="lms/submissions/", blank=True,
+        validators=[document_upload_validator])
     submitted_at = models.DateTimeField(default=timezone.now)
     attempt_count = models.PositiveSmallIntegerField(default=1)
     is_late = models.BooleanField(default=False)

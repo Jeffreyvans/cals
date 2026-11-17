@@ -95,7 +95,7 @@ If you prefer not to use `render.yaml`:
 2. Runtime: **Python 3**.
 3. Build command: `./build.sh`
 4. Start command:
-   `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120`
+   `gunicorn config.wsgi:application --config gunicorn.conf.py`
 5. Health check path: `/health/`
 6. Add the environment variables from section 4. Set `PYTHON_VERSION` to
    `3.12.10`, `DEBUG` to `false`, and generate `SECRET_KEY`.
@@ -191,6 +191,56 @@ There are deliberately no `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS` or
 `EMAIL_USE_SSL` settings: nothing in the app can open an SMTP connection. A
 Django system check fails a `DEBUG=false` deployment that still points at an
 SMTP or console backend.
+
+### Performance, cache and background jobs
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `REDIS_URL` | Recommended above ~100 users | Redis URL (Render Redis, Upstash). Enables the shared cache and is reused as the Celery broker. Without it each process keeps a small local-memory cache. |
+| `CELERY_BROKER_URL` | Optional | Explicit broker. Defaults to `REDIS_URL`. |
+| `CELERY_RESULT_BACKEND` | Optional | Defaults to the broker. |
+| `CELERY_TASK_ALWAYS_EAGER` | No | `true` runs jobs inline. The default is `true` when no broker is set, `false` when one is. |
+| `WEB_CONCURRENCY` | No (default `2`) | Gunicorn worker processes. Raise with the plan and the database pool. |
+| `GUNICORN_THREADS` | No (default `2`) | Threads per worker (`gthread`). |
+| `GUNICORN_TIMEOUT` | No (default `60`) | Seconds before a request is killed. Anything longer belongs in a Celery job. |
+| `GUNICORN_MAX_REQUESTS` | No (default `1000`) | Recycle a worker after this many requests. |
+| `CACHE_TIMEOUT`, `CACHE_TTL_*` | No | Cache lifetimes in seconds (permissions 300, branding 900, public 600, dashboard 120). |
+| `SLOW_REQUEST_SECONDS`, `SLOW_QUERY_SECONDS` | No | Log a line when a request or query is slower than this. Defaults `1.5` and `0.25`. |
+| `SENTRY_DSN` | Optional | Send exceptions and slow traces to Sentry. `sentry-sdk[django]` must be installed. |
+
+#### Running a Celery worker
+
+Bulk imports, newsletters, multi-card PDFs and long exports are queued when a
+broker is configured. On Render add a **Background Worker** service with the
+same repository and environment variables, and start it with:
+
+```
+celery -A config worker --loglevel=info --concurrency=2 --max-tasks-per-child=200
+```
+
+The web service and the worker must share `DATABASE_URL`, `REDIS_URL`,
+`SECRET_KEY`, `STORAGE_BACKEND` and the `AWS_*` keys. Set `EMAIL_ASYNC=true`
+only when the worker is running, so email retries are dispatched to it.
+
+Without a worker everything still works: the same functions run inside the
+request, the progress page simply finishes immediately. That is the right
+choice for a single-classroom installation.
+
+#### Gunicorn sizing
+
+`gunicorn.conf.py` uses `gthread` with `WEB_CONCURRENCY` workers and
+`GUNICORN_THREADS` threads. A useful starting point:
+
+| Users | Web service | Workers × threads | Redis | Celery worker |
+| --- | --- | --- | --- | --- |
+| up to 1,000 | 512 MB | 2 × 2 | optional | optional |
+| 1,000–5,000 | 1–2 GB | 3 × 3 | yes | 1 × 2 |
+| 5,000–10,000+ | 2 GB+ | 4 × 4, plus a second instance behind Render's load balancer | yes | 2 × 4 |
+
+Keep total database connections below the PostgreSQL plan's limit. With
+Supabase use the **session pooler** and `CONN_MAX_AGE=600` (already set); the
+transaction pooler (port `6543`) is not suitable for a long-lived Django
+process.
 
 ### School identity
 

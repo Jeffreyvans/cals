@@ -10,7 +10,7 @@ services:
     runtime: python
     plan: free
     buildCommand: ./build.sh
-    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    startCommand: gunicorn config.wsgi:application --config gunicorn.conf.py
     healthCheckPath: /health/
     autoDeploy: true
     envVars:
@@ -18,6 +18,12 @@ services:
         value: 3.12.10
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: GUNICORN_THREADS
+        value: "2"
+      - key: GUNICORN_TIMEOUT
+        value: "60"
       - key: DEBUG
         value: "false"
       - key: SECRET_KEY
@@ -39,6 +45,17 @@ services:
 
       # PostgreSQL (Render, Supabase session pooler, Neon, ...).
       - key: DATABASE_URL
+        sync: false
+
+      # Redis is optional. Without it the process-local cache is used and
+      # imports, exports and newsletters run inline. With REDIS_URL set, the
+      # same URL is the Celery broker; add the worker service described in
+      # DEPLOY.md (or set CELERY_BROKER_URL explicitly).
+      - key: REDIS_URL
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
         sync: false
 
       # Email through the Mailjet HTTPS API (django-anymail). Render blocks

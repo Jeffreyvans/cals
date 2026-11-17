@@ -19,6 +19,7 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from core.models import Institution
+from core.uploads import document_upload_validator
 
 
 def application_document_path(instance, filename):
@@ -256,7 +257,10 @@ class ApplicationDocument(models.Model):
         InstitutionApplication, on_delete=models.CASCADE, related_name="documents"
     )
     kind = models.CharField(max_length=40, choices=Kind.choices)
-    file = models.FileField(upload_to=application_document_path)
+    file = models.FileField(
+        upload_to=application_document_path,
+        validators=[document_upload_validator],
+    )
     original_name = models.CharField(max_length=255)
     content_type = models.CharField(max_length=100, blank=True)
     size = models.PositiveIntegerField(default=0)

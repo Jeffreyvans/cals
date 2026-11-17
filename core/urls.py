@@ -4,6 +4,7 @@ from django.urls import path
 from . import (
     approvals,
     import_views,
+    job_views,
     module_directory,
     org,
     public_views,
@@ -34,6 +35,9 @@ urlpatterns = [
          name="import_credentials"),
     path("imports/<int:pk>/undo/", import_views.import_undo, name="import_undo"),
     path("imports/<int:pk>/errors.csv", import_views.import_errors, name="import_errors"),
+    path("jobs/<int:pk>/", job_views.job_detail, name="job_detail"),
+    path("jobs/<int:pk>/status.json", job_views.job_status, name="job_status"),
+    path("jobs/<int:pk>/download/", job_views.job_download, name="job_download"),
     path("settings/institution/", views.settings_view, name="institution_settings"),
     path("settings/numbering/", views.numbering_settings, name="numbering_settings"),
     path("settings/roles/", views.role_list, name="role_list"),

@@ -48,19 +48,44 @@ def permission_codes_for(user):
     cached = getattr(user, "_permission_codes", None)
     if cached is not None:
         return cached
-    if user.is_superuser:
-        from core.models import RolePermission
+    codes = None
+    from django.conf import settings
 
-        codes = set(RolePermission.objects.values_list("permission__code", flat=True))
-    else:
-        from core.models import RolePermission
+    # Cross-request caching only outside the test suite: a test that changes a
+    # role and immediately makes a request must always see the new permissions.
+    if not settings.TESTING and getattr(user, "pk", None):
+        from core.cache import permission_cache_key
 
-        role_ids = list(_roles_for_user(user).values_list("id", flat=True))
-        codes = set(
-            RolePermission.objects.filter(role_id__in=role_ids).values_list(
-                "permission__code", flat=True
+        key = permission_cache_key(user)
+        from django.core.cache import cache
+
+        stored = cache.get(key)
+        if stored is not None:
+            codes = set(stored)
+    if codes is None:
+        if user.is_superuser:
+            from core.models import RolePermission
+
+            codes = set(RolePermission.objects.values_list("permission__code", flat=True))
+        else:
+            from core.models import RolePermission
+
+            role_ids = list(_roles_for_user(user).values_list("id", flat=True))
+            codes = set(
+                RolePermission.objects.filter(role_id__in=role_ids).values_list(
+                    "permission__code", flat=True
+                )
             )
-        )
+        if not settings.TESTING and getattr(user, "pk", None):
+            from django.core.cache import cache
+
+            from core.cache import permission_cache_key
+
+            cache.set(
+                permission_cache_key(user),
+                sorted(codes),
+                getattr(settings, "CACHE_TTL_PERMISSIONS", 300),
+            )
     user._permission_codes = codes
     return codes
 

@@ -1,0 +1,28 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}New institution{% endblock %}
+{% block platform_heading %}New institution{% endblock %}
+{% block platform_content %}
+<p class="muted">
+  Create a school or college directly. Its modules are switched on from the
+  type you choose, and you can add the first administrator afterwards.
+</p>
+
+<form method="post" class="card" style="max-width: 720px;">
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="msg error">{{ form.non_field_errors }}</div>
+  {% endif %}
+  {% for field in form %}
+    <p>
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<br><span class="muted">{{ field.help_text }}</span>{% endif %}
+      {% for error in field.errors %}<br><span class="error">{{ error }}</span>{% endfor %}
+    </p>
+  {% endfor %}
+  <p>
+    <button class="btn" type="submit">Create institution</button>
+    <a class="btn ghost" href="{% url 'platform_admin:institutions' %}">Cancel</a>
+  </p>
+</form>
+{% endblock %}

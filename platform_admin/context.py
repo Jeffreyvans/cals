@@ -11,8 +11,13 @@ def platform_context(request):
     if staff is None:
         return {}
     grant = active_grants_for(user).first()
+    role = staff.role
+    permissions = set(role.permissions or []) if role is not None else set()
+    if staff.is_main_admin:
+        permissions.add("*")
     return {
         "PLATFORM_STAFF": staff,
+        "PLATFORM_PERMISSIONS": permissions,
         "PLATFORM_IS_MAIN": staff.is_main_admin,
         "PLATFORM_GRANT": grant,
         "PLATFORM_GRANT_BANNER": grant.banner if grant is not None else "",

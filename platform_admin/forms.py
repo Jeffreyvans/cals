@@ -174,6 +174,53 @@ class InstitutionEditForm(forms.ModelForm):
         return max(1, min(int(hours), 168))
 
 
+class InstitutionCreateForm(forms.ModelForm):
+    """Create a school directly, without waiting for a public application."""
+
+    slug = forms.SlugField(
+        max_length=100,
+        required=False,
+        help_text="Leave blank to build one from the name.",
+    )
+
+    class Meta:
+        model = Institution
+        fields = [
+            "name", "type", "address", "contact_email", "contact_phone",
+            "website", "public_page_enabled", "access_grant_max_hours",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["slug"].initial = ""
+        self.fields["contact_email"].required = False
+        self.fields["contact_phone"].required = False
+        self.fields["website"].required = False
+        self.fields["address"].required = False
+
+    def clean_slug(self):
+        from django.utils.text import slugify
+
+        value = (self.cleaned_data.get("slug") or "").strip()
+        value = value or slugify(self.cleaned_data.get("name", ""))[:100]
+        if not value:
+            raise ValidationError("Enter a name that can become a web address.")
+        if Institution.objects.filter(slug=value).exists():
+            raise ValidationError("That web address is already used by another institution.")
+        return value
+
+    def clean_access_grant_max_hours(self):
+        hours = self.cleaned_data.get("access_grant_max_hours") or 24
+        return max(1, min(int(hours), 168))
+
+    def save(self, commit=True):
+        institution = super().save(commit=False)
+        institution.slug = self.cleaned_data["slug"]
+        if commit:
+            institution.save()
+        return institution
+
+
 class PlanForm(forms.ModelForm):
     # The model stores a JSON list, but people choose module names, so the form
     # owns a multiple-choice field and writes a plain list back to the model.

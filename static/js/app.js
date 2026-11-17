@@ -116,3 +116,10 @@ function initSearch(){
     chartDefaults();
   });
 })();
+
+/* Keep the app shell on the device for repeat visits on slow connections. */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').catch(function () { /* offline support is optional */ });
+  });
+}

@@ -185,14 +185,11 @@ def staff_list(request):
     _require(request, "admin.manage_departments")
     inst = _institution(request)
     query = request.GET.get("q", "").strip()
-    rows = StaffProfile.objects.filter(institution=inst).select_related("user")
+    rows = StaffProfile.objects.filter(institution=inst).select_related("user").prefetch_related("departments")
     if query:
-        from core.numbering import number_key
+        from core.numbering import matching_pks
 
-        number_pks = [
-            pk for pk, value in rows.values_list("pk", "employee_no")
-            if number_key(query) in number_key(value)
-        ]
+        number_pks = matching_pks(rows, "employee_no", query, limit=200)
         rows = rows.filter(
             Q(user__first_name__icontains=query)
             | Q(user__last_name__icontains=query)
@@ -200,14 +197,22 @@ def staff_list(request):
             | Q(pk__in=number_pks)
             | Q(job_title__icontains=query)
         )
-    for row in rows:
-        row.department_list = ", ".join(row.departments.values_list("name", flat=True))
+    from urllib.parse import urlencode
+
+    from django.core.paginator import Paginator
+
+    page = Paginator(rows.order_by("user__last_name", "user__first_name"), 25).get_page(
+        request.GET.get("page"))
+    for row in page.object_list:
+        row.department_list = ", ".join(d.name for d in row.departments.all())
     without = _staff_users(inst).exclude(
         pk__in=StaffProfile.objects.filter(institution=inst).values_list("user_id", flat=True)
-    )
+    )[:100]
     return render(request, "core/staff_list.html", {
         "inst": inst,
-        "rows": rows,
+        "rows": page.object_list,
+        "page_obj": page,
+        "extra_query": ("&" + urlencode({"q": query})) if query else "",
         "query": query,
         "without_profile": without,
     })

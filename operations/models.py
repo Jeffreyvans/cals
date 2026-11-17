@@ -16,6 +16,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from core.models import TenantModel
+from core.uploads import document_upload_validator
 
 
 def _zero():
@@ -86,7 +87,9 @@ class StaffDocument(TenantModel):
     )
     title = models.CharField(max_length=150)
     kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.OTHER)
-    file = models.FileField(upload_to="operations/staff/", blank=True)
+    file = models.FileField(
+        upload_to="operations/staff/", blank=True,
+        validators=[document_upload_validator])
     confidential = models.BooleanField(default=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -270,7 +273,9 @@ class JobApplication(TenantModel):
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
     cover_letter = models.TextField(blank=True)
-    cv = models.FileField(upload_to="operations/cvs/", blank=True)
+    cv = models.FileField(
+        upload_to="operations/cvs/", blank=True,
+        validators=[document_upload_validator])
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RECEIVED)
     applied_at = models.DateTimeField(default=timezone.now)
 
@@ -1138,7 +1143,9 @@ class Policy(TenantModel):
     category = models.CharField(max_length=80, blank=True)
     version = models.CharField(max_length=20, default="1.0")
     body = models.TextField(blank=True)
-    file = models.FileField(upload_to="operations/policies/", blank=True)
+    file = models.FileField(
+        upload_to="operations/policies/", blank=True,
+        validators=[document_upload_validator])
     effective_date = models.DateField(default=timezone.localdate)
     review_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)

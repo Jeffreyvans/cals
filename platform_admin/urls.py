@@ -27,6 +27,8 @@ urlpatterns = [
          name="platform_request_detail"),
     # Institutions.
     path("platform/institutions/", views.institutions, name="institutions"),
+    path("platform/institutions/new/", views.institution_create,
+         name="institution_create"),
     path("platform/institutions/<int:pk>/", views.institution_detail,
          name="institution_detail"),
     path("platform/institutions/<int:pk>/modules/", views.institution_modules,

@@ -1,7 +1,9 @@
 """Screens for the foundation: settings, roles, notifications and the audit log."""
 
 import csv
+from pathlib import Path
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -28,6 +30,26 @@ PERM_CATEGORIES = []
 for _code, _desc, _cat in PERMISSIONS:
     if _cat not in PERM_CATEGORIES:
         PERM_CATEGORIES.append(_cat)
+
+
+def service_worker(request):
+    """Serve the worker from the site root so it can control every page."""
+    path = Path(settings.BASE_DIR) / "static" / "js" / "sw.js"
+    try:
+        body = path.read_text(encoding="utf-8")
+    except OSError:  # a source checkout without the file must not 500
+        body = "/* service worker unavailable */\n"
+    response = HttpResponse(body, content_type="application/javascript")
+    response["Cache-Control"] = "no-cache"
+    response["Service-Worker-Allowed"] = "/"
+    return response
+
+
+def offline(request):
+    """The small page the service worker shows when the network is gone."""
+    response = render(request, "offline.html")
+    response["Cache-Control"] = "public, max-age=3600"
+    return response
 
 
 def _require(request, code):

@@ -35,6 +35,7 @@ from .forms import (
     DataProcessingAcceptanceForm,
     EmergencyAccessForm,
     InstitutionApplicationForm,
+    InstitutionCreateForm,
     InstitutionEditForm,
     PasswordConfirmForm,
     PlanForm,
@@ -546,15 +547,57 @@ def institutions(request):
         queryset = queryset.filter(
             Q(name__icontains=search) | Q(slug__icontains=search) | Q(address__icontains=search)
         )
+    from django.core.paginator import Paginator
+
+    page = Paginator(queryset.order_by("name"), 25).get_page(request.GET.get("page"))
     return render(
         request,
         "platform_admin/institutions.html",
         {
-            "institutions": queryset,
+            "institutions": page.object_list,
+            "page_obj": page,
             "status": status,
             "search": search,
             "staff": request.platform_staff,
         },
+    )
+
+
+@platform_required("platform.manage_institutions")
+def institution_create(request):
+    """Create an institution and switch on the modules its type expects."""
+    from django.db import transaction
+
+    from core.modules import apply_defaults
+
+    form = InstitutionCreateForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            institution = form.save()
+            apply_defaults(institution)
+            services.log_platform_action(
+                request.user,
+                "institution.created",
+                institution=institution,
+                record_type="Institution",
+                record_id=institution.pk,
+                after={
+                    "name": institution.name,
+                    "slug": institution.slug,
+                    "type": institution.type,
+                },
+                request=request,
+            )
+        messages.success(
+            request,
+            f"{institution.name} was created. Add its first administrator from the "
+            "institution's Admins screen.",
+        )
+        return redirect("platform_admin:institution_detail", pk=institution.pk)
+    return render(
+        request,
+        "platform_admin/institution_create.html",
+        {"form": form, "staff": request.platform_staff},
     )
 
 
@@ -597,35 +640,13 @@ def institution_detail(request, pk):
             if not request.platform_staff.has_permission("platform.manage_institutions"):
                 raise PermissionDenied("Your platform role cannot change institutions.")
             reason = (request.POST.get("reason") or "").strip()
-            now = timezone.now()
-            before = {
-                "is_active": institution.is_active,
-                "suspended": institution.suspended_at is not None,
-                "archived": institution.archived_at is not None,
-            }
-            if action == "suspend":
-                institution.is_active = False
-                institution.suspended_at = now
-                institution.suspended_reason = reason
-                institution.save(update_fields=["is_active", "suspended_at", "suspended_reason"])
-            elif action == "reinstate":
-                institution.is_active = True
-                institution.suspended_at = None
-                institution.suspended_reason = ""
-                institution.save(update_fields=["is_active", "suspended_at", "suspended_reason"])
-            elif action == "archive":
-                institution.is_active = False
-                institution.archived_at = now
-                institution.archived_reason = reason
-                institution.save(update_fields=["is_active", "archived_at", "archived_reason"])
-            elif action == "restore":
-                institution.archived_at = None
-                institution.archived_reason = ""
-                institution.save(update_fields=["archived_at", "archived_reason"])
-            elif action == "delete":
-                institution.is_active = False
-                institution.deleted_at = now
-                institution.save(update_fields=["is_active", "deleted_at"])
+            from .lifecycle import change_lifecycle
+
+            try:
+                before, after = change_lifecycle(institution, action, reason=reason)
+            except ValidationError as exc:
+                messages.error(request, " ".join(exc.messages))
+                return redirect("platform_admin:institution_detail", pk=institution.pk)
             services.log_platform_action(
                 request.user,
                 f"institution.{action}",
@@ -633,12 +654,7 @@ def institution_detail(request, pk):
                 record_type="Institution",
                 record_id=institution.pk,
                 before=before,
-                after={
-                    "is_active": institution.is_active,
-                    "suspended": institution.suspended_at is not None,
-                    "archived": institution.archived_at is not None,
-                    "reason": reason,
-                },
+                after={**after, "reason": reason},
                 request=request,
             )
             messages.success(request, f"Institution {action}d.")

@@ -39,7 +39,7 @@ class ApplicationAccessTests(PlatformTestBase):
     def test_an_institution_user_without_a_platform_row_is_refused(self):
         self.client.force_login(self.teacher)
         response = self.client.get(reverse("platform_admin:applications"))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_a_superuser_without_a_platform_row_is_refused(self):
         superuser = self.inst_admin.__class__.objects.create_user(
@@ -52,7 +52,7 @@ class ApplicationAccessTests(PlatformTestBase):
         )
         self.client.force_login(superuser)
         response = self.client.get(reverse("platform_admin:applications"))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_the_billing_role_cannot_open_applications(self):
         self.login(self.billing)

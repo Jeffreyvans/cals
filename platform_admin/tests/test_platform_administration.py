@@ -84,6 +84,13 @@ class InstitutionAdministrationTests(PlatformTestBase):
         self.inst.refresh_from_db()
         self.assertIsNone(self.inst.archived_at)
 
+        # Deleting needs a *current* archive, so a restored institution must be
+        # archived again first. This keeps a live school from being deleted by a
+        # stale page that still shows the delete button.
+        self.client.post(url, {"action": "delete"})
+        self.inst.refresh_from_db()
+        self.assertIsNone(self.inst.deleted_at)
+        self.client.post(url, {"action": "archive", "reason": "Closed in 2025."})
         self.client.post(url, {"action": "delete"})
         self.inst.refresh_from_db()
         self.assertIsNotNone(self.inst.deleted_at)
@@ -156,6 +163,79 @@ class InstitutionAdministrationTests(PlatformTestBase):
         self.assertEqual(entry.before["name"], "Alpha College")
         self.assertEqual(entry.after["name"], "Alpha College Renamed")
         self.assertEqual(entry.after["access_grant_max_hours"], 12)
+
+    def test_main_admin_creates_an_institution_with_default_modules(self):
+        self.login(self.main)
+        response = self.client.post(
+            reverse("platform_admin:institution_create"),
+            {
+                "name": "Newtown Secondary School",
+                "type": Institution.Type.SECONDARY,
+                "slug": "",
+                "address": "2 Main Street",
+                "contact_email": "office@newtown.example",
+                "contact_phone": "+263772222222",
+                "website": "",
+                "public_page_enabled": "on",
+                "access_grant_max_hours": 24,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        created = Institution.objects.get(slug="newtown-secondary-school")
+        self.assertEqual(created.name, "Newtown Secondary School")
+        self.assertTrue(created.is_active)
+        self.assertTrue(
+            InstitutionModule.objects.filter(
+                institution=created, enabled=True
+            ).exists()
+        )
+        self.assertTrue(
+            PlatformAuditLog.objects.filter(
+                action="institution.created", institution=created
+            ).exists()
+        )
+        listing = self.client.get(reverse("platform_admin:institutions"))
+        self.assertContains(listing, "Newtown Secondary School")
+
+    def test_support_cannot_create_an_institution(self):
+        self.login(self.support)
+        response = self.client.get(reverse("platform_admin:institution_create"))
+        self.assertEqual(response.status_code, 403)
+        response = self.client.post(
+            reverse("platform_admin:institution_create"),
+            {"name": "Not Allowed School", "type": Institution.Type.SECONDARY},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Institution.objects.filter(name="Not Allowed School").exists())
+
+    def test_delete_is_refused_until_the_institution_is_archived(self):
+        self.login(self.main)
+        url = reverse("platform_admin:institution_detail", args=[self.inst.pk])
+        response = self.client.post(url, {"action": "delete"}, follow=True)
+        self.inst.refresh_from_db()
+        self.assertIsNone(self.inst.deleted_at)
+        self.assertContains(response, "Archive the institution first")
+
+    def test_the_default_institution_can_never_be_deleted(self):
+        default = Institution.objects.get(slug="default")
+        default.is_active = False
+        default.archived_at = timezone.now()
+        default.save(update_fields=["is_active", "archived_at"])
+        self.login(self.main)
+        response = self.client.post(
+            reverse("platform_admin:institution_detail", args=[default.pk]),
+            {"action": "delete"},
+            follow=True,
+        )
+        default.refresh_from_db()
+        self.assertIsNone(default.deleted_at)
+        self.assertContains(response, "default institution cannot be deleted")
+
+    def test_an_institution_admin_gets_a_404_on_the_platform(self):
+        self.client.force_login(self.inst_admin)
+        for name in ("dashboard", "institutions", "institution_create"):
+            response = self.client.get(reverse(f"platform_admin:{name}"))
+            self.assertEqual(response.status_code, 404, name)
 
     def test_module_switches_need_the_manage_modules_permission(self):
         self.login(self.support)
@@ -589,11 +669,12 @@ class PlatformOperationsTests(PlatformTestBase):
             PlatformAuditLog.objects.filter(action="platform_request.approve").exists()
         )
 
-    def test_acting_without_a_platform_row_is_forbidden(self):
+    def test_acting_without_a_platform_row_is_not_found(self):
+        # A normal institution user must not even learn that /platform/ exists.
         self.login(self.teacher)
         for name in ("dashboard", "institutions", "audit_log", "health"):
             response = self.client.get(reverse(f"platform_admin:{name}"))
-            self.assertEqual(response.status_code, 403, name)
+            self.assertEqual(response.status_code, 404, name)
 
     def test_an_inactive_platform_staff_row_grants_nothing(self):
         self.support_staff.is_active = False
@@ -601,7 +682,7 @@ class PlatformOperationsTests(PlatformTestBase):
         self.forget_platform_cache(self.support)
         self.client.force_login(self.support)
         response = self.client.get(reverse("platform_admin:dashboard"))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_a_platform_admin_never_sees_an_institution_consent_page(self):
         self.login(self.main)

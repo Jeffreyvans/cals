@@ -2,6 +2,13 @@
 {% block platform_title %}Institutions{% endblock %}
 {% block platform_heading %}Institutions{% endblock %}
 {% block platform_content %}
+<div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+  <p class="muted" style="margin:0;">{{ page_obj.paginator.count }} institution{{ page_obj.paginator.count|pluralize }}</p>
+  {% if "*" in PLATFORM_PERMISSIONS or "platform.manage_institutions" in PLATFORM_PERMISSIONS %}
+    <a class="btn" href="{% url 'platform_admin:institution_create' %}">New institution</a>
+  {% endif %}
+</div>
+
 <form method="get" class="inline wide" style="margin-bottom:16px;">
   <p><input name="q" value="{{ search }}" placeholder="Search name, slug or address"></p>
   <p><select name="status">
@@ -30,4 +37,11 @@
     <tr><td colspan="5" class="muted">No institutions match.</td></tr>
   {% endfor %}
 </table>
+{% if page_obj.has_other_pages %}
+<nav class="pagination" aria-label="Institution pages">
+  {% if page_obj.has_previous %}<a class="btn ghost btn-sm" href="?page={{ page_obj.previous_page_number }}{% if search %}&q={{ search|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}">Previous</a>{% endif %}
+  <span class="muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a class="btn ghost btn-sm" href="?page={{ page_obj.next_page_number }}{% if search %}&q={{ search|urlencode }}{% endif %}{% if status %}&status={{ status }}{% endif %}">Next</a>{% endif %}
+</nav>
+{% endif %}
 {% endblock %}

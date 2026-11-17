@@ -268,6 +268,12 @@ class Invoice(ImmutableFinancialDocument, TenantModel):
             models.UniqueConstraint(fields=["institution", "number"],
                                     name="uniq_invoice_number")
         ]
+        indexes = [
+            models.Index(fields=["institution", "-created"], name="invoice_inst_created_idx"),
+            models.Index(fields=["institution", "due_date"], name="invoice_inst_due_idx"),
+            models.Index(fields=["student"], name="invoice_student_idx"),
+            models.Index(fields=["term"], name="invoice_term_idx"),
+        ]
 
     def __str__(self): return f"{self.description} – {self.student.name}"
 
@@ -370,6 +376,11 @@ class Payment(ImmutableFinancialDocument, TenantModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["institution", "receipt_no"], name="uniq_receipt_no")
+        ]
+        indexes = [
+            models.Index(fields=["institution", "-paid_on"], name="payment_inst_paid_idx"),
+            models.Index(fields=["invoice"], name="payment_invoice_idx"),
+            models.Index(fields=["method"], name="payment_method_idx"),
         ]
 
     def __str__(self): return f"{self.receipt_no} {self.amount}"

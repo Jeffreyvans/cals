@@ -7,4 +7,9 @@ class CoreConfig(AppConfig):
     verbose_name = "Core"
 
     def ready(self):
-        from . import checks  # noqa: F401  (registers the system checks)
+        from . import (
+            cache_signals,
+            checks,  # noqa: F401  (registers the system checks)
+        )
+
+        cache_signals.connect()

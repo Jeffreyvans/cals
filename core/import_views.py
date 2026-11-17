@@ -12,11 +12,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 
-from core import importer
+from core import importer, jobs, tasks
 from core.access import user_has_code
-from core.audit import log_action
 from core.models import ImportBatch, Institution
 
 PREVIEW_LIMIT = 25
@@ -196,22 +194,18 @@ def import_run(request, pk):
     if not batch.mapping:
         messages.error(request, "Map the columns first.")
         return redirect("import_map", pk=batch.pk)
-    results = importer.validate(batch.kind, batch.data_rows, batch.mapping,
-                                 batch.institution)
-    imported, errors = importer.run_import(
-        batch.kind, results, batch.institution, request.user,
-        access_mode=batch.access_mode, batch=batch,
-    )
-    batch.imported_count = imported
-    batch.error_count = len(errors)
-    batch.errors = errors
-    batch.status = ImportBatch.Status.IMPORTED if imported else ImportBatch.Status.FAILED
-    batch.finished = timezone.now()
-    batch.save(update_fields=["imported_count", "error_count", "errors", "status", "finished"])
-    log_action(request.user, "import.imported", batch,
-               after={"kind": batch.kind, "imported": imported, "errors": len(errors),
-                      "access_mode": batch.access_mode},
-               request=request)
+    if jobs.jobs_available():
+        job = jobs.create_job(
+            "import", batch.institution, request.user,
+            label=f"{batch.get_kind_display()} from {batch.filename}",
+            total=len(batch.data_rows), object_id=batch.pk,
+        )
+        jobs.enqueue(tasks.run_import_job, job)
+        messages.success(
+            request,
+            "The import is running in the background. This page shows its progress.")
+        return redirect("job_detail", pk=job.pk)
+    imported, errors = jobs.perform_import(batch, request.user)
     if imported:
         messages.success(request, f"{imported} rows imported.")
     if errors:

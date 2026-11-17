@@ -224,8 +224,11 @@ class PublicApplicationTests(TestCase):
     def test_documents_are_saved_with_the_application(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
+        # A real (minimal) PDF header, because uploads are checked by signature.
+        pdf = (b"%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n"
+               b"trailer<</Root 1 0 R>>\n%%EOF\n")
         response = self.client.post(self.url, self.payload(
-            identity_document=SimpleUploadedFile("id.pdf", b"identity")))
+            identity_document=SimpleUploadedFile("id.pdf", pdf)))
         self.assertEqual(response.status_code, 302)
         document = ApplicantDocument.objects.get()
         self.assertEqual(document.kind, ApplicantDocument.Kind.ID)

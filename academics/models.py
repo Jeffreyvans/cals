@@ -9,6 +9,11 @@ from django.db import models, transaction
 from django.db.models import Q, Sum
 
 from core.models import TenantModel
+from core.uploads import (
+    document_upload_validator,
+    image_upload_validator,
+    shrink_image_field,
+)
 
 DAY_CHOICES = [(1, "Monday"), (2, "Tuesday"), (3, "Wednesday"), (4, "Thursday"),
                (5, "Friday"), (6, "Saturday"), (7, "Sunday")]
@@ -579,7 +584,11 @@ class Student(TenantModel):
     date_of_birth = models.DateField(null=True, blank=True)
     guardian_name = models.CharField(max_length=120, blank=True)
     guardian_phone = models.CharField(max_length=30, blank=True)
-    photo = models.ImageField(upload_to="students/photos/", blank=True)
+    photo = models.ImageField(
+        upload_to="students/photos/", blank=True,
+        validators=[image_upload_validator],
+        help_text="PNG, JPG or WebP up to 5 MB. Large pictures are shrunk automatically.",
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     created = models.DateTimeField(auto_now_add=True)
 
@@ -587,9 +596,17 @@ class Student(TenantModel):
         constraints = [
             models.UniqueConstraint(fields=["institution", "student_no"], name="uniq_student_no")
         ]
+        indexes = [
+            models.Index(fields=["institution", "status"], name="student_inst_status_idx"),
+            models.Index(fields=["institution", "school_class"], name="student_inst_class_idx"),
+            models.Index(fields=["institution", "programme"], name="student_inst_prog_idx"),
+            models.Index(fields=["student_no"], name="student_no_idx"),
+            models.Index(fields=["-created"], name="student_created_idx"),
+        ]
 
     def save(self, *a, **kw):
         adding = self._state.adding
+        shrink_image_field(self, "photo")
         with transaction.atomic():
             if adding and not self.student_no:
                 from core.numbering import next_number
@@ -865,6 +882,12 @@ class Enrollment(TenantModel):
             models.UniqueConstraint(fields=["student", "subject", "term"],
                 condition=Q(subject__isnull=False), name="uniq_enrol_subject"),
         ]
+        indexes = [
+            models.Index(fields=["institution", "term", "status"], name="enrol_inst_term_idx"),
+            models.Index(fields=["student", "term"], name="enrol_student_term_idx"),
+            models.Index(fields=["course"], name="enrol_course_idx"),
+            models.Index(fields=["subject"], name="enrol_subject_idx"),
+        ]
 
     def clean(self):
         super().clean()
@@ -1111,7 +1134,8 @@ class Activity(TenantModel):
     date = models.DateField()
     due_date = models.DateField(null=True, blank=True)
     detail = models.TextField(blank=True)
-    attachment = models.FileField(upload_to="activities/", blank=True)
+    attachment = models.FileField(
+        upload_to="activities/", blank=True, validators=[document_upload_validator])
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                     on_delete=models.SET_NULL)
     class Meta:
@@ -1133,7 +1157,9 @@ class AssignmentSubmission(TenantModel):
     student = models.ForeignKey(Student, on_delete=models.CASCADE,
                                 related_name="assignment_submissions")
     text = models.TextField(blank=True)
-    file = models.FileField(upload_to="assignments/submissions/", blank=True)
+    file = models.FileField(
+        upload_to="assignments/submissions/", blank=True,
+        validators=[document_upload_validator])
     submitted_at = models.DateTimeField(auto_now_add=True)
     feedback = models.TextField(blank=True)
     mark = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
@@ -1173,6 +1199,11 @@ class Attendance(TenantModel):
 
     class Meta:
         unique_together = ("enrollment", "date")
+        indexes = [
+            models.Index(fields=["institution", "date"], name="att_inst_date_idx"),
+            models.Index(fields=["enrollment", "date"], name="att_enrol_date_idx"),
+            models.Index(fields=["institution", "present"], name="att_inst_present_idx"),
+        ]
 
     def save(self, *a, **kw):
         if self.status in self.ATTENDED:

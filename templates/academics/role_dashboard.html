@@ -13,12 +13,24 @@
 <div class="grid2">
   <section class="card">
     <h2>Collections, last six months</h2>
-    {% if month_labels %}<canvas id="collectionsChart" height="220"></canvas>
+    {% if LOW_DATA %}
+      {% if month_rows %}
+      <table class="tbl"><tr><th>Month</th><th>Collected</th></tr>
+      {% for label, amount in month_rows %}<tr><td>{{ label }}</td><td>{{ CUR }}{{ amount|floatformat:2 }}</td></tr>{% endfor %}
+      </table>
+      {% else %}<p class="muted">No payments have been received in the last six months.</p>{% endif %}
+    {% elif month_labels %}<canvas id="collectionsChart" height="220"></canvas>
     {% else %}<p class="muted">No payments have been received in the last six months.</p>{% endif %}
   </section>
   <section class="card">
     <h2>Active students by class</h2>
-    {% if class_labels %}<canvas id="classesChart" height="220"></canvas>
+    {% if LOW_DATA %}
+      {% if class_rows %}
+      <table class="tbl"><tr><th>Class</th><th>Students</th></tr>
+      {% for label, count in class_rows %}<tr><td>{{ label }}</td><td>{{ count }}</td></tr>{% endfor %}
+      </table>
+      {% else %}<p class="muted">No active students are placed in a class or year yet.</p>{% endif %}
+    {% elif class_labels %}<canvas id="classesChart" height="220"></canvas>
     {% else %}<p class="muted">No active students are placed in a class or year yet.</p>{% endif %}
   </section>
 </div>
@@ -55,6 +67,7 @@
 {% empty %}<p class="muted">No announcements yet.</p>{% endfor %}
 {% endblock %}
 {% block js %}
+{% if not LOW_DATA %}
 {{ month_labels|json_script:"month-labels" }}
 {{ month_values|json_script:"month-values" }}
 {{ class_labels|json_script:"class-labels" }}
@@ -90,4 +103,5 @@
   });
 })();
 </script>
+{% endif %}
 {% endblock %}

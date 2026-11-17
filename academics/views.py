@@ -355,6 +355,36 @@ def _report_context(s, user):
 
 
 # ---------- dashboard ----------
+def _institution_id_for(request):
+    institution = getattr(request, "institution", None)
+    if institution is not None:
+        return institution.pk
+    from core.tenancy import current_institution_id
+
+    return current_institution_id()
+
+
+def _staff_dashboard_figures():
+    billed, paid, waived = balances_by_student()
+    active_ids = list(
+        Student.objects.filter(status="active").values_list("pk", flat=True)
+    )
+    owing = 0
+    for pk in active_ids:
+        balance = (
+            billed.get(pk, Decimal("0"))
+            - paid.get(pk, Decimal("0"))
+            - waived.get(pk, Decimal("0"))
+        )
+        if balance > 0:
+            owing += 1
+    return {
+        "students": len(active_ids),
+        "owing": owing,
+        "courses": Course.objects.count(),
+    }
+
+
 @login_required
 def dashboard(request):
     u = request.user
@@ -367,37 +397,37 @@ def dashboard(request):
         return redirect("lecturer_portal")
     if u.role == "parent":
         return redirect("parent_portal")
-    billed, paid, waived = balances_by_student()
-    ctx = {"students": Student.objects.filter(status="active").count(),
-           "owing": sum(1 for s in Student.objects.all()
-                         if billed.get(s.pk, Decimal("0")) - paid.get(s.pk, Decimal("0"))
-                         - waived.get(s.pk, Decimal("0")) > 0),
-           "courses": Course.objects.count(),
-           "announcements": Announcement.visible_to(request.user)[:5],
-           "events": CalendarEvent.upcoming(request.user, limit=6)}
+    from core.cache import dashboard_figures
+
+    ctx = dashboard_figures(
+        _institution_id_for(request), _staff_dashboard_figures, kind="staff")
+    ctx = dict(ctx)
+    ctx["announcements"] = Announcement.visible_to(request.user)[:5]
+    ctx["events"] = CalendarEvent.upcoming(request.user, limit=6)
     return render(request, "academics/staff_dashboard.html", ctx)
 
 
-@login_required
-@permission_required_code("reports.view_dashboards", "admin.dashboard_school")
-def role_dashboard(request):
-    """Charts and at-risk students for the roles that run the institution."""
+def _role_dashboard_figures():
     from django.db.models import Sum
     from django.db.models.functions import TruncMonth
 
     from finance.models import Payment
 
-    students = Student.objects.filter(status="active").select_related(
-        "user", "school_class")
+    students = Student.objects.filter(status="active")
     billed, paid, waived = balances_by_student()
     total_billed = sum(billed.values(), Decimal("0"))
     total_paid = sum(paid.values(), Decimal("0"))
     total_waived = sum(waived.values(), Decimal("0"))
-    outstanding = sum(
-        (max(billed[s.pk] - paid.get(s.pk, Decimal("0"))
-             - waived.get(s.pk, Decimal("0")), Decimal("0"))
-         for s in students if s.pk in billed),
-        Decimal("0"))
+    outstanding = Decimal("0")
+    for pk in students.values_list("pk", flat=True):
+        if pk in billed:
+            amount = (
+                billed[pk]
+                - paid.get(pk, Decimal("0"))
+                - waived.get(pk, Decimal("0"))
+            )
+            if amount > 0:
+                outstanding += amount
     collection_rate = (
         round((total_paid * 100 / (total_billed - total_waived)), 1)
         if total_billed > total_waived else None)
@@ -427,21 +457,40 @@ def role_dashboard(request):
     month_labels = [row["month"].strftime("%b %Y") for row in monthly]
     month_values = [float(row["total"]) for row in monthly]
 
-    at_risk = []
-    if user_has_code(request.user, "reports.view_at_risk"):
-        at_risk = compute_at_risk(students=students)[:25]
-
-    return render(request, "academics/role_dashboard.html", {
+    return {
         "students": students.count(),
         "total_billed": total_billed, "total_paid": total_paid,
         "total_waived": total_waived, "outstanding": outstanding,
         "collection_rate": collection_rate, "attendance_pct": attendance_pct,
         "term": term, "class_labels": class_labels,
         "class_values": class_values, "month_labels": month_labels,
-        "month_values": month_values, "at_risk": at_risk,
+        "month_values": month_values,
+        "class_rows": list(zip(class_labels, class_values, strict=False)),
+        "month_rows": list(zip(month_labels, month_values, strict=False)),
+    }
+
+
+@login_required
+@permission_required_code("reports.view_dashboards", "admin.dashboard_school")
+def role_dashboard(request):
+    """Charts and at-risk students for the roles that run the institution."""
+    from core.cache import dashboard_figures
+
+    figures = dashboard_figures(
+        _institution_id_for(request), _role_dashboard_figures, kind="role")
+    ctx = dict(figures)
+    at_risk = []
+    if user_has_code(request.user, "reports.view_at_risk"):
+        students = Student.objects.filter(status="active").select_related(
+            "user", "school_class")
+        at_risk = compute_at_risk(students=students)[:25]
+    ctx.update({
+        "at_risk": at_risk,
         "can_view_at_risk": user_has_code(request.user, "reports.view_at_risk"),
         "announcements": Announcement.visible_to(request.user)[:5],
-        "events": CalendarEvent.upcoming(request.user, limit=6)})
+        "events": CalendarEvent.upcoming(request.user, limit=6),
+    })
+    return render(request, "academics/role_dashboard.html", ctx)
 
 
 # ---------- notices ----------

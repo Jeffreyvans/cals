@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from core import jobs, tasks
 from core.access import user_has_any_code, user_has_code
 from core.audit import log_action, log_permission_denied
 from core.modules import is_enabled
@@ -444,6 +445,17 @@ def newsletter_send(request, pk):
     module = _guard(request, "marketing", "marketing.manage")
     newsletter = get_object_or_404(Newsletter.objects.all(), pk=pk)
     if request.method == "POST":
+        if jobs.jobs_available():
+            job = jobs.create_job(
+                "bulk_email", newsletter.institution, request.user,
+                label=f"Newsletter: {newsletter.title}", object_id=newsletter.pk,
+            )
+            jobs.enqueue(tasks.send_newsletter_job, job)
+            messages.success(
+                request,
+                "The newsletter is being queued in the background. "
+                "This page shows its progress.")
+            return redirect("job_detail", pk=job.pk)
         try:
             count = send_newsletter(newsletter, request.user)
             messages.success(request, f"Newsletter queued for {count} recipient(s).")

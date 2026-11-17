@@ -84,6 +84,13 @@ class User(AbstractUser):
     objects = UserManager()
     tenant_objects = TenantUserManager()
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["institution", "role"], name="user_inst_role_idx"),
+            models.Index(fields=["institution", "is_active"], name="user_inst_active_idx"),
+            models.Index(fields=["email"], name="user_email_idx"),
+        ]
+
     @property
     def is_staff_role(self):
         return self.role in ("admin", "registrar", "bursar", "hod", "dean", "accountant")

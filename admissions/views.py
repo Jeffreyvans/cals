@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from academics.models import Programme, Student
+from core import jobs, tasks
 from core.access import module_required, permission_required_code
 from core.email_types import STUDENT_APPLICATION_RECEIVED
 from core.models import Institution
@@ -250,8 +251,16 @@ def application_list(request):
             Q(first_name__icontains=query) | Q(last_name__icontains=query)
             | Q(email__icontains=query) | Q(reference__icontains=query)
             | Q(phone__icontains=query))
+    from urllib.parse import urlencode
+
+    from django.core.paginator import Paginator
+
+    page = Paginator(applications, 25).get_page(request.GET.get("page"))
+    filters = {key: value for key, value in (("q", query), ("status", status)) if value}
     return render(request, "admissions/application_list.html", {
-        "applications": applications,
+        "applications": page.object_list,
+        "page_obj": page,
+        "extra_query": ("&" + urlencode(filters)) if filters else "",
         "status": status,
         "query": query,
         "statuses": Application.Status.choices,
@@ -754,6 +763,18 @@ def id_card_bulk(request):
     if not cards:
         messages.error(request, "Choose at least one student with a card.")
         return redirect("admissions:id_cards")
+    card_ids = list(cards.values_list("pk", flat=True))
+    if jobs.jobs_available():
+        job = jobs.create_job(
+            "pdf", request.institution, request.user,
+            label="Student identity cards", total=len(card_ids),
+        )
+        jobs.enqueue(tasks.build_id_cards_job, job, card_ids)
+        messages.success(
+            request,
+            "The cards are being built in the background. "
+            "This page shows the progress and the download link.")
+        return redirect("job_detail", pk=job.pk)
     pdf = build_id_cards(cards, request=request)
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = 'attachment; filename="student-cards.pdf"'

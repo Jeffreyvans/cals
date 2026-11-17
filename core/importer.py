@@ -617,7 +617,8 @@ CHECKERS = {
 
 
 # ---------- writing the rows ----------
-def run_import(kind, results, institution, user, access_mode=None, batch=None):
+def run_import(kind, results, institution, user, access_mode=None, batch=None,
+               on_progress=None):
     """Write the rows that passed the check.
 
     Returns (imported, errors). A row that fails while being written is
@@ -628,6 +629,9 @@ def run_import(kind, results, institution, user, access_mode=None, batch=None):
     produced. Without it the historical import behaviour is kept: the login is
     created with an unusable password. Each row is written in its own
     transaction, so one broken row never rolls back the good ones.
+
+    ``on_progress(done, total)`` is called after every row so a background job
+    can show how far it has got.
     """
     from core.tenancy import use_institution
 
@@ -635,10 +639,13 @@ def run_import(kind, results, institution, user, access_mode=None, batch=None):
     errors = []
     created_ids = list(getattr(batch, "created_user_ids", []) or [])
     credentials = list(getattr(batch, "credentials", []) or [])
+    total = len(results)
     with use_institution(institution):
-        for result in results:
+        for index, result in enumerate(results, start=1):
             if result["errors"]:
                 errors.append({"row": result["row"], "messages": result["errors"]})
+                if on_progress is not None:
+                    on_progress(index, total)
                 continue
             try:
                 with transaction.atomic():
@@ -650,6 +657,8 @@ def run_import(kind, results, institution, user, access_mode=None, batch=None):
                     credentials.append(info)
             except Exception as exc:  # a row that breaks must not stop the file
                 errors.append({"row": result["row"], "messages": [str(exc)]})
+            if on_progress is not None:
+                on_progress(index, total)
     if batch is not None:
         batch.created_user_ids = created_ids
         batch.credentials = credentials

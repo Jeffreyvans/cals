@@ -16,7 +16,9 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image
+
+from core.uploads import IMAGE_MAX_BYTES, image_bytes, open_image
 
 # The largest file an administrator may upload.
 MAX_BYTES = 2 * 1024 * 1024
@@ -26,6 +28,9 @@ MIN_SIDE = 200
 SIZES = (64, 160, 512)
 ALLOWED_FORMATS = {"PNG", "JPEG", "WEBP"}
 
+# Kept for callers that imported the shared limit from this module.
+assert IMAGE_MAX_BYTES >= MAX_BYTES
+
 
 def logo_folder(institution):
     """The per-institution folder every logo file lives under."""
@@ -33,40 +38,43 @@ def logo_folder(institution):
     return f"institutions/{slug or 'institution'}/logos"
 
 
-def _read_bytes(uploaded):
-    if hasattr(uploaded, "read"):
-        return uploaded.read()
-    return bytes(uploaded)
-
-
 def open_logo(uploaded):
     """Validate an upload and return a clean RGBA image, or raise ValidationError.
 
     The real file type is read with Pillow, never trusted from the file name or
-    the browser's content type, so a renamed script is still refused.
+    the browser's content type, so a renamed script is still refused. The file
+    is opened as a stream and its dimensions are checked before ``load()``, so
+    a decompression bomb never allocates a large buffer.
     """
-    raw = _read_bytes(uploaded)
-    if not raw:
-        raise ValidationError("Choose a logo file first.")
-    if len(raw) > MAX_BYTES:
-        raise ValidationError("The logo must be 2 MB or smaller.")
     try:
-        image = Image.open(BytesIO(raw))
-        image.load()
-    except (UnidentifiedImageError, OSError, ValueError):
-        raise ValidationError(
-            "That file is not a picture. Use a PNG, JPG or WebP image."
-        ) from None
-    if (image.format or "").upper() not in ALLOWED_FORMATS:
-        raise ValidationError(
-            "Use a PNG, JPG or WebP image. SVG and other formats are not accepted."
-        )
-    if image.width < MIN_SIDE or image.height < MIN_SIDE:
-        raise ValidationError(
-            f"The logo must be at least {MIN_SIDE}×{MIN_SIDE} pixels."
-        )
-    # Re-encoding from a fresh RGBA image drops EXIF, comments and any payload.
-    return ImageOps.exif_transpose(image).convert("RGBA")
+        # Logos keep an alpha channel whatever the source format so the PNG
+        # fallback and the WebP sizes composite correctly on any background.
+        return open_image(
+            uploaded,
+            max_bytes=MAX_BYTES,
+            min_side=MIN_SIDE,
+            allowed_formats=ALLOWED_FORMATS,
+            label="logo",
+        ).convert("RGBA")
+    except ValidationError as exc:
+        # Keep the wording the branding screen has always shown. The shared
+        # validator speaks in generic terms; this screen names the exact rules.
+        message = " ".join(exc.messages)
+        if "not a picture" in message:
+            raise ValidationError(
+                "That file is not a picture. Use a PNG, JPG or WebP image."
+            ) from None
+        if "not accepted" in message:
+            raise ValidationError(
+                "Use a PNG, JPG or WebP image. SVG and other formats are not accepted."
+            ) from None
+        if "pixels" in message:
+            raise ValidationError(
+                f"The logo must be at least {MIN_SIDE}×{MIN_SIDE} pixels."
+            ) from None
+        if "2 MB" in message:
+            raise ValidationError("The logo must be 2 MB or smaller.") from None
+        raise
 
 
 def render_logo(image, size):
@@ -85,9 +93,11 @@ def preview_png_bytes(uploaded, size=512):
 
 
 def _store(name, image, image_format, **options):
-    buffer = BytesIO()
-    image.save(buffer, format=image_format, **options)
-    return default_storage.save(name, ContentFile(buffer.getvalue()))
+    quality = options.pop("quality", 82)
+    return default_storage.save(
+        name,
+        ContentFile(image_bytes(image, image_format=image_format, quality=quality)),
+    )
 
 
 def _stored_paths(institution):

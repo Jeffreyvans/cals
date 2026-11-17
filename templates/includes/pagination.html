@@ -1,0 +1,7 @@
+{% if page_obj.has_other_pages %}
+<nav class="pagination" aria-label="Pages">
+  {% if page_obj.has_previous %}<a class="btn ghost btn-sm" href="?page={{ page_obj.previous_page_number }}{{ extra_query }}">Previous</a>{% endif %}
+  <span class="muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} &middot; {{ page_obj.paginator.count }} total</span>
+  {% if page_obj.has_next %}<a class="btn ghost btn-sm" href="?page={{ page_obj.next_page_number }}{{ extra_query }}">Next</a>{% endif %}
+</nav>
+{% endif %}

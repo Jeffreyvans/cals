@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ job.label }}{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ job.get_kind_display }}</h1>
+    <p class="muted">{{ job.label }}</p>
+  </div>
+</div>
+
+<div class="msg" id="job-message" data-status="{{ job.status }}">
+  {% if job.status == "failed" %}{{ job.error|default:"The job could not finish." }}{% else %}{{ job.message|default:"Waiting to start." }}{% endif %}
+</div>
+
+<div style="background:#e7e2d8;border-radius:999px;height:12px;overflow:hidden;margin:1rem 0;"
+     role="progressbar" aria-valuemin="0" aria-valuemax="100"
+     aria-valuenow="{{ job.percent }}" id="job-progress">
+  <div id="job-bar" style="height:100%;width:{{ job.percent }}%;background:#123524;transition:width .3s;"></div>
+</div>
+<p class="muted" id="job-meta">{{ job.processed }} of {{ job.total }} done.</p>
+
+<p>
+  <a id="job-download" class="btn" href="{% url 'job_download' job.pk %}"
+     {% if not job.result.file %}hidden{% endif %}>Download the file</a>
+  <a id="job-continue" class="btn" href="{{ job.result.url|default:'' }}"
+     {% if not job.result.url %}hidden{% endif %}>Continue</a>
+  <a class="btn secondary" href="{% url 'dashboard' %}">Back to the dashboard</a>
+</p>
+
+<noscript><meta http-equiv="refresh" content="5"></noscript>
+
+<script>
+(function () {
+  var url = "{% url 'job_status' job.pk %}";
+  var bar = document.getElementById("job-bar");
+  var box = document.getElementById("job-progress");
+  var message = document.getElementById("job-message");
+  var meta = document.getElementById("job-meta");
+  var download = document.getElementById("job-download");
+  var cont = document.getElementById("job-continue");
+  var timer = null;
+
+  function paint(data) {
+    bar.style.width = data.progress + "%";
+    box.setAttribute("aria-valuenow", data.progress);
+    if (data.status === "failed") {
+      message.className = "msg error";
+      message.textContent = data.error || "The job could not finish.";
+    } else if (data.message) {
+      message.textContent = data.message;
+    }
+    meta.textContent = data.processed + " of " + data.total + " done.";
+    if (data.download_url) {
+      download.href = data.download_url;
+      download.hidden = false;
+    }
+    if (data.url) {
+      cont.href = data.url;
+      cont.hidden = false;
+    }
+    if (data.status === "done" || data.status === "failed") {
+      clearInterval(timer);
+      message.className = data.status === "failed" ? "msg error" : "msg success";
+    }
+  }
+
+  function poll() {
+    fetch(url, {headers: {"Accept": "application/json"}, credentials: "same-origin"})
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (data) { if (data) paint(data); })
+      .catch(function () { /* keep the last state and try again */ });
+  }
+
+  {% if not job.is_finished %}
+  timer = setInterval(poll, 2000);
+  poll();
+  {% endif %}
+})();
+</script>
+{% endblock %}

@@ -174,6 +174,26 @@ def _audit_creation(user, *, via):
         logger.exception("Could not write the platform audit entry")
 
 
+def _log_rights(user):
+    """Say plainly, in the boot log, what the provisioned account can do."""
+    staff = getattr(user, "platform_staff", None)
+    role = getattr(staff, "role", None) if staff is not None else None
+    logger.info(
+        "Platform administrator %s has full platform rights: "
+        "is_platform_admin=%s, is_staff=%s, is_superuser=%s, "
+        "PlatformStaff active=%s main_admin=%s role=%s, institution=%s. "
+        "Open /platform/ to manage institutions.",
+        user.username,
+        user.is_platform_admin,
+        user.is_staff,
+        user.is_superuser,
+        getattr(staff, "is_active", None),
+        getattr(staff, "is_main_admin", None),
+        getattr(role, "code", None),
+        getattr(user, "institution_id", None),
+    )
+
+
 @transaction.atomic
 def ensure_platform_admin_from_env(*, via="management command"):
     """Create or repair the main platform administrator. Never raises for config."""
@@ -247,6 +267,7 @@ def ensure_platform_admin_from_env(*, via="management command"):
         ensure_platform_staff(user, "main_admin", is_main_admin=True)
         _verified_email(user)
         _audit_creation(user, via=via)
+        _log_rights(user)
         message = f"Created platform administrator {user.username}."
         logger.info(message)
         return ProvisionResult("created", user=user, messages=[message])
@@ -254,6 +275,7 @@ def ensure_platform_admin_from_env(*, via="management command"):
     _apply_admin_flags(user)
     ensure_platform_staff(user, "main_admin", is_main_admin=True)
     _verified_email(user)
+    _log_rights(user)
 
     if reset_password:
         user.set_password(password)
