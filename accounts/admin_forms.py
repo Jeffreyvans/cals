@@ -1,7 +1,12 @@
 """Forms for the administrator Users area."""
 
 from django import forms
-from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.forms import (
+    AdminPasswordChangeForm,
+    PasswordChangeForm,
+    SetPasswordForm,
+    UserCreationForm,
+)
 
 from academics.models import Programme, SchoolClass, Stream
 from core.models import Department
@@ -9,7 +14,7 @@ from finance.models import FeeStructure
 
 from .models import User
 from .user_admin import assignable_roles
-from .validators import validate_strong_password
+from .validators import add_password_errors
 
 ACCESS_CHOICES = (
     ("invitation", "Send invitation email (single-use link, 72 hours)"),
@@ -197,9 +202,83 @@ class DuplicateForm(InstitutionFormMixin, forms.Form):
         return cleaned
 
 
-class StrongPasswordChangeForm(PasswordChangeForm):
-    def clean_new_password2(self):
-        password = super().clean_new_password2()
-        user = self.user
-        validate_strong_password(password, username=user.username, email=user.email)
-        return password
+class StrongPasswordValidationMixin:
+    """EduSphere's strength rules, applied in Django 5.1's clean() hook.
+
+    Password validation moved from ``clean_new_password2()`` into
+    ``SetPasswordForm.clean()``. Overriding the old hook raises an
+    AttributeError on every POST, so extra rules are added in clean() instead.
+    """
+
+    password_field = "new_password2"
+
+    def password_context(self, cleaned):
+        user = getattr(self, "user", None)
+        return getattr(user, "username", ""), getattr(user, "email", "")
+
+    def clean(self):
+        cleaned = super().clean()
+        username, email = self.password_context(cleaned)
+        add_password_errors(
+            self,
+            self.password_field,
+            (cleaned or {}).get(self.password_field),
+            username=username,
+            email=email,
+        )
+        return cleaned
+
+
+class StrongPasswordChangeForm(StrongPasswordValidationMixin, PasswordChangeForm):
+    """The forced first-login password change."""
+
+
+class StrongSetPasswordForm(StrongPasswordValidationMixin, SetPasswordForm):
+    """The new-password step of a password reset."""
+
+
+class StrongUserCreationForm(StrongPasswordValidationMixin, UserCreationForm):
+    """Django admin's add-user form."""
+
+    password_field = "password2"
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+
+    def password_context(self, cleaned):
+        return (cleaned or {}).get("username", ""), ""
+
+
+class StrongAdminPasswordChangeForm(StrongPasswordValidationMixin, AdminPasswordChangeForm):
+    """Django admin's change-password form."""
+
+    password_field = "password2"
+
+
+class InvitationPasswordForm(StrongPasswordValidationMixin, forms.Form):
+    """Choose a password from a one-time invitation link."""
+
+    password_field = "password"
+    password = forms.CharField(
+        label="New password",
+        widget=forms.PasswordInput,
+        strip=False,
+        help_text="At least 10 characters with capital and small letters and a number.",
+    )
+    password_confirm = forms.CharField(
+        label="Repeat the password", widget=forms.PasswordInput, strip=False
+    )
+
+    def __init__(self, *args, user, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned = super().clean()
+        if (
+            (cleaned or {}).get("password")
+            and cleaned.get("password_confirm")
+            and cleaned["password"] != cleaned["password_confirm"]
+        ):
+            self.add_error("password_confirm", "The two passwords do not match.")
+        return cleaned

@@ -41,3 +41,18 @@ def validate_strong_password(password, username="", email=""):
     if local and len(local) > 2 and local in password.casefold():
         raise ValidationError("Do not use your email address inside your password.")
     return password
+
+
+def add_password_errors(form, field_name, password, username="", email=""):
+    """Attach our strength errors to a field from a form's clean() method.
+
+    Django 5.1 moved password validation into ``SetPasswordForm.clean()`` and
+    removed ``clean_new_password2()``. Raising here would create a non-field
+    error, so forms call this helper and keep messages on the password field.
+    """
+    if not password:
+        return
+    try:
+        validate_strong_password(password, username=username, email=email)
+    except ValidationError as exc:
+        form.add_error(field_name, exc)

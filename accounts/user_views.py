@@ -3,6 +3,7 @@
 from datetime import datetime, time
 
 from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordChangeView
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -12,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from core.access import permission_required_code
 from core.models import AuditEntry, Department, Institution, Role
@@ -19,6 +21,7 @@ from core.models import AuditEntry, Department, Institution, Role
 from .admin_forms import (
     DuplicateForm,
     EditUserForm,
+    InvitationPasswordForm,
     LinkParentForm,
     StaffAccountForm,
     StrongPasswordChangeForm,
@@ -649,7 +652,28 @@ class ForcePasswordChangeView(PasswordChangeView):
     form_class = StrongPasswordChangeForm
     success_url = reverse_lazy("dashboard")
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.setdefault("next", self.request.GET.get("next", ""))
+        return context
+
+    def get_success_url(self):
+        # The middleware records the page the person was on before it sent
+        # them here. Only follow same-site paths so this cannot be used as an
+        # open redirect.
+        next_url = self.request.POST.get("next") or self.request.GET.get("next")
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            return next_url
+        return str(self.success_url)
+
     def form_valid(self, form):
+        # Keep the session signed in after the password hash changes. The
+        # parent view does this as well; keep the guarantee explicit here.
+        update_session_auth_hash(self.request, form.user)
         response = super().form_valid(form)
         user = self.request.user
         user.must_change_password = False
@@ -668,26 +692,27 @@ def accept_invitation_view(request, token):
         token=token,
     )
     error = ""
-    if request.method == "POST":
-        password = request.POST.get("password", "")
-        confirm = request.POST.get("password_confirm", "")
-        if not invitation.is_open:
-            error = "This invitation has already been used or has expired."
-        elif password != confirm:
-            error = "The two passwords do not match."
-        else:
+    form = None
+    if not invitation.is_open:
+        error = "This invitation has already been used or has expired."
+    elif request.method == "POST":
+        form = InvitationPasswordForm(request.POST, user=invitation.user)
+        if form.is_valid():
             try:
-                accept_invitation(invitation, password, request=request)
+                accept_invitation(invitation, form.cleaned_data["password"], request=request)
             except ValidationError as exc:
-                error = " ".join(exc.messages)
+                form.add_error(None, " ".join(exc.messages))
             else:
                 messages.success(
                     request,
                     "Your password is set. Sign in to continue.",
                 )
                 return redirect("login")
+    if form is None:
+        form = InvitationPasswordForm(user=invitation.user)
     return render(request, "accounts/invitation_accept.html", {
         "invitation": invitation,
         "account": invitation.user,
         "error": error,
+        "form": form,
     })

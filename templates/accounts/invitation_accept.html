@@ -12,15 +12,11 @@
     {% if invitation.is_open %}
       <form method="post" class="form-stack" novalidate>
         {% csrf_token %}
-        <div class="field">
-          <label for="password">New password</label>
-          <input type="password" name="password" id="password" autocomplete="new-password" required minlength="10">
-          <p class="help">At least 10 characters with capital and small letters and a number.</p>
-        </div>
-        <div class="field">
-          <label for="password_confirm">Repeat the password</label>
-          <input type="password" name="password_confirm" id="password_confirm" autocomplete="new-password" required minlength="10">
-        </div>
+        {% if form.non_field_errors %}
+          <div class="alert alert-error" role="alert">{{ form.non_field_errors|striptags }}</div>
+        {% endif %}
+        {% include "registration/_field.html" with field=form.password %}
+        {% include "registration/_field.html" with field=form.password_confirm %}
         <div><button class="btn" type="submit">Save and sign in</button></div>
       </form>
     {% else %}

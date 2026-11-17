@@ -8,7 +8,7 @@ link from SITE_URL and gives the message an HTML part and a themed sender.
 from django.contrib import messages
 from django.contrib.auth.forms import PasswordResetForm
 from django.contrib.auth.tokens import default_token_generator
-from django.contrib.auth.views import PasswordResetView
+from django.contrib.auth.views import PasswordResetConfirmView, PasswordResetView
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.encoding import force_bytes
@@ -23,6 +23,8 @@ from core.notifications import (
     render_email_html,
     send_message,
 )
+
+from .admin_forms import StrongSetPasswordForm
 
 
 class EduSpherePasswordResetForm(PasswordResetForm):
@@ -68,3 +70,7 @@ class EduSpherePasswordResetView(PasswordResetView):
             return redirect("password_reset_done")
         record_email_attempt("reset", email, request=request)
         return super().post(request, *args, **kwargs)
+
+
+class EduSpherePasswordResetConfirmView(PasswordResetConfirmView):
+    form_class = StrongSetPasswordForm

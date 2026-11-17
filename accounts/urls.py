@@ -4,7 +4,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import path, reverse_lazy
 
 from . import user_views, views
-from .password_reset import EduSpherePasswordResetView
+from .password_reset import EduSpherePasswordResetConfirmView, EduSpherePasswordResetView
 
 urlpatterns = [
     path("", views.EduSphereLandingView.as_view(), name="landing"),
@@ -20,7 +20,7 @@ urlpatterns = [
         success_url=reverse_lazy("password_reset_done"),
     ), name="password_reset"),
     path("password-reset/done/", views.password_reset_done, name="password_reset_done"),
-    path("reset/<uidb64>/<token>/", auth_views.PasswordResetConfirmView.as_view(
+    path("reset/<uidb64>/<token>/", EduSpherePasswordResetConfirmView.as_view(
         template_name="registration/password_reset_confirm.html",
         success_url=reverse_lazy("password_reset_complete"),
     ), name="password_reset_confirm"),

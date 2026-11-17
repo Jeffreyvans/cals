@@ -15,7 +15,7 @@ from .registration import (
     position_options,
     public_institutions,
 )
-from .validators import validate_strong_password
+from .validators import add_password_errors
 
 PHONE_RE = re.compile(r"^\+?[0-9][0-9\s().-]{5,19}$")
 
@@ -132,20 +132,19 @@ class StudentRegistrationForm(forms.Form):
             )
         return username
 
-    def clean_password(self):
-        password = self.cleaned_data["password"]
-        validate_strong_password(
-            password,
-            self.cleaned_data.get("username", ""),
-            self.cleaned_data.get("contact", ""),
-        )
-        return password
-
     def clean(self):
         cleaned = super().clean()
+        add_password_errors(
+            self,
+            "password",
+            cleaned.get("password"),
+            username=cleaned.get("username", ""),
+            email=cleaned.get("contact", ""),
+        )
         if cleaned.get("website"):
-            raise ValidationError(
-                "We could not create this account. Check your details and try again."
+            self.add_error(
+                None,
+                "We could not create this account. Check your details and try again.",
             )
         return cleaned
 
@@ -260,20 +259,18 @@ class StaffRegistrationForm(forms.Form):
             )
         return username
 
-    def clean_password(self):
-        password = self.cleaned_data["password"]
-        validate_strong_password(
-            password,
-            self.cleaned_data.get("username", ""),
-            self.cleaned_data.get("email", ""),
-        )
-        return password
-
     def clean(self):
         cleaned = super().clean()
+        add_password_errors(
+            self,
+            "password",
+            cleaned.get("password"),
+            username=cleaned.get("username", ""),
+            email=cleaned.get("email", ""),
+        )
         if cleaned.get("website"):
-            raise ValidationError(
-                "We could not send this request. Check your details and try again."
+            self.add_error(
+                None, "We could not send this request. Check your details and try again."
             )
         institution = cleaned.get("institution")
         position = cleaned.get("position")
