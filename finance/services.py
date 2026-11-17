@@ -629,6 +629,7 @@ def send_overdue_reminders(as_of=None, send=True):
                 created__date=as_of).exists()
             if sent_already:
                 continue
+            from core.email_types import FEE_REMINDER
             from core.notifications import queue_message
 
             html_body = ""
@@ -647,7 +648,8 @@ def send_overdue_reminders(as_of=None, send=True):
             queue_message(channel, recipient, body, subject=title,
                           related_object=student,
                           institution=student.institution,
-                          html_body=html_body)
+                          html_body=html_body,
+                          email_type=FEE_REMINDER)
             if channel == OutboundMessage.Channel.EMAIL:
                 record_bulk_email(student.institution)
             summary["messages"] += 1

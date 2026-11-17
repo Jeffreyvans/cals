@@ -469,6 +469,7 @@ def notify_absence(attendance):
     not notify anybody twice. Returns the queued outbound messages.
     """
     from academics.models import Attendance, Guardian
+    from core.email_types import ABSENCE_NOTIFICATION
     from core.models import OutboundMessage
     from core.notifications import notify, queue_message
 
@@ -496,7 +497,8 @@ def notify_absence(attendance):
         if parent.email:
             queued.append(queue_message(
                 OutboundMessage.Channel.EMAIL, parent.email, body, subject=title,
-                institution=attendance.institution, related_object=attendance))
+                institution=attendance.institution, related_object=attendance,
+                email_type=ABSENCE_NOTIFICATION))
         if parent.phone:
             queued.append(queue_message(
                 OutboundMessage.Channel.SMS, parent.phone, body,

@@ -11,6 +11,7 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
+from core.email_types import ANNOUNCEMENT
 from core.notifications import notify, queue_message
 from finance.models import Expense
 from finance.services import post_payroll
@@ -146,6 +147,7 @@ def send_newsletter(newsletter, actor=None):
             subject=newsletter.subject or newsletter.title,
             institution=newsletter.institution,
             related_object=newsletter,
+            email_type=ANNOUNCEMENT,
         )
     newsletter.status = Newsletter.Status.SENT
     newsletter.sent_at = timezone.now()

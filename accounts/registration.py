@@ -27,6 +27,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
+from core.email_types import (
+    EMAIL_VERIFICATION,
+    REGISTRATION_REQUEST_DECISION,
+    RESEND_VERIFICATION,
+)
 from core.logo import absolute_logo_url
 from core.models import Role
 from core.notifications import (
@@ -313,8 +318,8 @@ def _verification_link(request, verification):
     return absolute_url(reverse("register_verify_email", args=[verification.token]))
 
 
-def send_email_verification(user, request=None):
-    """Create a one-time token and email the link through the existing system."""
+def send_email_verification(user, request=None, resend=False):
+    """Create a one-time token and email the link through the central system."""
     if not user.email:
         return None
     if email_rate_limited("verify", user.email, request=request):
@@ -341,9 +346,15 @@ def send_email_verification(user, request=None):
         institution=user.institution,
         related_object=verification,
         html_body=html_body,
+        email_type=RESEND_VERIFICATION if resend else EMAIL_VERIFICATION,
     )
     send_message(message)
     return verification
+
+
+def resend_email_verification(user, request=None):
+    """Send a fresh verification link (typed as a resend in the email log)."""
+    return send_email_verification(user, request=request, resend=True)
 
 
 @transaction.atomic
@@ -580,6 +591,7 @@ def _send_staff_decision(reg_request, approved, reason=""):
         subject=subject,
         institution=reg_request.institution,
         related_object=reg_request,
+        email_type=REGISTRATION_REQUEST_DECISION,
     )
     send_message(message)
 

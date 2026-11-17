@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models, transaction
 
+from core.email_types import EMAIL_TYPES, GENERAL
 from core.tenancy import CurrentInstitutionId, current_institution_id, default_institution_id
 
 
@@ -693,6 +694,10 @@ class OutboundMessage(TenantModel):
 
     institution = models.ForeignKey(Institution, on_delete=models.CASCADE, related_name="outbound_messages")
     channel = models.CharField(max_length=20, choices=Channel.choices)
+    email_type = models.CharField(
+        max_length=60, choices=EMAIL_TYPES, default=GENERAL, db_index=True,
+        help_text="The kind of email, e.g. password_reset_request or fee_receipt.",
+    )
     recipient = models.CharField(max_length=120)
     subject = models.CharField(max_length=150, blank=True)
     body = models.TextField()
@@ -737,11 +742,14 @@ class EmailSuppression(models.Model):
 
 
 class EmailEvent(TenantModel):
-    """A delivery event received from the Resend webhook."""
+    """A delivery event received from an email provider webhook."""
 
     class Kind(models.TextChoices):
+        SENT = "sent", "Sent by provider"
         DELIVERED = "delivered", "Delivered"
         BOUNCED = "bounced", "Bounced"
+        BLOCKED = "blocked", "Blocked"
+        SPAM = "spam", "Marked as spam"
         COMPLAINED = "complained", "Complained"
 
     message = models.ForeignKey(

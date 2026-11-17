@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from core.access import permission_required_code
 from core.audit import log_action
+from core.email_types import CONTACT_FORM
 from core.models import Department, Institution
 from core.notifications import EMAIL_FAILURE_MESSAGE, send_platform_email
 
@@ -133,6 +134,7 @@ class EduSphereLoginView(LoginLockoutMixin, LoginView):
                 body,
                 contact_recipient(),
                 reply_to=[data["email"]],
+                email_type=CONTACT_FORM,
             )
             record_contact_attempt(request)
             if getattr(message, "status", "") != "sent":

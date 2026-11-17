@@ -41,18 +41,30 @@ services:
       - key: DATABASE_URL
         sync: false
 
-      # Email through Resend's HTTPS API (django-anymail). Render blocks
-      # outbound SMTP, so no SMTP variables exist. Without RESEND_API_KEY the
-      # app prints email to the console instead.
+      # Email through the Mailjet HTTPS API (django-anymail). Render blocks
+      # outbound SMTP, so no SMTP variables exist. Brevo and Resend remain
+      # selectable with EMAIL_PROVIDER. All secrets use sync: false.
+      - key: EMAIL_PROVIDER
+        value: mailjet
+      - key: MAILJET_API_KEY
+        sync: false
+      - key: MAILJET_SECRET_KEY
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: DEFAULT_FROM_EMAIL
         sync: false
       - key: SERVER_EMAIL
         sync: false
+      - key: DEFAULT_REPLY_TO_EMAIL
+        sync: false
       - key: EMAIL_FROM_DOMAIN
         sync: false
       - key: SITE_URL
+        sync: false
+      - key: MAILJET_WEBHOOK_SECRET
         sync: false
       - key: RESEND_WEBHOOK_SECRET
         sync: false

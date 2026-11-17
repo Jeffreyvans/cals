@@ -676,11 +676,15 @@ class ForcePasswordChangeView(PasswordChangeView):
         update_session_auth_hash(self.request, form.user)
         response = super().form_valid(form)
         user = self.request.user
+        forced = bool(getattr(user, "must_change_password", False))
         user.must_change_password = False
         # The person has now chosen their own password, so the dashboard no
         # longer needs to warn about the deployment-supplied one.
         user.password_set_from_env = False
         user.save(update_fields=["must_change_password", "password_set_from_env"])
+        from accounts.password_reset import send_password_change_notice
+
+        send_password_change_notice(user, forced=forced)
         messages.success(self.request, "Your new password is saved.")
         return response
 

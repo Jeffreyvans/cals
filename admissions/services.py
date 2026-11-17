@@ -18,6 +18,7 @@ from django.utils import timezone
 from academics.models import Student, Term
 from accounts.models import User
 from core.audit import log_action
+from core.email_types import WELCOME
 from core.notifications import notify, queue_message, send_message
 from core.tenancy import use_institution
 from finance.models import Invoice, Payment
@@ -567,7 +568,8 @@ def accept_offer(offer, accepted_by_name="", deposit_method="", deposit_referenc
                 message = queue_message(
                     "email", application.email, body,
                     subject=f"Welcome to {application.institution.name}",
-                    institution=application.institution, related_object=student)
+                    institution=application.institution, related_object=student,
+                    email_type=WELCOME)
                 send_message(message)
                 notify(user, "Welcome to " + application.institution.name,
                        "Your place has been confirmed. Sign in to see your account.",

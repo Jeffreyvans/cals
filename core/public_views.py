@@ -25,6 +25,7 @@ from accounts.registration import (
     record_contact_attempt,
 )
 from accounts.signup_links import open_signup_links
+from core.email_types import DEMO_REQUEST
 from core.learn import LEARN_BY_SLUG, LEARN_PAGES
 from core.logo import absolute_logo_url
 from core.models import Institution
@@ -185,6 +186,7 @@ def _pricing_page(request, context):
         body,
         contact_recipient(),
         reply_to=[data["email"]],
+        email_type=DEMO_REQUEST,
     )
     if getattr(message, "status", "") != "sent":
         messages.error(request, EMAIL_FAILURE_MESSAGE)

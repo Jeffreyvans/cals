@@ -122,10 +122,21 @@ class SettingsBootTests(SimpleTestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("EDUSPHERE_ALLOWED_HOSTS", result.stderr)
 
-    def test_production_boots_once_key_and_hosts_are_set(self):
+    def test_production_boots_once_key_hosts_and_mailjet_keys_are_set(self):
         result = self.run_manage(EDUSPHERE_DEBUG="0",
                                  EDUSPHERE_SECRET_KEY="x" * 50,
                                  EDUSPHERE_ALLOWED_HOSTS="fees.school.example",
                                  EDUSPHERE_INSTITUTION_NAME="Test Academy",
-                                 EDUSPHERE_CURRENCY="R")
+                                 EDUSPHERE_CURRENCY="R",
+                                 EMAIL_PROVIDER="mailjet",
+                                 MAILJET_API_KEY="test-api-key",
+                                 MAILJET_SECRET_KEY="test-secret-key")
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_production_without_mailjet_keys_refuses_to_boot(self):
+        result = self.run_manage(EDUSPHERE_DEBUG="0",
+                                 EDUSPHERE_SECRET_KEY="x" * 50,
+                                 EDUSPHERE_ALLOWED_HOSTS="fees.school.example",
+                                 EMAIL_PROVIDER="mailjet")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("MAILJET_API_KEY", result.stderr)

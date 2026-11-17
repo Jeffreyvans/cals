@@ -1,10 +1,15 @@
 """Notifications: in-app messages plus outbound email, SMS and WhatsApp.
 
 All email is delivered through Django's single configured email backend:
-Anymail's Resend HTTPS backend on Render, the console backend in local
-development and Django's in-memory backend in tests. Nothing here opens an
-SMTP connection, so the blocked SMTP ports on Render's free plan are never
-used. Every attempt is recorded in :class:`~core.models.OutboundMessage`.
+Anymail's Mailjet HTTPS backend on Render (Brevo and Resend remain selectable
+via ``EMAIL_PROVIDER``), the console backend in local development and Django's
+in-memory backend in tests. Nothing here opens an SMTP connection, so the
+blocked SMTP ports on Render's free plan are never used. Every attempt is
+recorded in :class:`~core.models.OutboundMessage`.
+
+``send_email`` is the one entry point every application email uses. It creates
+an OutboundMessage (type, recipient, institution, HTML and text parts) and
+hands it to ``send_message``, which retries failures and never raises.
 """
 
 import hashlib
@@ -18,6 +23,7 @@ from django.core.cache import cache
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils import timezone
 
+from core.email_types import ADMIN_ERROR, EMAIL_TYPE_CODES, GENERAL
 from core.models import EmailSuppression, Notification, OutboundMessage
 
 logger = logging.getLogger(__name__)
@@ -65,8 +71,9 @@ class DjangoEmailProvider(BaseProvider):
     """Send email through Django's configured backend (Anymail on Render).
 
     There is no HTTP client of our own here: django-anymail translates the
-    Django message into a Resend HTTPS API call. That keeps one code path for
-    every message and makes Django's locmem backend work in tests.
+    Django message into a Mailjet (or Brevo/Resend) HTTPS API call. That keeps
+    one code path for every message and makes Django's locmem backend work in
+    tests.
     """
 
     def __init__(self, name=None):
@@ -122,7 +129,7 @@ class StubWhatsAppProvider(BaseProvider):
 def _email_backend_name():
     """A short, secret-free name for the backend currently in use."""
     backend = getattr(settings, "EMAIL_BACKEND", "").lower()
-    for name in ("resend", "console", "locmem", "smtp", "filebased"):
+    for name in ("mailjet", "brevo", "resend", "console", "locmem", "smtp", "filebased"):
         if name in backend:
             return name
     return "django"
@@ -155,6 +162,7 @@ def _from_email(institution=None):
 
 def _reply_to(institution=None):
     contact = getattr(institution, "contact_email", "") if institution is not None else ""
+    contact = contact or getattr(settings, "DEFAULT_REPLY_TO_EMAIL", "")
     return [contact] if contact else None
 
 
@@ -258,11 +266,19 @@ def notify_users(users, title, body="", link="", category="general", institution
 
 
 def queue_message(
-    channel, recipient, body, subject="", institution=None, related_object=None, html_body=""
+    channel, recipient, body, subject="", institution=None, related_object=None,
+    html_body="", email_type=GENERAL,
 ):
-    """Queue an outbound message for sending."""
+    """Queue an outbound message for sending.
+
+    This is the single creation point for every outbound message. ``email_type``
+    is one of :data:`core.email_types.EMAIL_TYPE_CODES` so the Email health
+    page and the reports can count messages by type.
+    """
     from core.tenancy import current_institution_id
 
+    if email_type not in EMAIL_TYPE_CODES:
+        raise ValueError(f"Unknown email type: {email_type!r}")
     institution_id = institution.pk if institution is not None else current_institution_id()
     obj_type = ""
     obj_id = ""
@@ -276,23 +292,50 @@ def queue_message(
         subject=subject,
         body=body,
         html_body=html_body,
+        email_type=email_type,
         related_object_type=obj_type,
         related_object_id=obj_id,
     )
 
 
-def send_platform_email(subject, body, recipient, reply_to=None, institution=None,
-                        related_object=None, html_body=""):
-    """Queue and send a platform message (contact and demo forms)."""
+def send_email(email_type, recipient, subject, body, html_body="", institution=None,
+               related_object=None, reply_to=None, send=True):
+    """The one central entry point for application email.
+
+    Builds a typed OutboundMessage with a plain-text and an HTML part, then
+    sends it through :func:`send_message` (or only queues it when ``send`` is
+    False, for bulk jobs that use ``send_pending``). It never raises on a
+    provider failure: check the returned message's status instead.
+    """
     message = queue_message(
-        "email", recipient, body, subject=subject, institution=institution,
-        related_object=related_object,
+        OutboundMessage.Channel.EMAIL, recipient, body, subject=subject,
+        institution=institution, related_object=related_object,
         html_body=html_body or _generic_html_for(subject, body, institution),
+        email_type=email_type,
     )
-    # Platform form replies carry the sender's address, not the institution's.
     if reply_to:
         message.reply_to_override = ", ".join(reply_to)
-    return send_message(message)
+    if send:
+        return send_message(message)
+    return message
+
+
+def send_platform_email(subject, body, recipient, reply_to=None, institution=None,
+                        related_object=None, html_body="", email_type=GENERAL):
+    """Queue and send a platform message (contact, demo and check_email)."""
+    return send_email(
+        email_type, recipient, subject, body, html_body=html_body,
+        institution=institution, related_object=related_object, reply_to=reply_to,
+    )
+
+
+def send_admin_error_email(subject, body, recipient=None, institution=None, related_object=None):
+    """Send an error/alert email to administrators through the central pipeline."""
+    from django.conf import settings as django_settings
+
+    address = recipient or getattr(django_settings, "SERVER_EMAIL", "") or _from_email()
+    return send_email(ADMIN_ERROR, address, subject, body, institution=institution,
+                      related_object=related_object)
 
 
 def _generic_html_for(subject, body, institution=None):

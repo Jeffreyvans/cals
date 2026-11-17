@@ -1114,7 +1114,10 @@ def errors(request):
 
 @platform_required("platform.view_health")
 def email_health(request, pk=None):
-    """Platform-wide email log, failures, bounce counts and a Resend action."""
+    """Platform-wide email health: provider, log, failures and delivery events."""
+    from django.conf import settings
+
+    from core.email_types import EMAIL_TYPE_LABELS
     from core.models import EmailEvent, EmailSuppression, OutboundMessage
     from core.notifications import EMAIL_FAILURE_MESSAGE, send_message
 
@@ -1140,12 +1143,29 @@ def email_health(request, pk=None):
     failures = OutboundMessage.all_objects.filter(
         status=OutboundMessage.Status.FAILED
     ).count()
+    by_type = [
+        (EMAIL_TYPE_LABELS.get(row["email_type"], row["email_type"]), row["total"])
+        for row in OutboundMessage.all_objects.values("email_type").annotate(
+            total=Count("pk")).order_by("email_type")
+    ]
+    by_status = list(
+        OutboundMessage.all_objects.values("status").annotate(
+            total=Count("pk")).order_by("status")
+    )
     return render(request, "platform_admin/email_health.html", {
         "recent": recent,
         "failures": failures,
+        "provider": getattr(settings, "EMAIL_PROVIDER", "?"),
+        "backend": getattr(settings, "EMAIL_BACKEND", ""),
+        "from_email": getattr(settings, "DEFAULT_FROM_EMAIL", ""),
+        "site_url": getattr(settings, "SITE_URL", ""),
+        "by_type": by_type,
+        "by_status": by_status,
         "delivered": EmailEvent.all_objects.filter(
             kind=EmailEvent.Kind.DELIVERED).count(),
         "bounced": EmailEvent.all_objects.filter(kind=EmailEvent.Kind.BOUNCED).count(),
+        "blocked": EmailEvent.all_objects.filter(kind=EmailEvent.Kind.BLOCKED).count(),
+        "spam": EmailEvent.all_objects.filter(kind=EmailEvent.Kind.SPAM).count(),
         "complained": EmailEvent.all_objects.filter(
             kind=EmailEvent.Kind.COMPLAINED).count(),
         "suppressed": EmailSuppression.objects.count(),

@@ -19,6 +19,14 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from core.audit import log_action
+from core.email_types import (
+    INSTITUTION_APPLICATION_APPROVED,
+    INSTITUTION_APPLICATION_MORE_INFO,
+    INSTITUTION_APPLICATION_RECEIVED,
+    INSTITUTION_APPLICATION_REJECTED,
+    PLATFORM_ACCESS_DECISION,
+    PLATFORM_ACCESS_REQUEST,
+)
 from core.models import Institution, InstitutionModule
 from core.modules import ALL_MODULES
 from core.notifications import notify, queue_message, render_email_html, send_message
@@ -346,7 +354,8 @@ def notify_platform_admins(title, body="", link="", category="platform"):
     return users
 
 
-def _application_email(application, subject, template, body, extra=None):
+def _application_email(application, subject, template, body, extra=None,
+                       email_type=INSTITUTION_APPLICATION_RECEIVED):
     context = {
         "application": application,
         "institution_name": application.institution_name,
@@ -362,6 +371,7 @@ def _application_email(application, subject, template, body, extra=None):
         subject=subject,
         related_object=application,
         html_body=html_body,
+        email_type=email_type,
     )
     send_message(message)
     return message
@@ -433,6 +443,7 @@ def create_application(data, files=None, request=None):
         subject,
         "emails/platform_application_received.html",
         body,
+        email_type=INSTITUTION_APPLICATION_RECEIVED,
     )
     notify_platform_admins(
         "New institution application",
@@ -515,6 +526,7 @@ def request_more_information(application, actor, message, request=None):
             f"Reply securely here:\n{application_status_url(application, request)}\n"
         ),
         {"message": message},
+        email_type=INSTITUTION_APPLICATION_MORE_INFO,
     )
     log_platform_action(
         actor, "application.more_information", record_type="InstitutionApplication",
@@ -591,6 +603,7 @@ def reject_application(application, actor, reason, request=None):
             "EduSphere support.\n"
         ),
         {"reason": reason},
+        email_type=INSTITUTION_APPLICATION_REJECTED,
     )
     log_platform_action(
         actor, "application.rejected", record_type="InstitutionApplication",
@@ -691,6 +704,7 @@ def _send_welcome(institution, admin_user, application, plan, request=None):
     message = queue_message(
         "email", admin_user.email, body, subject=subject,
         institution=institution, related_object=application, html_body=html_body,
+        email_type=INSTITUTION_APPLICATION_APPROVED,
     )
     send_message(message)
     return message
@@ -816,6 +830,7 @@ def approve_application(application, actor, plan=None, request=None):
                 f"Reference: {locked.reference}\n"
             ),
             {"institution": institution, "user": admin_user, "plan": chosen_plan},
+            email_type=INSTITUTION_APPLICATION_APPROVED,
         )
         log_platform_action(
             actor,
@@ -860,7 +875,7 @@ def _institution_recipients(institution, include_high=False):
     return users
 
 
-def _access_email(recipient, subject, body, institution, request=None, template="emails/platform_access_request.html", extra=None):
+def _access_email(recipient, subject, body, institution, request=None, template="emails/platform_access_request.html", extra=None, email_type=PLATFORM_ACCESS_REQUEST):
     from core.notifications import absolute_url
 
     link = absolute_url(reverse("platform_admin:institution_access_requests"))
@@ -869,7 +884,7 @@ def _access_email(recipient, subject, body, institution, request=None, template=
     html_body = render_email_html(template, context)
     message = queue_message(
         "email", recipient, body, subject=subject, institution=institution,
-        html_body=html_body,
+        html_body=html_body, email_type=email_type,
     )
     send_message(message)
     return message
@@ -1129,6 +1144,7 @@ def decide_access_request(
             request,
             template="emails/platform_access_decision.html",
             extra={"access_request": access_request, "approved": False},
+            email_type=PLATFORM_ACCESS_DECISION,
         )
         return access_request
 
@@ -1212,6 +1228,7 @@ def decide_access_request(
         request,
         template="emails/platform_access_decision.html",
         extra={"access_request": access_request, "grant": grant, "approved": True},
+        email_type=PLATFORM_ACCESS_DECISION,
     )
     return access_request
 

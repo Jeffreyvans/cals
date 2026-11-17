@@ -22,6 +22,15 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
+from core.email_types import (
+    ACCOUNT_CREATED,
+    FORCED_PASSWORD_CHANGE_NOTICE,
+    GENERAL,
+    ROLE_CHANGED,
+    SET_PASSWORD_LINK,
+    STAFF_INVITATION,
+    STUDENT_INVITATION,
+)
 from core.logo import absolute_logo_url
 from core.models import Department, Role, StaffProfile
 from core.notifications import queue_message, render_email_html, send_message
@@ -206,7 +215,8 @@ def _rate_key(actor, scope):
 # ---------- email ----------
 
 
-def _send_email(user, subject, body, related_object=None, html_body=""):
+def _send_email(user, subject, body, related_object=None, html_body="",
+                email_type=GENERAL):
     if not user.email:
         return None
     message = queue_message(
@@ -217,6 +227,7 @@ def _send_email(user, subject, body, related_object=None, html_body=""):
         institution=user.institution,
         related_object=related_object or user,
         html_body=html_body,
+        email_type=email_type,
     )
     send_message(message)
     return message
@@ -252,7 +263,7 @@ def _invitation_html(user, invitation, request=None):
     )
 
 
-def create_invitation(user, actor=None, request=None, send=True):
+def create_invitation(user, actor=None, request=None, send=True, email_type=None):
     """Create a fresh invitation and email it. Previous open links are closed."""
     UserInvitation.objects.filter(user=user, used_at__isnull=True).update(
         used_at=timezone.now()
@@ -263,12 +274,17 @@ def create_invitation(user, actor=None, request=None, send=True):
         expires_at=timezone.now() + timedelta(hours=UserInvitation.LIFETIME_HOURS),
     )
     if send:
+        invitation_type = email_type or (
+            STUDENT_INVITATION if getattr(user, "role", "") == "student"
+            else STAFF_INVITATION
+        )
         _send_email(
             user,
             f"Your {user.institution.name} account",
             _invitation_body(user, invitation, request),
             related_object=invitation,
             html_body=_invitation_html(user, invitation, request),
+            email_type=invitation_type,
         )
     return invitation
 
@@ -286,6 +302,7 @@ def send_account_created_notice(user):
             "If you were given a temporary password, sign in and change it. "
             "If not, use the invitation link that was sent separately.\n"
         ),
+        email_type=ACCOUNT_CREATED,
     )
 
 
@@ -298,6 +315,7 @@ def send_role_changed_notice(user, role):
             f"Your role is now {role.name}. The change applies the next time "
             "you open a page.\n"
         ),
+        email_type=ROLE_CHANGED,
     )
 
 
@@ -311,6 +329,7 @@ def send_password_reset_notice(user):
             "password you were given and choose a new one.\n\n"
             "If you did not expect this, contact the institution.\n"
         ),
+        email_type=FORCED_PASSWORD_CHANGE_NOTICE,
     )
 
 
@@ -669,7 +688,8 @@ def resend_invitation(user, actor=None, request=None):
         raise ValidationError("Too many invitations. Wait a few minutes and try again.")
     if not user.email:
         raise ValidationError("This account has no email address. Use a temporary password.")
-    invitation = create_invitation(user, actor=actor, request=request)
+    invitation = create_invitation(
+        user, actor=actor, request=request, email_type=SET_PASSWORD_LINK)
     record_action(actor, "invite")
     log_action(actor, "user.invitation_resent", instance=user, request=request)
     return invitation

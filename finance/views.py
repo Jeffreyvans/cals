@@ -16,6 +16,7 @@ from django.utils import timezone
 from academics.models import Guardian, Student, balances_by_student
 from accounts.decorators import role_required
 from core.access import module_required, permission_required_code, user_has_code
+from core.email_types import FEE_RECEIPT
 
 from . import services
 from .forms import (
@@ -409,7 +410,8 @@ def email_receipt(request, pk):
     message = queue_message(
         "email", student_user.email, body,
         subject=f"Payment receipt {p.receipt_no} from {institution.name}",
-        institution=institution, related_object=p, html_body=html_body)
+        institution=institution, related_object=p, html_body=html_body,
+        email_type=FEE_RECEIPT)
     send_message(message)
     messages.success(request, f"Receipt {p.receipt_no} emailed to {student_user.email}.")
     return redirect("receipt", pk=p.pk)

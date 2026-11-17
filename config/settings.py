@@ -1,12 +1,17 @@
+import logging
 import os
 import secrets
 import sys
+from email.utils import parseaddr
 from pathlib import Path
 
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 
+from .email_config import select_email_settings
 from .env import env_bool, env_int, env_list, env_str, load_dotenv
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
@@ -118,7 +123,7 @@ INSTALLED_APPS = [
     "core",
     "platform_admin",
     "fiscalisation",
-    "rest_framework", "drf_spectacular", "api",
+    "rest_framework", "drf_spectacular", "anymail", "api",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -250,12 +255,25 @@ CURRENCY = env_str("EDUSPHERE_CURRENCY", "$")
 
 # --- email ----------------------------------------------------------------
 # Render blocks outbound SMTP on ports 25, 465 and 587. Every message goes
-# through Django's email backend: Anymail's Resend HTTPS API when a key is
-# configured, and the console backend otherwise (local development). Django's
-# test runner swaps in the in-memory backend automatically, so mail.outbox
-# keeps working in tests. There are deliberately no EMAIL_HOST/PORT/TLS
-# settings: nothing in this project can open an SMTP connection.
-RESEND_API_KEY = _first("RESEND_API_KEY", "EDUSPHERE_RESEND_API_KEY").strip()
+# through Django's single configured email backend, using an HTTPS API via
+# django-anymail (Mailjet by default in production), the console backend
+# locally, and Django's in-memory backend in tests. There are deliberately no
+# EMAIL_HOST/PORT/TLS settings: nothing in this project can open SMTP.
+
+# A slow provider must never freeze a request.
+EMAIL_TIMEOUT = env_int("EMAIL_TIMEOUT", 10)
+_email_config = select_email_settings(os.environ, timeout=EMAIL_TIMEOUT, debug=DEBUG)
+EMAIL_PROVIDER = _email_config["EMAIL_PROVIDER"]
+EMAIL_BACKEND = _email_config["EMAIL_BACKEND"]
+ANYMAIL = _email_config["ANYMAIL"]
+RESEND_API_KEY = _email_config["RESEND_API_KEY"]
+MAILJET_API_KEY = _email_config["MAILJET_API_KEY"]
+MAILJET_SECRET_KEY = _email_config["MAILJET_SECRET_KEY"]
+BREVO_API_KEY = _email_config["BREVO_API_KEY"]
+MAILJET_API_URL = _email_config["MAILJET_API_URL"]
+RESEND_API_URL = _email_config["RESEND_API_URL"]
+BREVO_API_URL = _email_config["BREVO_API_URL"]
+
 EMAIL_FROM_DOMAIN = _first(
     "EMAIL_FROM_DOMAIN", "EDUSPHERE_EMAIL_FROM_DOMAIN",
     default="edusphere.local",
@@ -267,31 +285,34 @@ DEFAULT_FROM_EMAIL = _first(
 SERVER_EMAIL = _first(
     "SERVER_EMAIL", "EDUSPHERE_SERVER_EMAIL", default=DEFAULT_FROM_EMAIL,
 ).strip()
+DEFAULT_REPLY_TO_EMAIL = _first(
+    "DEFAULT_REPLY_TO_EMAIL", "EDUSPHERE_REPLY_TO_EMAIL", "REPLY_TO_EMAIL",
+).strip()
 EMAIL_FROM = DEFAULT_FROM_EMAIL   # backwards-compatible alias used by old code
 
-if RESEND_API_KEY:
-    EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
-    ANYMAIL = {
-        "RESEND_API_KEY": RESEND_API_KEY,
-        "RESEND_API_URL": _first(
-            "RESEND_API_URL", "EDUSPHERE_RESEND_API_URL",
-            default="https://api.resend.com/",
-        ).strip(),
-        # Anymail's requests timeout; keep it short so a slow provider cannot
-        # hold a request (or a worker) open.
-        "requests_timeout": env_int("EMAIL_TIMEOUT", 10),
-    }
-else:
-    EMAIL_BACKEND = _first(
-        "EMAIL_BACKEND", "EDUSPHERE_EMAIL_BACKEND",
-        default="django.core.mail.backends.console.EmailBackend",
-    )
-
-# A slow provider must never freeze a request.
-EMAIL_TIMEOUT = env_int("EMAIL_TIMEOUT", 10)
 RESEND_WEBHOOK_SECRET = _first(
     "RESEND_WEBHOOK_SECRET", "EDUSPHERE_RESEND_WEBHOOK_SECRET",
 ).strip()
+MAILJET_WEBHOOK_SECRET = _first(
+    "MAILJET_WEBHOOK_SECRET", "EDUSPHERE_MAILJET_WEBHOOK_SECRET",
+).strip()
+
+# Startup warnings: never fail a request, but make a bad deployment obvious in
+# the logs. Free mailbox senders are rejected or throttled by most ESPs.
+_FREE_MAILBOX_DOMAINS = {
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "hotmail.com",
+    "outlook.com", "live.com", "msn.com", "aol.com", "icloud.com", "me.com",
+    "mail.com", "gmx.com", "proton.me", "protonmail.com", "zoho.com",
+}
+_from_address = parseaddr(DEFAULT_FROM_EMAIL)[1].strip().lower()
+_from_domain = _from_address.rsplit("@", 1)[-1] if "@" in _from_address else ""
+if _from_domain in _FREE_MAILBOX_DOMAINS:
+    _email_config["warnings"].append(
+        f"DEFAULT_FROM_EMAIL uses the free mailbox domain {_from_domain}; verify "
+        "a domain you own with Mailjet and use no-reply@your-domain instead."
+    )
+for _warning in _email_config["warnings"]:
+    logger.warning("Email configuration: %s", _warning)
 
 # Links in emails must be built from the public base URL, never from the
 # request host (a request may arrive on Render's internal hostname).

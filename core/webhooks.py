@@ -1,8 +1,9 @@
-"""Signature-verified Resend delivery webhook.
+"""Verified delivery webhooks for Resend and Mailjet.
 
-Resend signs events with Svix headers. We record delivered, bounced and
-complained events and suppress addresses on hard bounces or complaints so a
-later message cannot be queued to a dead or hostile address.
+Resend signs events with Svix headers; Mailjet recommends HTTP basic auth on
+the webhook URL. Both handlers record delivered/bounced/blocked/spam events and
+suppress addresses on hard bounces or complaints so a later message cannot be
+queued to a dead or hostile address.
 """
 
 import base64
@@ -134,3 +135,132 @@ def resend_webhook(request):
             if not EmailSuppression.objects.filter(email__iexact=recipient).exists():
                 EmailSuppression.objects.create(email=recipient.lower(), reason=reason)
     return HttpResponse("ok")
+
+
+# ---------- Mailjet ----------
+
+# Mailjet sends a JSON array of events. These are the event names we record;
+# opens and clicks are ignored (they are tracking, not delivery outcomes).
+_MAILJET_KINDS = {
+    "sent": EmailEvent.Kind.SENT,
+    "delivered": EmailEvent.Kind.DELIVERED,
+    "bounce": EmailEvent.Kind.BOUNCED,
+    "blocked": EmailEvent.Kind.BLOCKED,
+    "spam": EmailEvent.Kind.SPAM,
+}
+# Bounce sub-types that are permanent (hard) and must suppress the address.
+_MAILJET_HARD_BOUNCES = {
+    "hardbounce", "blocked", "unsubscribe", "emailnotfound", "invalidemail",
+    "badaddress", "accountproblem", "typofdomain", "cannotroute",
+    "unknownuser", "mailboxfull",
+}
+
+
+def _verify_mailjet_auth(request):
+    """Verify the basic-auth credentials configured on the Mailjet webhook.
+
+    Mailjet does not sign webhook bodies. The documented protection is to put
+    credentials in the callback URL (``https://user:pass@example.com/...``),
+    which Mailjet then sends as an ``Authorization: Basic ...`` header. The
+    secret may be ``user:pass`` or just ``pass`` (any username is accepted in
+    that case).
+    """
+    secret = getattr(settings, "MAILJET_WEBHOOK_SECRET", "")
+    if not secret:
+        logger.warning("Mailjet webhook received without MAILJET_WEBHOOK_SECRET")
+        return False
+    header = request.headers.get("Authorization", "")
+    if not header.lower().startswith("basic "):
+        return False
+    try:
+        decoded = base64.b64decode(header.split(None, 1)[1]).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    supplied_user, _sep, supplied_password = decoded.partition(":")
+    expected_user, _sep, expected_password = secret.partition(":")
+    if expected_password and expected_user:
+        return hmac.compare_digest(decoded, secret)
+    if expected_password:
+        return hmac.compare_digest(supplied_password, expected_password)
+    return hmac.compare_digest(f"{supplied_user}:{supplied_password}", secret)
+
+
+def _mailjet_message(data, recipient):
+    """Find the OutboundMessage a Mailjet event refers to, if we have one."""
+    message_id = str(data.get("MessageID") or data.get("message_id") or "").strip()
+    custom_id = str(data.get("CustomID") or "").strip()
+    qs = OutboundMessage.all_objects
+    if custom_id.isdigit():
+        found = qs.filter(pk=int(custom_id)).first()
+        if found is not None:
+            return found
+    if message_id:
+        found = qs.filter(provider_message_id=message_id).first()
+        if found is not None:
+            return found
+    return None
+
+
+@csrf_exempt
+@require_POST
+def mailjet_webhook(request):
+    """Record Mailjet delivery events and suppress dead/hostile addresses."""
+    if not _verify_mailjet_auth(request):
+        return JsonResponse({"detail": "invalid credentials"}, status=403)
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"detail": "invalid payload"}, status=400)
+    events = payload if isinstance(payload, list) else [payload]
+
+    recorded = 0
+    with transaction.atomic():
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            name = str(event.get("event") or "").lower()
+            kind = _MAILJET_KINDS.get(name)
+            if kind is None:
+                continue
+            recipient = str(event.get("email") or event.get("Recipient") or "").strip()
+            if not recipient:
+                continue
+            message = _mailjet_message(event, recipient)
+            institution_id = message.institution_id if message is not None else None
+            if institution_id is None:
+                from core.tenancy import default_institution_id
+
+                institution_id = default_institution_id()
+            if institution_id is None:
+                continue
+            subtype = str(
+                event.get("bounce_type") or event.get("blocked_type")
+                or event.get("reason") or ""
+            ).lower()
+            detail = f"{name}: {subtype}" if subtype else name
+            EmailEvent.objects.create(
+                institution_id=institution_id,
+                message=message,
+                recipient=recipient,
+                kind=kind,
+                provider_event_id=str(
+                    event.get("MessageID") or event.get("CustomID") or ""
+                )[:255],
+                detail=detail[:500],
+            )
+            recorded += 1
+            suppress = (
+                (kind in {EmailEvent.Kind.BOUNCED, EmailEvent.Kind.BLOCKED}
+                 and (not subtype or subtype in _MAILJET_HARD_BOUNCES))
+                or kind == EmailEvent.Kind.SPAM
+            )
+            if suppress and not EmailSuppression.objects.filter(
+                email__iexact=recipient
+            ).exists():
+                reason = (
+                    EmailSuppression.Reason.COMPLAINED
+                    if kind == EmailEvent.Kind.SPAM
+                    else EmailSuppression.Reason.BOUNCED
+                )
+                EmailSuppression.objects.create(email=recipient.lower(), reason=reason)
+    return JsonResponse({"recorded": recorded})

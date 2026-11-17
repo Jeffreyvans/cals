@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from academics.models import Programme, Student
 from core.access import module_required, permission_required_code
+from core.email_types import STUDENT_APPLICATION_RECEIVED
 from core.models import Institution
 from core.notifications import queue_message, send_message
 from core.tenancy import current_institution_id, use_institution
@@ -124,7 +125,8 @@ def application_start(request):
                  f"Your reference is {application.reference}.\n"
                  f"Track your application here: {link}\n"),
                 subject=f"Application {application.reference} received",
-                institution=institution, related_object=application)
+                institution=institution, related_object=application,
+                email_type=STUDENT_APPLICATION_RECEIVED)
             send_message(message)
             return redirect("admissions:application_success",
                             token=application.tracking_token)

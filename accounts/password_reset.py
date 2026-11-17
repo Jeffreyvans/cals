@@ -14,6 +14,12 @@ from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
+from core.email_types import (
+    FORCED_PASSWORD_CHANGE_NOTICE,
+    PASSWORD_CHANGE_NOTICE,
+    PASSWORD_RESET_CONFIRMATION,
+    PASSWORD_RESET_REQUEST,
+)
 from core.notifications import (
     EMAIL_FAILURE_MESSAGE,
     absolute_url,
@@ -21,6 +27,7 @@ from core.notifications import (
     queue_message,
     record_email_attempt,
     render_email_html,
+    send_email,
     send_message,
 )
 
@@ -51,6 +58,7 @@ class EduSpherePasswordResetForm(PasswordResetForm):
                 institution=institution,
                 related_object=user,
                 html_body=html,
+                email_type=PASSWORD_RESET_REQUEST,
             )
             send_message(message)
             if request is not None and getattr(message, "status", "") != "sent":
@@ -72,5 +80,49 @@ class EduSpherePasswordResetView(PasswordResetView):
         return super().post(request, *args, **kwargs)
 
 
+def send_password_reset_confirmation_notice(user):
+    """Tell the account owner that a reset link was actually used."""
+    if not getattr(user, "email", ""):
+        return None
+    return send_email(
+        PASSWORD_RESET_CONFIRMATION,
+        user.email,
+        "Your EduSphere password was reset",
+        (
+            f"Hello {user.get_full_name() or user.username},\n\n"
+            "Your EduSphere password has been changed using the one-time reset "
+            "link. You can now sign in with the new password.\n\n"
+            "If you did not do this, contact your institution immediately.\n"
+        ),
+        institution=getattr(user, "institution", None),
+        related_object=user,
+    )
+
+
+def send_password_change_notice(user, forced=False):
+    """Notice after a voluntary or forced password change (single central send)."""
+    if not getattr(user, "email", ""):
+        return None
+    kind = FORCED_PASSWORD_CHANGE_NOTICE if forced else PASSWORD_CHANGE_NOTICE
+    return send_email(
+        kind,
+        user.email,
+        "Your EduSphere password was changed",
+        (
+            f"Hello {user.get_full_name() or user.username},\n\n"
+            "The password on your EduSphere account has been changed.\n\n"
+            "If you did not make this change, contact your institution.\n"
+        ),
+        institution=getattr(user, "institution", None),
+        related_object=user,
+    )
+
+
 class EduSpherePasswordResetConfirmView(PasswordResetConfirmView):
     form_class = StrongSetPasswordForm
+
+    def form_valid(self, form):
+        user = form.user
+        response = super().form_valid(form)
+        send_password_reset_confirmation_notice(user)
+        return response

@@ -3,13 +3,14 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from core.webhooks import resend_webhook
+from core.webhooks import mailjet_webhook, resend_webhook
 
 from .health import health_check
 
 urlpatterns = [
     path("health/", health_check, name="health_check"),
     path("webhooks/resend/", resend_webhook, name="resend_webhook"),
+    path("webhooks/mailjet/", mailjet_webhook, name="mailjet_webhook"),
     path("admin/", admin.site.urls),
     path("", include("accounts.urls")),
     path("api/", include("api.urls")),
