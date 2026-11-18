@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Set up a new institution{% endblock %}
+{% block title %}{% if setup_mode %}Finish setting up {{ institution.name }}{% else %}Set up a new institution{% endif %}{% endblock %}
 {% block content %}
 <div class="head">
   <div>
-    <h1>Set up a new institution</h1>
+    <h1>{% if setup_mode %}Finish setting up {{ institution.name }}{% else %}Set up a new institution{% endif %}</h1>
     <p class="muted">Step {{ step_index|add:1 }} of {{ step_count }} &middot; {{ step_label }}</p>
   </div>
 </div>
@@ -24,7 +24,53 @@
 <form method="post" enctype="multipart/form-data" class="inline wide">
   {% csrf_token %}
 
-  {% if step == "details" %}
+  {% if step == "institution_password" %}
+    <p class="muted">Choose the password you will use to sign in. It is stored as a hash and shown nowhere else.</p>
+    <p><label>New password<input name="password" type="password" minlength="8" required autocomplete="new-password" autofocus></label></p>
+    <p><label>New password again<input name="password_confirm" type="password" minlength="8" required autocomplete="new-password"></label></p>
+
+  {% elif step == "institution_logo" %}
+    <p class="muted">A logo appears in the sidebar and on receipts. You can add or change it later in Institution settings.</p>
+    <p><label>Logo
+      <input type="file" name="logo" accept="image/png,image/jpeg,image/webp">
+      <span class="helptext">PNG, JPG or WebP. At least 200×200 pixels and no larger than 2 MB.</span></label></p>
+    <p><img class="logo-preview" src="{{ logo_preview }}" alt="Current logo" width="96" height="96" {% if not logo_preview %}hidden{% endif %}></p>
+
+  {% elif step == "institution_details" %}
+    <p><label>Tagline<input name="tagline" value="{{ form.tagline|default:'' }}" maxlength="200" autofocus></label></p>
+    <p><label>About us<textarea name="about" rows="4" maxlength="600">{{ form.about|default:'' }}</textarea></label></p>
+    <p><label>Contact email<input name="contact_email" type="email" value="{{ form.contact_email|default:'' }}" maxlength="200"></label></p>
+    <p><label>Contact phone<input name="contact_phone" value="{{ form.contact_phone|default:'' }}" maxlength="30"></label></p>
+    <p><label>Website<input name="website" type="url" value="{{ form.website|default:'' }}" maxlength="200"></label></p>
+    <p><label>Address<textarea name="address" rows="2" maxlength="2000">{{ form.address|default:'' }}</textarea></label></p>
+    <p><label>Primary colour<input name="primary_color" value="{{ form.primary_color|default:'' }}" maxlength="20"></label></p>
+    <p><label>Accent colour<input name="accent_color" value="{{ form.accent_color|default:'' }}" maxlength="20"></label></p>
+
+  {% elif step == "institution_year" %}
+    <p><label>Academic year name<input name="year_name" value="{{ form.year_name|default:'' }}" maxlength="20" placeholder="2026" required autofocus></label></p>
+    <p><label>Year starts<input name="year_start" type="date" value="{{ form.year_start|default:'' }}" required></label></p>
+    <p><label>Year ends<input name="year_end" type="date" value="{{ form.year_end|default:'' }}" required></label></p>
+    <h3>First term</h3>
+    <p><label>Term name<input name="term_name" value="{{ form.term_name|default:'Term 1' }}" maxlength="40" required></label></p>
+    <p><label>Term starts<input name="term_start" type="date" value="{{ form.term_start|default:'' }}" required></label></p>
+    <p><label>Term ends<input name="term_end" type="date" value="{{ form.term_end|default:'' }}" required></label></p>
+
+  {% elif step == "institution_users" %}
+    <p class="muted">Create one shareable sign-up link and send it to your first staff and students. It works even when public registration is off.</p>
+    <p><label>Link name<input name="label" value="{{ form.label|default:'' }}" maxlength="120" placeholder="Term 1 intake" autofocus></label></p>
+    <p><label>Who can use it<select name="kind">
+      <option value="any" {% if form.kind == 'any' %}selected{% endif %}>Students or staff</option>
+      <option value="student" {% if form.kind == 'student' %}selected{% endif %}>Students only</option>
+      <option value="staff" {% if form.kind == 'staff' %}selected{% endif %}>Staff only</option>
+    </select></label></p>
+    {% if created_url %}
+    <div class="msg success"><strong>Your sign-up link is ready.</strong>
+      <p><code id="setup-signup-url">{{ created_url }}</code>
+      <button class="btn ghost btn-sm" type="button" data-copy-target="setup-signup-url">Copy</button></p>
+    </div>
+    {% endif %}
+
+  {% elif step == "details" %}
     <p><label>Institution name<input name="name" value="{{ form.name|default:'' }}" required maxlength="200" autofocus></label></p>
     <p><label>Web name
       <input name="slug" value="{{ form.slug|default:'' }}" maxlength="100" placeholder="lindenet">
@@ -117,7 +163,12 @@
 
   <div class="row">
     {% if step_index > 0 %}<button class="btn ghost" name="action" value="back">Back</button>{% endif %}
-    <button class="btn" name="action" value="next">{% if step == "demo" %}Create the institution{% else %}Save and continue{% endif %}</button>
+    {% if setup_mode and created_url %}
+      <button class="btn" name="action" value="finish">Finish setup</button>
+    {% else %}
+      {% if setup_mode %}<button class="btn ghost" name="action" value="skip">Skip for now</button>{% endif %}
+      <button class="btn" name="action" value="next">{% if finish_label %}{{ finish_label }}{% elif step == "demo" %}Create the institution{% else %}Save and continue{% endif %}</button>
+    {% endif %}
   </div>
 </form>
 

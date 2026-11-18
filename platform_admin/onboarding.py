@@ -10,6 +10,7 @@ a single on-screen display; they are never put in an audit row or an email log.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -425,6 +426,48 @@ def add_administrator(
         email_status=email_status,
         email_failed=email_failed,
     )
+
+
+def create_platform_signup_link(
+    institution,
+    *,
+    label="",
+    kind="any",
+    expires_days=None,
+    max_uses=None,
+    actor=None,
+    request=None,
+):
+    """Create a shareable link from the platform, marked as platform-created."""
+    from accounts.signup_links import create_signup_link
+
+    expires_at = None
+    if expires_days:
+        expires_at = timezone.now() + timedelta(days=int(expires_days))
+    link = create_signup_link(
+        institution,
+        label=label,
+        kind=kind,
+        expires_at=expires_at,
+        max_uses=max_uses,
+        actor=actor,
+        request=request,
+        created_by_platform_admin=True,
+    )
+    row = InstitutionOnboarding.for_institution(institution)
+    if row.signup_links_created_at is None:
+        row.signup_links_created_at = timezone.now()
+        row.save(update_fields=["signup_links_created_at", "updated"])
+    log_platform_action(
+        actor,
+        "institution.signup_link_created",
+        institution=institution,
+        record_type="SignupLink",
+        record_id=link.pk,
+        detail={"kind": kind, "created_by_platform_admin": True},
+        request=request,
+    )
+    return link
 
 
 def mark_admin_signed_in(user, request=None):

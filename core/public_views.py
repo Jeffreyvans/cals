@@ -12,7 +12,7 @@ import json
 
 from django.contrib import messages
 from django.http import Http404, HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from accounts.forms import DemoRequestForm
@@ -201,10 +201,18 @@ def institution_page(request, slug):
     An institution can switch the page off; a switched-off page is a 404, just
     like a slug that never existed.
     """
-    institution = get_object_or_404(
-        Institution.objects.filter(is_active=True, public_page_enabled=True),
-        slug=slug,
-    )
+    institution = Institution.objects.filter(
+        is_active=True, public_page_enabled=True, slug=slug
+    ).first()
+    if institution is None:
+        # A slug changed recently: follow the old address to the new one
+        # instead of showing a 404 on a printed poster or a shared link.
+        from core.models import resolve_institution_slug
+
+        old = resolve_institution_slug(slug)
+        if old is None or not old.public_page_enabled:
+            raise Http404("Institution not found.")
+        return redirect("institution_public", slug=old.slug)
     links = open_signup_links(institution)
     registration_available = institution.public_registration or bool(links)
     show_register = institution.show_register_button and registration_available

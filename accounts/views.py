@@ -69,7 +69,13 @@ class LoginLockoutMixin:
     def form_valid(self, form):
         from .user_admin import clear_failed_logins
 
-        clear_failed_logins(form.get_user())
+        user = form.get_user()
+        clear_failed_logins(user)
+        # Only a real form login opens the guided setup; force_login and
+        # Client.login() fire the auth signal but never reach this method.
+        from core.institution_setup import queue_setup_after_login
+
+        queue_setup_after_login(user, self.request)
         return super().form_valid(form)
 
     def form_invalid(self, form):
@@ -176,10 +182,29 @@ class InstitutionLoginView(LoginLockoutMixin, LoginView):
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
             return redirect("dashboard")
-        self.institution = get_object_or_404(
-            Institution.objects.filter(is_active=True), slug=kwargs["slug"]
-        )
+        slug = kwargs["slug"]
+        self.institution = Institution.objects.filter(is_active=True, slug=slug).first()
+        if self.institution is None:
+            # Follow a recently changed slug so old login links keep working.
+            from core.models import resolve_institution_slug
+
+            old = resolve_institution_slug(slug)
+            if old is None:
+                raise Http404("Institution not found.")
+            target = reverse("institution_login", args=[old.slug])
+            query = request.META.get("QUERY_STRING")
+            return redirect(f"{target}?{query}" if query else target)
         return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        """A newly onboarded administrator starts with the guided setup."""
+        if self.request.session.get("needs_institution_setup"):
+            self.request.session.pop("needs_institution_setup")
+            from core.institution_setup import mark_setup_started
+
+            mark_setup_started(self.request.user)
+            return reverse("institution_setup")
+        return super().get_success_url()
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()

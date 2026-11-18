@@ -6,6 +6,8 @@
 <p>
   <a class="btn ghost btn-sm" href="{% url 'platform_admin:institution_modules' institution.pk %}">Modules</a>
   <a class="btn ghost btn-sm" href="{% url 'platform_admin:institution_admins' institution.pk %}">Administrator accounts</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:institution_signup_link' institution.pk %}">Sign-up links</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:institution_domain' institution.pk %}">Custom domain</a>
   <a class="btn ghost btn-sm" href="{% url 'platform_admin:invoices' %}?institution={{ institution.pk }}">Invoices</a>
 </p>
 
@@ -16,10 +18,40 @@
 
 {% include "platform_admin/_onboarding_checklist.html" %}
 
+<h2>Sign-in link</h2>
+<div class="msg {% if institution.is_active %}success{% else %}warning{% endif %}">
+  {% if institution.is_active %}Enabled. People can sign in through this link.
+  {% else %}Disabled. The institution is inactive, so nobody can sign in yet.{% endif %}
+</div>
+<p class="muted">The branded page shows the institution's logo and accepts only its own accounts. Public page: {% if institution.public_page_enabled %}on{% else %}off{% endif %}.</p>
+<p><code id="login-link-url">{{ login_url }}</code>
+  <button class="btn ghost btn-sm" type="button" data-copy-target="login-link-url">Copy</button>
+  <a class="btn ghost btn-sm" href="https://wa.me/?text={{ login_whatsapp|urlencode }}" target="_blank" rel="noopener">WhatsApp</a>
+</p>
+<p><img src="{{ login_qr_url }}" alt="QR code for the sign-in link" width="160" height="160" loading="lazy"></p>
+{% if welcome_admins %}
+<h3>Email the link to an administrator</h3>
+<form method="post" class="inline">
+  {% csrf_token %}<input type="hidden" name="action" value="email_login_link">
+  <p><label>Send to<select name="user">{% for admin in welcome_admins %}<option value="{{ admin.pk }}">{{ admin.get_full_name|default:admin.username }} ({{ admin.email }})</option>{% endfor %}</select></label></p>
+  <p><button class="btn ghost btn-sm" type="submit">Email sign-in link</button></p>
+</form>
+{% endif %}
+{% if platform_signup_links %}
+<p class="muted">Platform-created sign-up links: {% for link in platform_signup_links %}<a href="{{ link.url }}">{{ link.label|default:link.token }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+{% endif %}
+{% if slug_redirects %}
+<p class="muted">Old web addresses still redirect for 90 days: {% for row in slug_redirects %}<code>{{ row.old_slug }}</code> &rarr; {{ row.institution.slug }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+{% endif %}
+
 <h2>Details</h2>
 <form method="post" class="inline wide">
   {% csrf_token %}<input type="hidden" name="action" value="edit">
+  {% if form.errors %}<div class="msg error">{{ form.errors }}</div>{% endif %}
   <p><label>Name<input name="name" value="{{ institution.name }}" maxlength="200" required></label></p>
+  <p><label>Web address
+    <input name="slug" value="{{ institution.slug }}" maxlength="100" required>
+    <span class="helptext">Lower-case letters, numbers and dashes. Changing it keeps the old address working for 90 days.</span></label></p>
   <p><label>Type<select name="type">{% for value, label in institution.Type.choices %}<option value="{{ value }}" {% if institution.type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></p>
   <p><label>Contact email<input name="contact_email" type="email" value="{{ institution.contact_email }}"></label></p>
   <p><label>Contact phone<input name="contact_phone" value="{{ institution.contact_phone }}"></label></p>

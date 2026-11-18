@@ -10,6 +10,7 @@ import time
 
 from django.conf import settings
 from django.core.cache import cache
+from django.shortcuts import redirect, resolve_url
 
 from core.tenancy import default_institution_id, reset_current_institution, set_current_institution
 
@@ -34,7 +35,14 @@ def institution_from_request(request):
         if institution is not None:
             return institution
 
-    host = request.get_host().split(":")[0]
+    host = request.get_host().split(":")[0].strip(".").lower()
+    if host:
+        from core.cache import institution_by_domain
+
+        domain_institution = institution_by_domain(host)
+        if domain_institution is not None:
+            return domain_institution
+
     parts = host.split(".")
     if len(parts) > 2:
         from core.cache import institution_by_slug
@@ -53,6 +61,31 @@ def institution_from_request(request):
             if inst is not None:
                 return inst
     return None
+
+
+class FirstSignInSetupMiddleware:
+    """Open the guided setup after a first sign-in, whichever login was used.
+
+    The branded institution login already redirects straight there. This
+    narrow check covers the ordinary ``/login/`` screen too: the signal sets a
+    one-shot session flag, and the first visit to the dashboard consumes it.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        user = getattr(request, "user", None)
+        if (
+            user is not None
+            and user.is_authenticated
+            and request.session.get("needs_institution_setup")
+            and request.path == resolve_url(settings.LOGIN_REDIRECT_URL)
+        ):
+            request.session.pop("needs_institution_setup", None)
+            request.session.modified = True
+            return redirect("institution_setup")
+        return self.get_response(request)
 
 
 class InstitutionMiddleware:

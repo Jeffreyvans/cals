@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import models, transaction
+from django.utils import timezone
 
 from core.email_types import EMAIL_TYPES, GENERAL
 from core.tenancy import CurrentInstitutionId, current_institution_id, default_institution_id
@@ -128,6 +131,14 @@ class Institution(models.Model):
             "Show a Register button on the public page when registration is open."
         ),
     )
+    # Optional per-institution custom domain. Everything is off by default: a
+    # platform admin must point the DNS record at the service, add the host to
+    # ALLOWED_HOSTS/CSRF_TRUSTED_ORIGINS and then confirm verification here.
+    custom_domain = models.CharField(max_length=253, blank=True)
+    custom_domain_enabled = models.BooleanField(default=False)
+    custom_domain_verified = models.BooleanField(default=False)
+    custom_domain_token = models.CharField(max_length=64, blank=True)
+    custom_domain_verified_at = models.DateTimeField(null=True, blank=True)
     staff_positions = models.JSONField(
         default=list,
         blank=True,
@@ -201,6 +212,77 @@ class Institution(models.Model):
         from accounts.registration import allowed_staff_positions
 
         return allowed_staff_positions(self)
+
+    def login_url_path(self):
+        """The shareable login path for this institution."""
+        from django.urls import reverse
+
+        return reverse("institution_login", args=[self.slug])
+
+
+class InstitutionSlugRedirect(models.Model):
+    """A previous institution web address, kept alive for 90 days.
+
+    Printed posters and shared links keep working after a slug change. The
+    redirect expires on purpose: an old address must not be reserved forever.
+    """
+
+    institution = models.ForeignKey(
+        Institution, on_delete=models.CASCADE, related_name="slug_redirects"
+    )
+    old_slug = models.SlugField(max_length=100, unique=True)
+    created = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        ordering = ["-created"]
+
+    def __str__(self):
+        return f"{self.old_slug} -> {self.institution.slug}"
+
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(days=90)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+
+def resolve_institution_slug(slug):
+    """The institution for a current or recently changed public slug."""
+    if not slug:
+        return None
+    institution = Institution.objects.filter(slug=slug, is_active=True).first()
+    if institution is not None:
+        return institution
+    redirect = (
+        InstitutionSlugRedirect.objects.filter(
+            old_slug=slug, expires_at__gt=timezone.now()
+        )
+        .select_related("institution")
+        .first()
+    )
+    if redirect is None or not redirect.institution.is_active:
+        return None
+    return redirect.institution
+
+
+def record_slug_change(institution, old_slug, new_slug):
+    """Keep a changed slug working for 90 days and drop stale redirects."""
+    from .slugs import SLUG_REDIRECT_DAYS
+
+    if not old_slug or old_slug == new_slug:
+        return
+    InstitutionSlugRedirect.objects.update_or_create(
+        old_slug=old_slug,
+        defaults={
+            "institution": institution,
+            "expires_at": timezone.now() + timedelta(days=SLUG_REDIRECT_DAYS),
+        },
+    )
+    InstitutionSlugRedirect.objects.filter(expires_at__lte=timezone.now()).delete()
 
 
 class InstitutionModule(models.Model):

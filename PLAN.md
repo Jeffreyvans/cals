@@ -322,7 +322,7 @@ SMTP setting anywhere, so Render's blocked outbound ports are never used.
   `makemigrations --check` reports no changes.
 
 ## PHASE 12 - Institution onboarding from the platform admin area
-Status (2026-11-18): Part 1 complete; Parts 2 and 3 pending.
+Status (2026-11-18): Parts 1 and 2 complete; Part 3 (handover) pending.
 
 The platform admin can now take a newly created institution from empty to a
 working first administrator without leaving the platform area. The work reuses
@@ -334,3 +334,17 @@ the existing invitation, branding, audit, notification and central email code.
 - [x] Added `InstitutionAdministratorForm` and the platform views/URLs for `admins/new/` and `admins/<user_pk>/credentials/`. The temporary password or one-time set-password link is stored in the session for exactly one on-screen display with Copy and Print; it cannot be shown again. When delivery fails, the screen offers a one-time link instead.
 - [x] Updated the institution detail and administrator list templates with a progress checklist, "what is missing", management actions and a welcome-email resend form. The approval flow now uses the same welcome email template and service as direct onboarding.
 - [x] Added `platform_admin/tests/test_institution_onboarding.py` (10 tests) and updated the existing deactivation test for the new last-admin rule. Verification: 1,498 tests pass, `ruff check .` is clean and `makemigrations --check` reports no changes.
+
+### Part 2 - Web address, sign-in link and first-sign-in handoff
+- [x] Added `core/slugs.py` as the one place for institution slug rules: plain lower-case slugs, a reserved-word list for top-level routes, uniqueness against institutions and live redirects, and a `unique_slug()` helper for safe suggestions. Domain parsing/verification-token helpers live there too.
+- [x] Added `InstitutionSlugRedirect` (migration `core/0020`) and `resolve_institution_slug`/`record_slug_change`. Changing an institution slug keeps the old `/i/<slug>/` and `/i/<slug>/login/` addresses alive for 90 days, including the query string; expired redirects stop working and stop reserving the word. Inactive institutions never resolve.
+- [x] The platform institution detail screen now shows a branded sign-in-link panel with the copyable URL, a QR PNG endpoint (reusing installed `qrcode[pil]`), a WhatsApp share link, an enabled/disabled status and an audited "email sign-in link" action. The email is sent through `queue_message` with the support contacts `+263774573765` / `vanhuvaonejeffrey@gmail.com`; a non-`sent` `OutboundMessage.status` surfaces an error.
+- [x] Platform admins can create a sign-up link for the institution from the detail screen (`SignupLink.created_by_platform_admin`, migration `accounts/0011`). The marker is informational: the link obeys the same kind, expiry, max-use and tenant rules as institution-created links. The result is shown once with a copyable `SITE_URL` link.
+- [x] Custom domains are off by default. Saving a domain generates a verification token and prints the DNS TXT record plus the required `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS` entries; an explicit confirmation marks it verified and enables host-based institution mapping through `core.middleware` (cached). Disabling keeps the record but stops the mapping. No live DNS lookup.
+- [x] The first administrator's real form login queues a one-shot session flag from `LoginLockoutMixin.form_valid` (not the auth signal, so `force_login` cannot trigger it), then `FirstSignInSetupMiddleware` opens a five-step, institution-scoped guided setup in `core/institution_setup.py` reusing `templates/core/setup_wizard.html`. It never grants the platform-only `admin.create_institutions` permission; the last step creates a sign-up link, shows it once and requires a final "Finish setup" post.
+- [x] Added `core/tests/test_slugs.py` (27 tests) and `platform_admin/tests/test_onboarding_part2.py` (24 tests) covering slug/domain rules, old-link redirects, host mapping, link panel, QR, email queue, sign-up links, custom-domain lifecycle, real-login-only handoff, tenant isolation, permission 404/403 and secret-free audits. Verification: `ruff check .` clean, `makemigrations --check` reports no changes; the full suite collected 1,549 tests with 1,548 passing and one unrelated flaky finance concurrency test that passes in isolation.
+
+### Part 3 - Handover
+- [ ] Cross-check every requirement against Part 1/Part 2 code and tests; add any missing coverage.
+- [ ] Write the final report and manual testing instructions; update the docs.
+- [ ] Run the final verification (`pytest`, `ruff`, `makemigrations --check`) and commit.

@@ -210,6 +210,10 @@ class SignupLink(models.Model):
     created_by = models.ForeignKey(
         User, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="signup_links_created")
+    # Set when a platform administrator created the link during onboarding.
+    # It is informational only: the link still belongs to the institution and
+    # obeys exactly the same rules as one created by an institution admin.
+    created_by_platform_admin = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True, db_index=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     max_uses = models.PositiveIntegerField(

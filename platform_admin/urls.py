@@ -39,6 +39,12 @@ urlpatterns = [
          name="onboarding_admin_create"),
     path("platform/institutions/<int:pk>/admins/<int:user_pk>/credentials/",
          views.onboarding_credential, name="onboarding_credential"),
+    path("platform/institutions/<int:pk>/login-qr/", views.institution_login_qr,
+         name="institution_login_qr"),
+    path("platform/institutions/<int:pk>/signup-link/", views.institution_signup_link,
+         name="institution_signup_link"),
+    path("platform/institutions/<int:pk>/domain/", views.institution_domain,
+         name="institution_domain"),
     # Plans, subscriptions, invoices and payments.
     path("platform/plans/", views.plans, name="plans"),
     path("platform/plans/<int:pk>/", views.plan_detail, name="plan_detail"),

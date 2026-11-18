@@ -117,6 +117,9 @@ def invalidate_institution(institution_or_id):
     slug = getattr(institution_or_id, "slug", None)
     if slug:
         keys.append(_key("institution", "slug", slug))
+    domain = getattr(institution_or_id, "custom_domain", None)
+    if domain:
+        keys.append(_key("institution", "domain", str(domain).lower()))
     cache.delete_many(keys)
 
 
@@ -130,6 +133,25 @@ def institution_by_slug(slug):
         from core.models import Institution
 
         return Institution.objects.filter(slug=slug, is_active=True).first()
+
+    return get_or_set(key, build, 300)
+
+
+def institution_by_domain(domain):
+    """The active institution that published this verified custom domain."""
+    if not domain:
+        return None
+    key = _key("institution", "domain", domain.lower())
+
+    def build():
+        from core.models import Institution
+
+        return Institution.objects.filter(
+            custom_domain_enabled=True,
+            custom_domain_verified=True,
+            custom_domain__iexact=domain,
+            is_active=True,
+        ).first()
 
     return get_or_set(key, build, 300)
 

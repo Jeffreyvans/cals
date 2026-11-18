@@ -196,8 +196,13 @@ def clean_details(data):
         errors.append("The institution needs a web name (slug).")
     elif not slugify(clean["slug"]) == clean["slug"]:
         errors.append("The web name may only contain small letters, numbers and dashes.")
-    elif Institution.objects.filter(slug=clean["slug"]).exists():
-        errors.append(f"The web name '{clean['slug']}' is already taken.")
+    else:
+        from core.slugs import validate_slug
+
+        try:
+            clean["slug"] = validate_slug(clean["slug"], normalize=False)
+        except ValidationError as exc:
+            errors.extend(exc.messages)
     if clean["type"] not in Institution.Type.values:
         errors.append("Choose the kind of institution.")
     if clean["contact_email"] and "@" not in clean["contact_email"]:

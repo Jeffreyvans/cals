@@ -4,6 +4,7 @@ from django.urls import path
 from . import (
     approvals,
     import_views,
+    institution_setup,
     job_views,
     module_directory,
     org,
@@ -23,6 +24,8 @@ urlpatterns = [
     path("services/", module_directory.module_directory, name="module_directory"),
     path("setup/", wizard_views.setup_wizard, name="setup_wizard"),
     path("setup/done/", wizard_views.setup_done, name="setup_done"),
+    path("setup/institution/", institution_setup.institution_setup,
+         name="institution_setup"),
     path("imports/", import_views.import_list, name="import_list"),
     path("imports/new/", import_views.import_start, name="import_start"),
     path("imports/template/<str:kind>.csv", import_views.import_template,

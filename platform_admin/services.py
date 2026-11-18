@@ -16,7 +16,6 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.text import slugify
 
 from core.audit import log_action
 from core.email_types import (
@@ -613,13 +612,9 @@ def reject_application(application, actor, reason, request=None):
 
 
 def _unique_slug(name):
-    base = slugify(name)[:90] or "institution"
-    candidate = base
-    counter = 1
-    while Institution.objects.filter(slug=candidate).exists():
-        counter += 1
-        candidate = f"{base[:85]}-{counter}"
-    return candidate
+    from core.slugs import unique_slug
+
+    return unique_slug(name)
 
 
 def _unique_username(email, first_name):

@@ -218,5 +218,21 @@
   </main>
 </div>
 {% else %}{% block bare %}{% endblock %}{% endif %}
-<script src="{% static 'js/app.js' %}"></script>{% block js %}{% endblock %}
+<script src="{% static 'js/app.js' %}"></script>
+<script>
+  (function () {
+    document.addEventListener("click", function (event) {
+      var button = event.target.closest("[data-copy-target]");
+      if (!button || !navigator.clipboard) return;
+      var target = document.getElementById(button.getAttribute("data-copy-target"));
+      if (!target) return;
+      navigator.clipboard.writeText(target.textContent.trim()).then(function () {
+        var before = button.textContent;
+        button.textContent = "Copied";
+        window.setTimeout(function () { button.textContent = before; }, 1500);
+      });
+    });
+  })();
+</script>
+{% block js %}{% endblock %}
 </body></html>

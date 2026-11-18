@@ -55,8 +55,14 @@ def create_signup_link(
     max_uses=None,
     actor=None,
     request=None,
+    created_by_platform_admin=False,
 ):
-    """Create a link for one institution. Returns the saved ``SignupLink``."""
+    """Create a link for one institution. Returns the saved ``SignupLink``.
+
+    ``created_by_platform_admin`` marks links made from the platform onboarding
+    area. It does not change what the link can do; it only makes those links
+    easy to find later.
+    """
     _validate_kind(kind)
     position = _validate_position(kind, position)
     if max_uses is not None:
@@ -72,6 +78,7 @@ def create_signup_link(
         kind=kind,
         position=position,
         created_by=actor if getattr(actor, "is_authenticated", False) else None,
+        created_by_platform_admin=bool(created_by_platform_admin),
         expires_at=expires_at,
         max_uses=max_uses,
     )
@@ -80,7 +87,10 @@ def create_signup_link(
         "signup_link.created",
         instance=link,
         institution=institution,
-        after={"kind": kind, "position": position, "max_uses": max_uses},
+        after={
+            "kind": kind, "position": position, "max_uses": max_uses,
+            "created_by_platform_admin": bool(created_by_platform_admin),
+        },
         request=request,
     )
     return link

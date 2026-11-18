@@ -139,6 +139,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "accounts.middleware.ForcePasswordChangeMiddleware",
+    "core.middleware.FirstSignInSetupMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "core.middleware.LowDataMiddleware",
     "core.middleware.InstitutionMiddleware",

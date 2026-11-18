@@ -6,8 +6,10 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
+from accounts.models import SignupLink
 from core.models import Institution
 from core.modules import ALL_MODULES, MODULE_LABELS
+from core.slugs import normalize_domain, normalize_slug, validate_slug
 
 from .models import (
     ACCESS_CATEGORIES,
@@ -162,12 +164,23 @@ class DataProcessingAcceptanceForm(forms.Form):
 
 
 class InstitutionEditForm(forms.ModelForm):
+    slug = forms.SlugField(
+        max_length=100, required=False,
+        help_text="Changing this keeps the old address working for 90 days.",
+    )
+
     class Meta:
         model = Institution
         fields = [
-            "name", "type", "address", "contact_email", "contact_phone",
+            "name", "slug", "type", "address", "contact_email", "contact_phone",
             "website", "public_page_enabled", "access_grant_max_hours",
         ]
+
+    def clean_slug(self):
+        value = (self.cleaned_data.get("slug") or "").strip()
+        if not value:
+            return self.instance.slug
+        return validate_slug(value, exclude=self.instance)
 
     def clean_access_grant_max_hours(self):
         hours = self.cleaned_data.get("access_grant_max_hours") or 24
@@ -199,15 +212,9 @@ class InstitutionCreateForm(forms.ModelForm):
         self.fields["address"].required = False
 
     def clean_slug(self):
-        from django.utils.text import slugify
-
         value = (self.cleaned_data.get("slug") or "").strip()
-        value = value or slugify(self.cleaned_data.get("name", ""))[:100]
-        if not value:
-            raise ValidationError("Enter a name that can become a web address.")
-        if Institution.objects.filter(slug=value).exists():
-            raise ValidationError("That web address is already used by another institution.")
-        return value
+        value = value or normalize_slug(self.cleaned_data.get("name", ""))
+        return validate_slug(value)
 
     def clean_access_grant_max_hours(self):
         hours = self.cleaned_data.get("access_grant_max_hours") or 24
@@ -240,6 +247,35 @@ class InstitutionAdministratorForm(forms.Form):
         if cleaned.get("access_mode") == "invitation" and not cleaned.get("email"):
             self.add_error("email", "An invitation needs an email address.")
         return cleaned
+
+
+class PlatformSignupLinkForm(forms.Form):
+    """Create a shareable sign-up link from the platform onboarding area."""
+
+    label = forms.CharField(max_length=120, required=False)
+    kind = forms.ChoiceField(choices=SignupLink.Kind.choices, initial=SignupLink.Kind.ANY)
+    position = forms.CharField(max_length=40, required=False)
+    expires_days = forms.IntegerField(
+        min_value=1, max_value=365, required=False,
+        help_text="Leave empty for a link that never expires.",
+    )
+    max_uses = forms.IntegerField(
+        min_value=1, required=False,
+        help_text="Leave empty for unlimited uses.",
+    )
+
+
+class InstitutionDomainForm(forms.Form):
+    """The optional per-institution custom domain."""
+
+    custom_domain = forms.CharField(
+        max_length=253, required=False, label="Custom domain",
+        help_text="For example learn.example.org, without https://.",
+    )
+
+    def clean_custom_domain(self):
+        value = (self.cleaned_data.get("custom_domain") or "").strip()
+        return normalize_domain(value) if value else ""
 
 
 class PlanForm(forms.ModelForm):

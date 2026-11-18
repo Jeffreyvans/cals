@@ -1,0 +1,49 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Custom domain for {{ institution.name }}{% endblock %}
+{% block platform_heading %}Custom domain for {{ institution.name }}{% endblock %}
+{% block platform_content %}
+<p><a class="btn ghost btn-sm" href="{% url 'platform_admin:institution_detail' institution.pk %}">&larr; Back to institution</a></p>
+
+<p class="muted">A custom domain is optional and off by default. The standard <code>/i/{{ institution.slug }}/login/</code> link keeps working either way.</p>
+
+<div class="msg {% if institution.custom_domain_enabled %}success{% else %}warning{% endif %}">
+  {% if institution.custom_domain_enabled %}
+    Enabled for <strong>{{ institution.custom_domain }}</strong> since {{ institution.custom_domain_verified_at|date:"j M Y H:i" }}.
+  {% elif institution.custom_domain_verified %}
+    Verified but currently disabled.
+  {% else %}
+    Not configured or not verified yet.
+  {% endif %}
+</div>
+
+<h2>Set the domain</h2>
+<form method="post" class="inline">
+  {% csrf_token %}<input type="hidden" name="action" value="save">
+  {% if form.errors %}<div class="msg error">{{ form.errors }}</div>{% endif %}
+  <p><label>Domain<input name="custom_domain" value="{{ institution.custom_domain }}" maxlength="253" placeholder="learn.example.org"></label></p>
+  <p><button class="btn" type="submit">Save domain</button></p>
+</form>
+
+{% if institution.custom_domain %}
+<h2>Verification steps</h2>
+<ol>
+  <li>At your DNS provider add a TXT record for <code>_edusphere.{{ institution.custom_domain }}</code> with the value <code>{{ institution.custom_domain_token }}</code>.</li>
+  <li>Point the hostname itself at the EduSphere service (a <code>CNAME</code> or the platform's recommended <code>ALIAS</code> record) and wait for the certificate to be issued.</li>
+  <li>Add the host to the deployment environment (then redeploy):
+    <pre>ALLOWED_HOSTS={{ institution.custom_domain }}
+CSRF_TRUSTED_ORIGINS=https://{{ institution.custom_domain }}</pre>
+  </li>
+  <li>Open <code>https://{{ institution.custom_domain }}/i/{{ institution.slug }}/login/</code> and check that the page, styles and uploads load.</li>
+  <li>Confirm below. Until you do, the domain is ignored by the application.</li>
+</ol>
+<form method="post" class="inline">
+  {% csrf_token %}<input type="hidden" name="action" value="verify">
+  <p><label class="check"><input type="checkbox" name="confirm"> I have completed the DNS and host steps above.</label></p>
+  <p><button class="btn" type="submit">Verify and enable domain</button></p>
+</form>
+<form method="post" class="inline">
+  {% csrf_token %}<input type="hidden" name="action" value="disable">
+  <p><button class="btn ghost" type="submit">Disable custom domain</button></p>
+</form>
+{% endif %}
+{% endblock %}

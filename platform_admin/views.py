@@ -22,9 +22,17 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
-from core.models import AuditEntry, Institution, InstitutionModule, Notification
+from core.models import (
+    AuditEntry,
+    Institution,
+    InstitutionModule,
+    InstitutionSlugRedirect,
+    Notification,
+    record_slug_change,
+)
 from core.modules import ALL_MODULES, MODULE_LABELS
-from core.notifications import notify
+from core.notifications import absolute_url, notify
+from core.slugs import domain_verification_token
 
 from . import onboarding, services
 from .access import institution_admin_required, platform_required
@@ -37,12 +45,14 @@ from .forms import (
     InstitutionAdministratorForm,
     InstitutionApplicationForm,
     InstitutionCreateForm,
+    InstitutionDomainForm,
     InstitutionEditForm,
     PasswordConfirmForm,
     PlanForm,
     PlatformInvoiceForm,
     PlatformPaymentForm,
     PlatformRoleForm,
+    PlatformSignupLinkForm,
     PlatformStaffForm,
     SubscriptionForm,
     TwoFactorForm,
@@ -615,12 +625,15 @@ def institution_detail(request, pk):
             # cleaned data to the instance during validation.
             before = {
                 "name": institution.name,
+                "slug": institution.slug,
                 "type": institution.type,
                 "access_grant_max_hours": institution.access_grant_max_hours,
             }
             form = InstitutionEditForm(request.POST, instance=institution)
             if form.is_valid():
                 form.save()
+                if before["slug"] != institution.slug:
+                    record_slug_change(institution, before["slug"], institution.slug)
                 services.log_platform_action(
                     request.user,
                     "institution.edited",
@@ -630,6 +643,7 @@ def institution_detail(request, pk):
                     before=before,
                     after={
                         "name": institution.name,
+                        "slug": institution.slug,
                         "type": institution.type,
                         "access_grant_max_hours": institution.access_grant_max_hours,
                     },
@@ -650,6 +664,20 @@ def institution_detail(request, pk):
                 messages.error(request, "We could not send the email. Try again in a few minutes.")
             else:
                 messages.success(request, "Welcome email sent again.")
+            return redirect("platform_admin:institution_detail", pk=institution.pk)
+        elif action == "email_login_link":
+            if not request.platform_staff.has_permission("platform.manage_admins"):
+                raise PermissionDenied("Your platform role cannot manage administrators.")
+            admin_user = get_object_or_404(
+                onboarding.administrators(institution), pk=request.POST.get("user")
+            )
+            message = onboarding.email_login_link(
+                institution, admin_user, actor=request.user, request=request
+            )
+            if message is None or getattr(message, "status", "") != "sent":
+                messages.error(request, "We could not send the email. Try again in a few minutes.")
+            else:
+                messages.success(request, f"Login link emailed to {admin_user.email}.")
             return redirect("platform_admin:institution_detail", pk=institution.pk)
         elif action in {"suspend", "reinstate", "archive", "restore", "delete"}:
             if not request.platform_staff.has_permission("platform.manage_institutions"):
@@ -696,6 +724,16 @@ def institution_detail(request, pk):
             "consent_logs": institution.data_consent_logs.all()[:5],
             "checklist": onboarding.admin_checklist(institution),
             "welcome_admins": onboarding.administrators(institution).exclude(email=""),
+            "login_url": absolute_url(institution.login_url_path()),
+            "login_qr_url": reverse("platform_admin:institution_login_qr", args=[institution.pk]),
+            "login_whatsapp": (
+                f"Sign in to {institution.name}: "
+                f"{absolute_url(institution.login_url_path())}"
+            ),
+            "platform_signup_links": institution.signup_links.filter(
+                created_by_platform_admin=True
+            )[:5],
+            "slug_redirects": InstitutionSlugRedirect.objects.filter(institution=institution)[:5],
         },
     )
 
@@ -854,6 +892,139 @@ def onboarding_credential(request, pk, user_pk):
             "action": data.get("action", ""),
             "staff": request.platform_staff,
         },
+    )
+
+
+@platform_required("platform.view_institutions")
+def institution_login_qr(request, pk):
+    """A PNG QR code for this institution's branded sign-in link."""
+    import io
+
+    import qrcode
+
+    institution = _institution_or_404(pk)
+    url = absolute_url(institution.login_url_path())
+    code = qrcode.QRCode(box_size=6, border=2)
+    code.add_data(url)
+    code.make(fit=True)
+    buffer = io.BytesIO()
+    code.make_image(fill_color="black", back_color="white").save(buffer, format="PNG")
+    response = HttpResponse(buffer.getvalue(), content_type="image/png")
+    response["Cache-Control"] = "private, max-age=300"
+    return response
+
+
+@platform_required("platform.manage_admins")
+def institution_signup_link(request, pk):
+    """Create a platform-admin sign-up link during onboarding."""
+    institution = _institution_or_404(pk)
+    form = PlatformSignupLinkForm(request.POST or None)
+    created = None
+    if request.method == "POST" and form.is_valid():
+        try:
+            created = onboarding.create_platform_signup_link(
+                institution,
+                label=form.cleaned_data["label"],
+                kind=form.cleaned_data["kind"],
+                expires_days=form.cleaned_data["expires_days"],
+                max_uses=form.cleaned_data["max_uses"],
+                actor=request.user,
+                request=request,
+            )
+        except ValidationError as exc:
+            form.add_error(None, " ".join(exc.messages))
+        else:
+            messages.success(request, "Sign-up link created. Copy and share it now.")
+    return render(
+        request,
+        "platform_admin/onboarding_signup_link.html",
+        {
+            "institution": institution,
+            "form": form,
+            "created_url": created.url() if created else "",
+            "links": institution.signup_links.filter(created_by_platform_admin=True)[:10],
+            "staff": request.platform_staff,
+        },
+    )
+
+
+@platform_required("platform.manage_institutions")
+def institution_domain(request, pk):
+    """Configure and verify an institution's optional custom domain."""
+    institution = _institution_or_404(pk)
+    form = InstitutionDomainForm(initial={"custom_domain": institution.custom_domain})
+    if request.method == "POST":
+        action = request.POST.get("action", "save")
+        from core.cache import invalidate_institution
+
+        if action == "save":
+            form = InstitutionDomainForm(request.POST)
+            if form.is_valid():
+                domain = form.cleaned_data["custom_domain"]
+                old = institution.custom_domain
+                if domain != old:
+                    institution.custom_domain = domain
+                    institution.custom_domain_verified = False
+                    institution.custom_domain_verified_at = None
+                    institution.custom_domain_enabled = False
+                    institution.custom_domain_token = domain_verification_token() if domain else ""
+                    institution.save(update_fields=[
+                        "custom_domain", "custom_domain_verified",
+                        "custom_domain_verified_at", "custom_domain_enabled",
+                        "custom_domain_token",
+                    ])
+                    invalidate_institution(institution)
+                services.log_platform_action(
+                    request.user, "institution.custom_domain_changed",
+                    institution=institution, record_type="Institution",
+                    record_id=institution.pk,
+                    after={"custom_domain": domain, "enabled": False},
+                    request=request,
+                )
+                messages.success(
+                    request,
+                    "Domain saved. Publish the TXT record below, add the host to "
+                    "ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS, then verify it.",
+                )
+                return redirect("platform_admin:institution_domain", pk=institution.pk)
+        elif action == "verify":
+            if not institution.custom_domain:
+                messages.error(request, "Enter a domain first.")
+            elif request.POST.get("confirm") != "on":
+                messages.error(request, "Confirm that the DNS and host settings are in place.")
+            else:
+                institution.custom_domain_verified = True
+                institution.custom_domain_verified_at = timezone.now()
+                institution.custom_domain_enabled = True
+                institution.save(update_fields=[
+                    "custom_domain_verified", "custom_domain_verified_at",
+                    "custom_domain_enabled",
+                ])
+                invalidate_institution(institution)
+                services.log_platform_action(
+                    request.user, "institution.custom_domain_verified",
+                    institution=institution, record_type="Institution",
+                    record_id=institution.pk,
+                    after={"custom_domain": institution.custom_domain, "enabled": True},
+                    request=request,
+                )
+                messages.success(request, "Custom domain enabled.")
+                return redirect("platform_admin:institution_domain", pk=institution.pk)
+        elif action == "disable":
+            institution.custom_domain_enabled = False
+            institution.save(update_fields=["custom_domain_enabled"])
+            invalidate_institution(institution)
+            services.log_platform_action(
+                request.user, "institution.custom_domain_disabled",
+                institution=institution, record_type="Institution",
+                record_id=institution.pk, request=request,
+            )
+            messages.success(request, "Custom domain disabled. The /i/<slug>/ links still work.")
+            return redirect("platform_admin:institution_domain", pk=institution.pk)
+    return render(
+        request,
+        "platform_admin/institution_domain.html",
+        {"institution": institution, "form": form, "staff": request.platform_staff},
     )
 
 
