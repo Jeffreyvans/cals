@@ -19,6 +19,19 @@ from core.models import ImportBatch, Institution
 
 PREVIEW_LIMIT = 25
 
+IMPORT_ACCESS_MODE_CHOICES = (
+    ("invite", "Send an invitation email"),
+    ("temp_password", "Create a temporary password"),
+)
+_IMPORT_ACCESS_MODE_DB = {
+    "invite": ImportBatch.AccessMode.INVITATION,
+    "temp_password": ImportBatch.AccessMode.TEMPORARY_PASSWORD,
+}
+_IMPORT_ACCESS_MODE_UI = {
+    ImportBatch.AccessMode.INVITATION: "invite",
+    ImportBatch.AccessMode.TEMPORARY_PASSWORD: "temp_password",
+}
+
 
 def _institution(request):
     inst = getattr(request, "institution", None)
@@ -93,10 +106,10 @@ def import_start(request):
             messages.error(request, str(exc))
             return redirect("import_start")
         headers = list(rows[0].keys())
-        access_mode = request.POST.get(
-            "access_mode", ImportBatch.AccessMode.INVITATION)
-        if access_mode not in ImportBatch.AccessMode.values:
-            access_mode = ImportBatch.AccessMode.INVITATION
+        access_mode = request.POST.get("access_mode", "")
+        if access_mode not in _IMPORT_ACCESS_MODE_DB:
+            messages.error(request, "Choose how new users get access.")
+            return redirect("import_start")
         batch = ImportBatch.objects.create(
             institution=inst,
             kind=kind,
@@ -105,7 +118,7 @@ def import_start(request):
             mapping=importer.guess_mapping(headers, importer.FIELDS_BY_KIND[kind]),
             created_by=request.user,
             status=ImportBatch.Status.UPLOADED,
-            access_mode=access_mode,
+            access_mode=_IMPORT_ACCESS_MODE_DB[access_mode],
         )
         messages.success(request, f"{upload.name} uploaded. Check the columns.")
         return redirect("import_map", pk=batch.pk)
@@ -164,10 +177,12 @@ def import_preview(request, pk):
         messages.error(request, "Map the columns first.")
         return redirect("import_map", pk=batch.pk)
     if request.method == "POST":
-        access_mode = request.POST.get("access_mode", batch.access_mode)
-        if access_mode in ImportBatch.AccessMode.values:
-            batch.access_mode = access_mode
-            batch.save(update_fields=["access_mode"])
+        access_mode = request.POST.get("access_mode", "")
+        if access_mode not in _IMPORT_ACCESS_MODE_DB:
+            messages.error(request, "Choose how these people get access.")
+            return redirect("import_preview", pk=batch.pk)
+        batch.access_mode = _IMPORT_ACCESS_MODE_DB[access_mode]
+        batch.save(update_fields=["access_mode"])
         return redirect("import_preview", pk=batch.pk)
     results = importer.validate(batch.kind, batch.data_rows, batch.mapping,
                                  batch.institution)
@@ -181,7 +196,8 @@ def import_preview(request, pk):
         "total": len(results),
         "fields": importer.FIELDS_BY_KIND[batch.kind],
         "shown": min(PREVIEW_LIMIT, len(results)),
-        "access_modes": ImportBatch.AccessMode.choices,
+        "access_modes": IMPORT_ACCESS_MODE_CHOICES,
+        "current_access_mode": _IMPORT_ACCESS_MODE_UI.get(batch.access_mode, "invite"),
         "needs_access_mode": batch.kind in ("students", "staff"),
     })
 

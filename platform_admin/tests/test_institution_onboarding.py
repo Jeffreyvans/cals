@@ -57,7 +57,7 @@ class OnboardingFlowTests(PlatformTestBase):
             "full_name": "Farai Moyo",
             "email": "farai@onboarding.example",
             "phone": "+263772222222",
-            "access_mode": "invitation",
+            "access_mode": "invite",
         })
         self.assertEqual(response.status_code, 302)
         admin = institution.users.get(email="farai@onboarding.example")
@@ -108,7 +108,7 @@ class OnboardingFlowTests(PlatformTestBase):
             "full_name": "Tadiwa Ndlovu",
             "email": "tadiwa@onboarding.example",
             "phone": "",
-            "access_mode": "temporary_password",
+            "access_mode": "temp_password",
         })
         self.assertEqual(response.status_code, 302)
         admin = institution.users.get(email="tadiwa@onboarding.example")
@@ -234,7 +234,7 @@ class OnboardingFlowTests(PlatformTestBase):
             self.client.force_login(user)
             self.assertEqual(self.client.get(url).status_code, 404)
             self.assertEqual(
-                self.client.post(url, {"full_name": "Nope", "access_mode": "invitation"}).status_code,
+                self.client.post(url, {"full_name": "Nope", "access_mode": "invite"}).status_code,
                 404,
             )
 
@@ -349,3 +349,41 @@ class OnboardingFlowTests(PlatformTestBase):
             recipient=admin.email, subject__icontains="Welcome to EduSphere"
         )
         self.assertIn(absolute_url(f"/i/{institution.slug}/login/"), message.body)
+
+    def test_add_admin_form_shows_access_options_and_accepts_each(self):
+        institution = self.create_institution("Access Options College", "access-options-college")
+        url = reverse("platform_admin:onboarding_admin_create", args=[institution.pk])
+
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "How should this person get access?")
+        self.assertContains(page, "Send an invitation email")
+        self.assertContains(page, "Create a temporary password")
+
+        invite = self.client.post(url, {
+            "full_name": "Invite Admin",
+            "email": "invite-admin@onboarding.example",
+            "phone": "",
+            "access_mode": "invite",
+        })
+        self.assertEqual(invite.status_code, 302)
+        invite_user = institution.users.get(email="invite-admin@onboarding.example")
+        self.assertRedirects(
+            invite,
+            reverse("platform_admin:onboarding_credential", args=[institution.pk, invite_user.pk]),
+            fetch_redirect_response=False,
+        )
+
+        temp = self.client.post(url, {
+            "full_name": "Temp Admin",
+            "email": "temp-admin@onboarding.example",
+            "phone": "",
+            "access_mode": "temp_password",
+        })
+        self.assertEqual(temp.status_code, 302)
+        temp_user = institution.users.get(email="temp-admin@onboarding.example")
+        self.assertRedirects(
+            temp,
+            reverse("platform_admin:onboarding_credential", args=[institution.pk, temp_user.pk]),
+            fetch_redirect_response=False,
+        )

@@ -14,7 +14,20 @@
   {% if form.non_field_errors %}
     <div class="msg error" role="alert">{{ form.non_field_errors|striptags }}</div>
   {% endif %}
-  {{ form.as_p }}
+  {% for field in form %}
+    {% if field.name == "access_mode" %}
+      <fieldset>
+        <legend>{{ field.label }}</legend>
+        {% for error in field.errors %}<p class="error">{{ error }}</p>{% endfor %}
+        {% for radio in field %}
+          <p><label>{{ radio.tag }} {{ radio.choice_label }}</label></p>
+        {% endfor %}
+        {% if field.help_text %}<p class="muted">{{ field.help_text }}</p>{% endif %}
+      </fieldset>
+    {% else %}
+      {{ field.as_field_group }}
+    {% endif %}
+  {% endfor %}
   <div class="row">
     <button class="btn">Save</button>
     {% if back %}<a class="btn ghost" href="{{ back }}">Cancel</a>{% endif %}

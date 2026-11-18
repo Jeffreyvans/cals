@@ -111,12 +111,11 @@
     <form method="post" action="{% url 'user_action' account.pk %}" class="inline">
       {% csrf_token %}
       <input type="hidden" name="action" value="link_login">
-      <label>Give this student a login
-        <select name="access_mode">
-          <option value="invitation">Send invitation email</option>
-          <option value="temporary_password">Create a temporary password</option>
-        </select>
-      </label>
+      <fieldset>
+        <legend>How should this person get access?</legend>
+        <p><label><input type="radio" name="access_mode" value="invite" checked> Send an invitation email</label></p>
+        <p><label><input type="radio" name="access_mode" value="temp_password"> Create a temporary password</label></p>
+      </fieldset>
       <button class="btn ghost">Attach login</button>
     </form>
   {% endif %}

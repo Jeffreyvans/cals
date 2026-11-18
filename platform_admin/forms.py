@@ -228,6 +228,12 @@ class InstitutionCreateForm(forms.ModelForm):
         return institution
 
 
+ACCESS_MODE_CHOICES = (
+    ("invite", "Send an invitation email"),
+    ("temp_password", "Create a temporary password"),
+)
+
+
 class InstitutionAdministratorForm(forms.Form):
     """Create the first (or another) administrator of an institution."""
 
@@ -235,16 +241,15 @@ class InstitutionAdministratorForm(forms.Form):
     email = forms.EmailField(max_length=200, required=False, label="Email address")
     phone = forms.CharField(max_length=30, required=False, label="Phone")
     access_mode = forms.ChoiceField(
-        choices=(
-            ("invitation", "Send an invitation email (single-use link, 72 hours)"),
-            ("temporary_password", "Use a temporary password (show it once)"),
-        ),
+        choices=ACCESS_MODE_CHOICES,
+        initial="invite",
+        widget=forms.RadioSelect,
         label="How should this person get access?",
     )
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("access_mode") == "invitation" and not cleaned.get("email"):
+        if cleaned.get("access_mode") == "invite" and not cleaned.get("email"):
             self.add_error("email", "An invitation needs an email address.")
         return cleaned
 

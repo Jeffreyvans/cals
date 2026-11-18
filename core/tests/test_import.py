@@ -395,6 +395,7 @@ class ImportScreenTests(ImportFixture):
         resp = self.client.post(reverse("import_start"), {
             "kind": "students",
             "file": csv_file(STUDENT_CSV),
+            "access_mode": "invite",
         })
         self.assertEqual(resp.status_code, 302)
         batch = ImportBatch.all_objects.get()
@@ -427,7 +428,7 @@ class ImportScreenTests(ImportFixture):
             ["Student Number", "First Name", "Last Name", "Programme"],
             ["ST010", "Chen", "Moyo", "DIT"],
         ])
-        self.client.post(reverse("import_start"), {"kind": "students", "file": upload})
+        self.client.post(reverse("import_start"), {"kind": "students", "file": upload, "access_mode": "invite"})
         batch = ImportBatch.all_objects.get()
         self.client.get(reverse("import_map", args=[batch.pk]))
         self.client.post(reverse("import_run", args=[batch.pk]))
@@ -442,7 +443,7 @@ class ImportScreenTests(ImportFixture):
                 "ST001,Tariro,Dube,DIT\n"
                 "ST002,Blessing,Sibanda,NOTHERE\n")
         self.client.post(reverse("import_start"), {
-            "kind": "students", "file": csv_file(text)})
+            "kind": "students", "file": csv_file(text), "access_mode": "invite"})
         batch = ImportBatch.all_objects.get()
         self.client.get(reverse("import_map", args=[batch.pk]))
         resp = self.client.get(reverse("import_preview", args=[batch.pk]))
@@ -460,7 +461,7 @@ class ImportScreenTests(ImportFixture):
                 "ST001,Tariro,Dube,DIT\n"
                 "ST002,Blessing,Sibanda,NOTHERE\n")
         self.client.post(reverse("import_start"), {
-            "kind": "students", "file": csv_file(text)})
+            "kind": "students", "file": csv_file(text), "access_mode": "invite"})
         batch = ImportBatch.all_objects.get()
         self.client.get(reverse("import_map", args=[batch.pk]))
         self.client.post(reverse("import_run", args=[batch.pk]))
@@ -474,7 +475,7 @@ class ImportScreenTests(ImportFixture):
     def test_the_import_is_written_to_the_audit_log(self):
         self.client.force_login(self.admin)
         self.client.post(reverse("import_start"), {
-            "kind": "students", "file": csv_file(STUDENT_CSV)})
+            "kind": "students", "file": csv_file(STUDENT_CSV), "access_mode": "invite"})
         batch = ImportBatch.all_objects.get()
         self.client.get(reverse("import_map", args=[batch.pk]))
         self.client.post(reverse("import_run", args=[batch.pk]))
@@ -486,7 +487,7 @@ class ImportScreenTests(ImportFixture):
     def test_the_list_of_imports_is_shown(self):
         self.client.force_login(self.admin)
         self.client.post(reverse("import_start"), {
-            "kind": "students", "file": csv_file(STUDENT_CSV)})
+            "kind": "students", "file": csv_file(STUDENT_CSV), "access_mode": "invite"})
         resp = self.client.get(reverse("import_list"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "students.csv")
@@ -495,7 +496,7 @@ class ImportScreenTests(ImportFixture):
         self.client.force_login(self.admin)
         upload = SimpleUploadedFile("notes.txt", b"hello", content_type="text/plain")
         resp = self.client.post(reverse("import_start"),
-                                 {"kind": "students", "file": upload})
+                                 {"kind": "students", "file": upload, "access_mode": "invite"})
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(ImportBatch.objects.count(), 0)
 

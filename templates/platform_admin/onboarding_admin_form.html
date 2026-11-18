@@ -11,10 +11,13 @@
   <p><label>{{ form.email.label }}<input name="email" type="email" value="{{ form.email.value|default:'' }}" maxlength="200"></label>
     {% for error in form.email.errors %}<span class="error">{{ error }}</span>{% endfor %}</p>
   <p><label>{{ form.phone.label }}<input name="phone" value="{{ form.phone.value|default:'' }}" maxlength="30"></label></p>
-  <p><label>{{ form.access_mode.label }}
-    <select name="access_mode">
-      {% for value, label in form.access_mode.choices %}<option value="{{ value }}" {% if form.access_mode.value == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
-    </select></label></p>
+  <fieldset>
+    <legend>{{ form.access_mode.label }}</legend>
+    {% for error in form.access_mode.errors %}<p class="error">{{ error }}</p>{% endfor %}
+    {% for radio in form.access_mode %}
+      <p><label>{{ radio.tag }} {{ radio.choice_label }}</label></p>
+    {% endfor %}
+  </fieldset>
   <p class="muted">An invitation link can be used once and expires after 72 hours. A temporary password is shown once on the next screen and must be changed at first sign-in. No password is ever emailed.</p>
   <p><button class="btn" type="submit">Create administrator</button>
     <a class="btn ghost" href="{% url 'platform_admin:institution_detail' institution.pk %}">Cancel</a></p>

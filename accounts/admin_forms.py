@@ -17,8 +17,8 @@ from .user_admin import assignable_roles
 from .validators import add_password_errors
 
 ACCESS_CHOICES = (
-    ("invitation", "Send invitation email (single-use link, 72 hours)"),
-    ("temporary_password", "Create with a temporary password (show once)"),
+    ("invite", "Send an invitation email"),
+    ("temp_password", "Create a temporary password"),
 )
 
 
@@ -65,7 +65,12 @@ class StaffAccountForm(InstitutionFormMixin, forms.Form):
     start_date = forms.DateField(
         required=False, widget=forms.DateInput(attrs={"type": "date"})
     )
-    access_mode = forms.ChoiceField(choices=ACCESS_CHOICES, initial="invitation")
+    access_mode = forms.ChoiceField(
+        choices=ACCESS_CHOICES,
+        initial="invite",
+        widget=forms.RadioSelect,
+        label="How should this person get access?",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -94,7 +99,12 @@ class StudentAccountForm(InstitutionFormMixin, forms.Form):
     )
     guardian_name = forms.CharField(max_length=120, required=False)
     guardian_phone = forms.CharField(max_length=30, required=False)
-    access_mode = forms.ChoiceField(choices=ACCESS_CHOICES, initial="invitation")
+    access_mode = forms.ChoiceField(
+        choices=ACCESS_CHOICES,
+        initial="invite",
+        widget=forms.RadioSelect,
+        label="How should this person get access?",
+    )
     first_invoice = forms.BooleanField(required=False, label="Create the first invoice")
     fee_structure = forms.ModelChoiceField(
         queryset=None, required=False, label="Fee structure"

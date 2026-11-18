@@ -83,7 +83,7 @@ class UserAdminBase(TestCase):
             "job_title": "Lecturer",
             "staff_no": "EMP-1",
             "start_date": "2026-01-05",
-            "access_mode": "invitation",
+            "access_mode": "invite",
         }
         data.update(overrides)
         return data
@@ -98,7 +98,7 @@ class UserAdminBase(TestCase):
             "date_of_birth": "2008-03-04",
             "guardian_name": "Mr Dube",
             "guardian_phone": "+263771000002",
-            "access_mode": "invitation",
+            "access_mode": "invite",
         }
         data.update(overrides)
         return data
@@ -135,7 +135,7 @@ class AddStaffTests(UserAdminBase):
         self.login(self.admin)
         response = self.client.post(
             reverse("user_add_staff"),
-            self.staff_payload(access_mode="temporary_password"))
+            self.staff_payload(access_mode="temp_password"))
         self.assertRedirects(response, reverse("user_created"))
 
         account = User.objects.get(username="jane.doe")
@@ -184,7 +184,7 @@ class AddStudentTests(UserAdminBase):
     def test_a_student_without_an_email_falls_back_to_a_temporary_password(self):
         self.login(self.admin)
         payload = self.student_payload(
-            email="", access_mode="invitation")
+            email="", access_mode="invite")
         response = self.client.post(reverse("user_add_student"), payload)
         self.assertRedirects(response, reverse("user_created"))
         account = User.objects.get(username="tariro")
@@ -270,7 +270,7 @@ class PermissionSafetyTests(UserAdminBase):
         self.login(self.registrar)
         response = self.client.post(
             reverse("user_add_student"),
-            self.student_payload(access_mode="temporary_password"))
+            self.student_payload(access_mode="temp_password"))
         self.assertRedirects(response, reverse("user_created"))
         self.assertTrue(Student.objects.filter(user__username="tariro").exists())
 

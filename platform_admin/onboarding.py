@@ -329,6 +329,10 @@ def add_administrator(
     request=None,
 ):
     """Create an institution administrator in one of the two access modes."""
+    access_mode = {
+        "invite": "invitation",
+        "temp_password": "temporary_password",
+    }.get(access_mode, access_mode)
     if access_mode not in ("invitation", "temporary_password"):
         raise ValidationError("Choose how this administrator gets access.")
     full_name = (full_name or "").strip()

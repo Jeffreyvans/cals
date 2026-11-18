@@ -471,11 +471,14 @@ def user_action(request, pk):
             student = getattr(account, "student", None)
             if student is None:
                 raise ValidationError("This account is not linked to a student record.")
+            access_mode = request.POST.get("access_mode", "")
+            if access_mode not in ("invite", "temp_password"):
+                raise ValidationError("Choose how this person gets access.")
             result = attach_login(
                 student,
                 actor=request.user,
                 request=request,
-                access_mode=request.POST.get("access_mode", "invitation"),
+                access_mode=access_mode,
             )
             if result.password:
                 request.session["new_user_credentials"] = {

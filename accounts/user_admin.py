@@ -336,6 +336,13 @@ def send_password_reset_notice(user):
 # ---------- creating an account ----------
 
 
+def _normalize_access_mode(access_mode):
+    return {
+        "invite": "invitation",
+        "temp_password": "temporary_password",
+    }.get(access_mode, access_mode)
+
+
 @transaction.atomic
 def provision_user(
     institution,
@@ -369,6 +376,7 @@ def provision_user(
         institution=institution, code="lecturer"
     ).first()
 
+    access_mode = _normalize_access_mode(access_mode)
     if access_mode not in ("invitation", "temporary_password"):
         raise ValidationError("Choose how the new user gets access.")
     if access_mode == "invitation" and not email:
@@ -761,6 +769,7 @@ def attach_login(student, actor=None, request=None, access_mode="invitation"):
     user.is_active = True
     user.save(update_fields=["is_active"])
     log_action(actor, "user.login_linked", instance=user, request=request)
+    access_mode = _normalize_access_mode(access_mode)
     if access_mode == "temporary_password":
         password = reset_password(user, actor=actor, request=request)
         return ProvisionedAccount(user=user, access_mode="temporary_password", password=password)

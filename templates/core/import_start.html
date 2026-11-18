@@ -17,12 +17,12 @@
         <option value="{{ key }}">{{ spec.label }}</option>
       {% endfor %}
     </select></label></p>
-  <p><label>How new users get access
-    <select name="access_mode">
-      <option value="invitation">Send invitation email (single-use link, 72 hours)</option>
-      <option value="temporary_password">Create a temporary password for each person (shown once)</option>
-    </select>
-    <span class="helptext">Only used by the staff and student imports. A person without an email always gets a temporary password.</span></label></p>
+  <fieldset>
+    <legend>How should these people get access?</legend>
+    <p><label><input type="radio" name="access_mode" value="invite" checked> Send an invitation email</label></p>
+    <p><label><input type="radio" name="access_mode" value="temp_password"> Create a temporary password</label></p>
+    <p class="helptext">Only used by the staff and student imports. A person without an email always gets a temporary password.</p>
+  </fieldset>
   <p><label>File
     <input type="file" name="file" accept=".csv,.xlsx,.xlsm" required>
     <span class="helptext">5 MB at the most. The first row holds the column names.</span></label></p>

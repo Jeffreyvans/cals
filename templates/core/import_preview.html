@@ -11,13 +11,12 @@
 {% if needs_access_mode %}
 <form method="post" class="filters">
   {% csrf_token %}
-  <label>How these people get access
-    <select name="access_mode">
-      {% for code, label in access_modes %}
-        <option value="{{ code }}" {% if batch.access_mode == code %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-  </label>
+  <fieldset>
+    <legend>How should these people get access?</legend>
+    {% for code, label in access_modes %}
+      <p><label><input type="radio" name="access_mode" value="{{ code }}" {% if current_access_mode == code %}checked{% endif %}> {{ label }}</label></p>
+    {% endfor %}
+  </fieldset>
   <button class="btn ghost">Use this access mode</button>
   <span class="muted">Current: {{ batch.get_access_mode_display }}. A person without an email always gets a temporary password.</span>
 </form>
