@@ -322,7 +322,7 @@ SMTP setting anywhere, so Render's blocked outbound ports are never used.
   `makemigrations --check` reports no changes.
 
 ## PHASE 12 - Institution onboarding from the platform admin area
-Status (2026-11-18): Parts 1 and 2 complete; Part 3 (handover) pending.
+Status (2026-11-18): all three parts complete.
 
 The platform admin can now take a newly created institution from empty to a
 working first administrator without leaving the platform area. The work reuses
@@ -345,6 +345,6 @@ the existing invitation, branding, audit, notification and central email code.
 - [x] Added `core/tests/test_slugs.py` (27 tests) and `platform_admin/tests/test_onboarding_part2.py` (24 tests) covering slug/domain rules, old-link redirects, host mapping, link panel, QR, email queue, sign-up links, custom-domain lifecycle, real-login-only handoff, tenant isolation, permission 404/403 and secret-free audits. Verification: `ruff check .` clean, `makemigrations --check` reports no changes; the full suite collected 1,549 tests with 1,548 passing and one unrelated flaky finance concurrency test that passes in isolation.
 
 ### Part 3 - Handover
-- [ ] Cross-check every requirement against Part 1/Part 2 code and tests; add any missing coverage.
-- [ ] Write the final report and manual testing instructions; update the docs.
-- [ ] Run the final verification (`pytest`, `ruff`, `makemigrations --check`) and commit.
+- [x] Cross-checked every requirement against the code and tests. Closed the remaining gaps: legacy administrators are no longer sent to the guided setup, failed invitation/password-reset emails are surfaced on the one-time credential screen, a failed welcome email is not counted as delivered, and the application-approval follow-up now carries the support contacts. Added `platform_admin/tests/test_onboarding_part3.py` (6 tests) plus a legacy-admin regression test.
+- [x] Wrote `ONBOARDING_REPORT.md` (requirement matrix, verification, decisions and caveats) and `MANUAL_TESTING.md` (nine click-by-click scenarios including email-failure simulation and custom-domain verification).
+- [x] Final verification: 1,556 tests pass, `ruff check .` is clean and `makemigrations --check --dry-run` reports no changes.

@@ -12,6 +12,7 @@ import json
 
 from django.core.cache import cache
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import SignupLink
 from core.models import (
@@ -292,6 +293,15 @@ class CustomDomainPanelTests(PlatformTestBase):
 class GuidedSetupTests(PlatformTestBase):
     """The handoff from a real first sign-in into the institution setup."""
 
+    def setUp(self):
+        super().setUp()
+        # The base fixtures predate onboarding, so mark this administrator as
+        # platform-provisioned to mirror a real newly created institution.
+        row, _created = InstitutionOnboarding.objects.get_or_create(institution=self.inst)
+        if row.first_admin_created_at is None:
+            row.first_admin_created_at = timezone.now()
+            row.save(update_fields=["first_admin_created_at", "updated"])
+
     def _sign_in(self, user=None):
         user = user or self.inst_admin
         return self.client.post(
@@ -320,6 +330,14 @@ class GuidedSetupTests(PlatformTestBase):
         self.assertNotIn(
             reverse("institution_setup"), response.get("Location", "")
         )
+
+    def test_a_legacy_administrator_is_not_sent_to_setup(self):
+        # An institution that existed before onboarding must keep its normal
+        # sign-in behaviour on the first login after the upgrade.
+        InstitutionOnboarding.objects.filter(institution=self.inst).delete()
+        response = self._sign_in()
+        self.assertEqual(response["Location"], "/dashboard/")
+        self.assertEqual(self.client.get("/dashboard/").status_code, 200)
 
     def test_a_second_institution_never_sees_the_first_setup(self):
         self.client.force_login(self.other_admin)

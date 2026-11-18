@@ -4,7 +4,9 @@ The platform admin area reuses the ordinary account services (invitations,
 temporary passwords, sign-up links and branding). Every write made here is
 written to the append-only platform audit log with the actor and institution.
 Passwords, invitation tokens and one-time links are returned to the caller for
-a single on-screen display; they are never put in an audit row or an email log.
+a single on-screen display; they are never stored in an audit row or in the
+onboarding record. Where the recipient needs one, it is included in that
+person's central email, not in a log the platform team can browse.
 """
 
 from __future__ import annotations
@@ -69,6 +71,14 @@ class AdministratorProvision:
     secret: str
     invitation: object = None
     email_status: str = ""
+    email_failed: bool = False
+
+
+@dataclass
+class AdminActionResult:
+    """Outcome of an administrator lifecycle action from the platform area."""
+
+    secret: str = ""
     email_failed: bool = False
 
 
@@ -253,17 +263,19 @@ def send_welcome_email(
         email_type=email_type,
     )
     send_message(message)
-    now = timezone.now()
-    onboarding.welcome_email_sent_at = onboarding.welcome_email_sent_at or now
-    onboarding.welcome_email_count += 1
-    onboarding.save(update_fields=["welcome_email_sent_at", "welcome_email_count", "updated"])
+    status = getattr(message, "status", "")
+    if status == "sent":
+        now = timezone.now()
+        onboarding.welcome_email_sent_at = onboarding.welcome_email_sent_at or now
+        onboarding.welcome_email_count += 1
+        onboarding.save(update_fields=["welcome_email_sent_at", "welcome_email_count", "updated"])
     log_platform_action(
         request.user if request and getattr(request.user, "is_authenticated", False) else None,
         "institution.welcome_email_sent",
         institution=institution,
         record_type="Institution",
         record_id=institution.pk,
-        detail={"recipient": admin.email, "resend": bool(force)},
+        detail={"recipient": admin.email, "resend": bool(force), "status": status},
         request=request,
     )
     return message
@@ -291,6 +303,18 @@ def _current_invitation_link(admin):
     if invitation is None or not invitation.is_open:
         return ""
     return _invitation_link(invitation)
+
+
+def _latest_email_status(institution, recipient):
+    """Delivery status of the last central email queued for this recipient."""
+    from core.models import OutboundMessage
+
+    message = (
+        OutboundMessage.objects.filter(institution=institution, recipient=recipient)
+        .order_by("-created", "-pk")
+        .first()
+    )
+    return getattr(message, "status", "")
 
 
 @transaction.atomic
@@ -497,7 +521,12 @@ def institution_admin_action(institution, user, action, *, actor=None, request=N
         raise ValidationError("That account does not belong to this institution.")
 
     secret = ""
+    email_failed = False
     before = {"is_active": user.is_active, "locked": bool(user.locked_until)}
+    if action in {"resend_invitation", "reset_password"}:
+        expected_status = "sent"
+    else:
+        expected_status = ""
     if action == "resend_invitation":
         secret = _current_invitation_link(user)
         resend_invitation(user, actor=None, request=request)
@@ -520,6 +549,9 @@ def institution_admin_action(institution, user, action, *, actor=None, request=N
     else:
         raise ValidationError("Unknown administrator action.")
 
+    if expected_status:
+        status = _latest_email_status(institution, user.email)
+        email_failed = bool(status and status != expected_status)
     log_platform_action(
         actor,
         f"institution.admin_{action}",
@@ -531,7 +563,7 @@ def institution_admin_action(institution, user, action, *, actor=None, request=N
         detail={"username": user.username},
         request=request,
     )
-    return secret
+    return AdminActionResult(secret=secret, email_failed=email_failed)
 
 
 def email_login_link(institution, admin, *, actor=None, request=None):

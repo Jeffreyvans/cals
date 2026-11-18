@@ -790,6 +790,9 @@ def approve_application(application, actor, plan=None, request=None):
         )
         _consent_log(institution, locked, actor, request)
         _send_welcome(institution, admin_user, locked, chosen_plan, request=request)
+        # Imported here because onboarding.py already imports this module.
+        from .onboarding import SUPPORT_EMAIL, SUPPORT_PHONE
+
         _application_email(
             locked,
             f"Welcome to EduSphere ({locked.reference})",
@@ -800,8 +803,15 @@ def approve_application(application, actor, plan=None, request=None):
                 "Check your inbox for the invitation to choose the administrator "
                 "password, then follow the setup steps in the welcome email.\n\n"
                 f"Reference: {locked.reference}\n"
+                f"Need help? Call/WhatsApp {SUPPORT_PHONE} or email {SUPPORT_EMAIL}.\n"
             ),
-            {"institution": institution, "user": admin_user, "plan": chosen_plan},
+            {
+                "institution": institution,
+                "user": admin_user,
+                "plan": chosen_plan,
+                "support_phone": SUPPORT_PHONE,
+                "support_email": SUPPORT_EMAIL,
+            },
             email_type=INSTITUTION_APPLICATION_APPROVED,
         )
         log_platform_action(

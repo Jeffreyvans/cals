@@ -1,0 +1,128 @@
+# Manual testing - institution onboarding
+
+Use a staging copy with a real platform administrator account and working
+`SITE_URL` / Mailjet settings (see `DEPLOY.md`). Every scenario starts from
+`/platform/institutions/`. Do the scenarios in order; later ones reuse the
+institution created in scenario 1.
+
+## 1. Create an institution and its first administrator by invitation
+
+1. Sign in as a platform main administrator, open **Institutions → New
+   institution**, fill in the name, web address, type and contact details, and
+   save.
+2. On the institution page, confirm the onboarding checklist is visible and
+   shows the first administrator as missing.
+3. Open **Administrator accounts → Add administrator**, choose **Invitation**,
+   enter a name and email, and save.
+4. On the one-time screen, confirm the set-password link is shown with **Copy**
+   and **Print**. Reload the page: it must say the details were already shown.
+5. Check the inbox. The welcome email must contain the sign-in link
+   `/i/<slug>/login/`, the one-time set-password link, the getting-started
+   steps and both support contacts: `+263774573765` and
+   `vanhuvaonejeffrey@gmail.com`. No password is emailed.
+6. Open the set-password link, choose a strong password, then sign in at the
+   branded `/i/<slug>/login/` page. The checklist now shows the administrator
+   as signed in.
+
+## 2. Temporary password and the guided first sign-in
+
+1. Add a second administrator using **Temporary password** instead of an
+   invitation.
+2. On the one-time screen, copy the temporary password. Reload to confirm it
+   cannot be shown twice.
+3. Sign out and sign in with that temporary password at `/i/<slug>/login/`.
+4. The next page must open the five-step guided setup: password, logo,
+   institution details, academic year/term, sign-up link. It is branded with
+   the institution name and never shows platform-only institution creation.
+5. Complete the steps. On the last step, copy the generated sign-up link, then
+   press **Finish setup**. The checklist shows setup complete, and the next
+   visit to `/dashboard/` behaves normally.
+6. Sign out, then sign in again: the guided setup must not reappear.
+
+## 3. Sign-in link, QR and WhatsApp
+
+1. On the institution detail page, find **Sign-in link**. Copy the URL and
+   open it in a private window: the login page shows the institution's logo
+   and only accepts that institution's accounts.
+2. Scan the QR image with a phone: it opens the same URL.
+3. Use **WhatsApp** to share the link and confirm the prefilled message.
+4. In **Email the link to an administrator**, pick an administrator and press
+   **Email sign-in link**. The message must arrive with the support contacts,
+   and the page must report success. Suspending the institution changes the
+   panel to **Disabled**, and the link stops working.
+
+## 4. Platform-created sign-up link
+
+1. Open **Sign-up links** from the institution page.
+2. Create a link with a name, a kind (staff/student/any), an optional expiry in
+   days and an optional maximum number of uses.
+3. Copy the generated link from the success banner. It uses the configured
+   `SITE_URL`, not the browser's host.
+4. Open it in a private window and register: the person is created at the
+   correct institution, and the use count increases. Exhausted or expired links
+   are shown as closed.
+
+## 5. Custom domain (optional)
+
+1. Open **Custom domain** and enter a hostname such as `learn.example.org`.
+   Save it. The domain is still **Not configured or not verified yet** and the
+   standard `/i/<slug>/login/` link still works.
+2. Follow the on-screen verification steps: add the displayed TXT record at
+   `_edusphere.learn.example.org`, point the hostname at EduSphere, and add
+   `ALLOWED_HOSTS=learn.example.org` and
+   `CSRF_TRUSTED_ORIGINS=https://learn.example.org` to the deployment
+   environment, then redeploy.
+3. Open `https://learn.example.org/i/<slug>/login/` and confirm styling and
+   uploads load. Tick the confirmation and press **Verify and enable domain**.
+4. Confirm the page now reports the domain as enabled and the branded login
+   works on the custom host. Press **Disable custom domain**: the record stays
+   on screen but the host mapping stops. The `/i/<slug>/login/` link is
+   unaffected throughout.
+
+## 6. Changing the web address
+
+1. In the **Details** form, change the slug and save.
+2. Confirm both the new `/i/<new-slug>/` and the old `/i/<old-slug>/` addresses
+   work; the old one redirects with its query string intact. The detail page
+   lists the old address as redirecting for 90 days.
+3. Try to save the slug `platform` and then the slug of another institution.
+   Both are refused with a clear message and the stored slug is unchanged.
+4. An expired redirect (older than 90 days) must 404 instead of redirecting.
+
+## 7. Email delivery failures
+
+Use staging only. Temporarily set an invalid `MAILJET_API_KEY` (or point the
+email backend at a failing provider) and restart the app.
+
+1. Press **Email sign-in link** and **Resend welcome email**. Each action must
+   show a plain-English "could not send" error, not a success message.
+2. Resend an invitation and reset a password from **Administrator accounts**.
+   The one-time details screen must show the warning and keep the single-use
+   link/password under **Show a one-time link**, so the administrator can still
+   be onboarded by hand.
+3. Repeat a failed welcome resend and confirm it is not counted as sent in the
+   checklist. Restore the email settings afterwards.
+
+## 8. Access control and protected data
+
+1. Sign in as an ordinary institution administrator and request any
+   `/platform/institutions/...` URL: expect **404**, never a platform screen.
+2. Sign in as active platform staff without the relevant permission: expect
+   **403** with a plain explanation.
+3. Browse every `/platform/` screen with a main administrator and confirm there
+   are no student lists, health, counselling, finance or results records. The
+   health and usage pages show aggregate counts only.
+4. Confirm an anonymous visitor to a protected platform URL is sent to the
+   sign-in page.
+
+## 9. Existing institutions after upgrade
+
+Sign in (through the real login form, not a test helper) as an administrator of
+an institution that existed before onboarding. There is no onboarding row for
+them, so they land on `/dashboard/` normally and are not sent to the guided
+setup. Similarly, programmatic/forced logins never open the setup.
+
+## Cleanup
+
+Delete the test institution, its test users and any custom DNS records. Remove
+the temporary provider key change from scenario 7.

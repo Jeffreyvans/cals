@@ -61,13 +61,22 @@ def queue_setup_after_login(user, request):
     institution = getattr(user, "institution", None)
     if institution is None or not hasattr(request, "session"):
         return
+    from platform_admin.models import InstitutionOnboarding
     from platform_admin.onboarding import administrators
 
     if not administrators(institution).filter(pk=user.pk).exists():
         return
-    row = onboarding_row(institution)
-    if row.first_admin_login_at is None and row.setup_completed_at is None:
-        request.session["needs_institution_setup"] = True
+    # Only an administrator created through platform onboarding gets the
+    # first-login handoff. Institutions that existed before this feature keep
+    # signing in as usual instead of being sent into a setup wizard.
+    if not InstitutionOnboarding.objects.filter(
+        institution=institution,
+        first_admin_created_at__isnull=False,
+        first_admin_login_at__isnull=True,
+        setup_completed_at__isnull=True,
+    ).exists():
+        return
+    request.session["needs_institution_setup"] = True
 
 
 def mark_setup_started(user):

@@ -798,18 +798,19 @@ def institution_admins(request, pk):
         action = request.POST.get("action", "")
         admin_user = get_object_or_404(admins, pk=request.POST.get("user"))
         try:
-            secret = onboarding.institution_admin_action(
+            result = onboarding.institution_admin_action(
                 institution, admin_user, action,
                 actor=request.user, request=request,
             )
         except ValidationError as exc:
             messages.error(request, " ".join(exc.messages))
             return redirect("platform_admin:institution_admins", pk=institution.pk)
-        if secret:
+        if result.secret:
             request.session["onboarding_credential"] = {
                 "user_id": admin_user.pk,
                 "institution_id": institution.pk,
-                "secret": secret,
+                "secret": result.secret,
+                "email_failed": result.email_failed,
                 "access_mode": "temporary_password" if action == "reset_password" else "invitation",
                 "action": action,
             }
