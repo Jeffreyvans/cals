@@ -19,7 +19,7 @@ institution created in scenario 1.
 5. Check the inbox. The welcome email must contain the sign-in link
    `/i/<slug>/login/`, the one-time set-password link, the getting-started
    steps and both support contacts: `+263774573765` and
-   `vanhuvaonejeffrey@gmail.com`. No password is emailed.
+   `sphereeedu@gmail.com`. No password is emailed.
 6. Open the set-password link, choose a strong password, then sign in at the
    branded `/i/<slug>/login/` page. The checklist now shows the administrator
    as signed in.

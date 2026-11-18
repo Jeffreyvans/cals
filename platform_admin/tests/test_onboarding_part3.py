@@ -97,9 +97,9 @@ class ApprovalEmailTests(PlatformTestBase):
             if "Welcome to EduSphere" in entry.args[1]
         )
         self.assertIn("+263774573765", call.args[3])
-        self.assertIn("vanhuvaonejeffrey@gmail.com", call.args[3])
+        self.assertIn("sphereeedu@gmail.com", call.args[3])
         self.assertEqual(call.args[4]["support_phone"], "+263774573765")
-        self.assertEqual(call.args[4]["support_email"], "vanhuvaonejeffrey@gmail.com")
+        self.assertEqual(call.args[4]["support_email"], "sphereeedu@gmail.com")
 
     def test_no_audit_row_from_an_approval_contains_a_one_time_link(self):
         from django.contrib.auth import get_user_model

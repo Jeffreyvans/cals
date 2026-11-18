@@ -47,7 +47,7 @@ from .services import log_platform_action
 User = get_user_model()
 
 SUPPORT_PHONE = "+263774573765"
-SUPPORT_EMAIL = "vanhuvaonejeffrey@gmail.com"
+SUPPORT_EMAIL = "sphereeedu@gmail.com"
 
 GETTING_STARTED = (
     "Upload your logo.",

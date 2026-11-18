@@ -91,7 +91,7 @@ class OnboardingFlowTests(PlatformTestBase):
         self.assertEqual(welcome.count(), 1)
         self.assertIn("Sign in", welcome.get().body)
         self.assertIn("+263774573765", welcome.get().body)
-        self.assertIn("vanhuvaonejeffrey@gmail.com", welcome.get().body)
+        self.assertIn("sphereeedu@gmail.com", welcome.get().body)
 
         # The institution, not the administrator, is notified separately.
         self.assertTrue(

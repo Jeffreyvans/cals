@@ -90,7 +90,7 @@ class LoginLinkPanelTests(PlatformTestBase):
         self.assertEqual(message.status, OutboundMessage.Status.SENT)
         self.assertIn("/i/alpha-platform/login/", message.body)
         self.assertIn("+263774573765", message.body)
-        self.assertIn("vanhuvaonejeffrey@gmail.com", message.body)
+        self.assertIn("sphereeedu@gmail.com", message.body)
         self.assertTrue(
             PlatformAuditLog.objects.filter(action="institution.login_link_emailed").exists()
         )
