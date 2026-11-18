@@ -340,3 +340,25 @@ class StaffRegistrationRequest(models.Model):
     @property
     def is_pending(self):
         return self.status == self.Status.PENDING
+
+
+class ReservedUsername(models.Model):
+    """A username that has ever been used and must never be assigned again.
+
+    Usernames are compared case-insensitively. A reservation is kept even when
+    the account that used the name is deleted, so a later person never inherits
+    an old login name.
+    """
+
+    username = models.CharField(max_length=150, unique=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["username"]
+
+    def __str__(self):
+        return self.username
+
+    def save(self, *args, **kwargs):
+        self.username = str(self.username or "").strip().lower()[:150]
+        super().save(*args, **kwargs)

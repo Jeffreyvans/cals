@@ -5,7 +5,7 @@
 <p style="margin:0 0 14px;">Hello {{ user.get_full_name|default:user.username }},</p>
 <p style="margin:0 0 18px;">{{ institution.name }} has created an account for you on EduSphere.</p>
 <p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e;">
-  Your username is <strong style="color:#2b1a12;">{{ user.username }}</strong>
+  Sign in at <a href="{{ login_link }}" style="color:#5d4037;">{{ login_link }}</a> with your email or username <strong style="color:#2b1a12;">{{ user.username }}</strong>.
 </p>
 <p style="margin:0 0 18px;">Choose your password with the button below. The link can be used once and expires in 72 hours.</p>
 <p style="margin:0 0 18px;">

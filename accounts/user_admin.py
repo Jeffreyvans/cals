@@ -21,6 +21,15 @@ from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
+from .usernames import (
+    ensure_username_available,
+    generate_unique_username,
+    normalize_email as normalize_email_value,
+    normalize_identifier,
+    reserve_username,
+    sanitize_username_base,
+)
+
 from core.audit import log_action
 from core.email_types import (
     ACCOUNT_CREATED,
@@ -165,24 +174,19 @@ def check_role_allowed(actor, role):
 
 
 def normalize_username(value):
-    return re.sub(r"[^a-zA-Z0-9._-]", "", str(value or "").strip())[:30]
+    """Lowercase, readable username text from user input."""
+    base = sanitize_username_base(value)
+    return (base or "")[:30]
 
 
 def unique_username(base, email=""):
-    base = normalize_username(base)
-    if not base and email:
-        base = normalize_username(email.split("@")[0])
-    base = base or "user"
-    candidate = base[:30]
-    suffix = 0
-    while User.objects.filter(username__iexact=candidate).exists():
-        suffix += 1
-        candidate = f"{base[:25]}{suffix}"
-    return candidate
+    """Return a unique, reserved username following the platform rules."""
+    seed = sanitize_username_base(base) or sanitize_username_base(email.split("@", 1)[0] if email else "")
+    return generate_unique_username(email=email, base=seed, fallback="user")
 
 
 def normalized_email(value):
-    return str(value or "").strip().lower()
+    return normalize_email_value(value)
 
 
 def generate_temporary_password(length=14):
@@ -239,12 +243,27 @@ def _invitation_link(invitation, request=None):
     return absolute_url(reverse("accept_invitation", args=[invitation.token]))
 
 
+def _login_link(user):
+    from core.notifications import absolute_url
+
+    institution = getattr(user, "institution", None)
+    if institution is not None and getattr(institution, "slug", ""):
+        return absolute_url(reverse("institution_login", args=[institution.slug]))
+    return absolute_url(reverse("login"))
+
+
+def _sign_in_instruction(user):
+    return (
+        f"Sign in at {_login_link(user)} with your email or username {user.username}."
+    )
+
+
 def _invitation_body(user, invitation, request=None):
     institution = user.institution
     return (
         f"Hello {user.get_full_name() or user.username},\n\n"
         f"{institution.name} has created an account for you on EduSphere.\n\n"
-        f"Username: {user.username}\n"
+        f"{_sign_in_instruction(user)}\n"
         f"Choose your password here: {_invitation_link(invitation, request)}\n\n"
         "The link can be used once and expires in 72 hours. If it expires, "
         "ask the institution to send a new invitation.\n"
@@ -258,6 +277,7 @@ def _invitation_html(user, invitation, request=None):
             "user": user,
             "institution": user.institution,
             "link": _invitation_link(invitation, request),
+            "login_link": _login_link(user),
             "logo_url": absolute_logo_url(user.institution, size=160),
         },
     )
@@ -298,7 +318,7 @@ def send_account_created_notice(user):
         (
             f"Hello {user.get_full_name() or user.username},\n\n"
             f"An account has been created for you at {user.institution.name}.\n"
-            f"Username: {user.username}\n\n"
+            f"{_sign_in_instruction(user)}\n\n"
             "If you were given a temporary password, sign in and change it. "
             "If not, use the invitation link that was sent separately.\n"
         ),
@@ -367,11 +387,14 @@ def provision_user(
     password, because there is nowhere to send the link.
     """
     email = normalized_email(email)
-    if not username:
-        # Prefer the email local part, then the first name, so a student added
-        # without an email still gets a recognisable login.
-        username = email.split("@")[0] if email else str(first_name or "").strip().lower()
-    username = unique_username(username, email)
+    explicit_username = normalize_identifier(username)
+    if explicit_username:
+        username = ensure_username_available(explicit_username)
+        reserve_username(username)
+    else:
+        seed = base_from_email(email) or sanitize_username_base(first_name) or "user"
+        username = generate_unique_username(email=email, base=seed, fallback="user")
+
     role = role or Role.all_objects.filter(
         institution=institution, code="lecturer"
     ).first()
@@ -463,6 +486,16 @@ def add_staff_member(
     email = normalized_email(email)
     if not email:
         raise ValidationError("Enter an email address, or use a temporary password.")
+    if role is not None and role.code in ("institution_admin", "admin", "principal") or legacy_role_for(role) == User.Role.ADMIN:
+        # Administrator-like staff must not share an email within the institution.
+        pass
+    if email and User.objects.filter(
+        institution=institution, email__iexact=email, is_active=True
+    ).filter(Q(role__in=(User.Role.ADMIN, User.Role.REGISTRAR, User.Role.BURSAR, User.Role.HOD, User.Role.DEAN, User.Role.ACCOUNTANT, User.Role.STAFF, User.Role.LECTURER, User.Role.TEACHER)) | Q(primary_role__isnull=False)).exclude(role=User.Role.STUDENT).exclude(role=User.Role.PARENT).exists():
+        # Staff/admin email uniqueness is enforced per institution.
+        raise ValidationError(
+            "An account at this institution already uses that email address."
+        )
 
     department_ids = [d.pk for d in departments if d is not None]
     for department in Department.all_objects.filter(pk__in=department_ids):
