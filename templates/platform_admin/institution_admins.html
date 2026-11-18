@@ -2,6 +2,11 @@
 {% block platform_title %}Administrators of {{ institution.name }}{% endblock %}
 {% block platform_heading %}Administrator accounts &middot; {{ institution.name }}{% endblock %}
 {% block platform_content %}
+<p>
+  <a class="btn btn-sm" href="{% url 'platform_admin:onboarding_admin_create' institution.pk %}">Add institution administrator</a>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:institution_detail' institution.pk %}">Back to institution</a>
+</p>
+{% include "platform_admin/_onboarding_checklist.html" %}
 <table class="tbl">
   <tr><th>Name</th><th>Username</th><th>Email</th><th>Active</th><th>Actions</th></tr>
   {% for admin in admins %}
@@ -11,16 +16,23 @@
       <td>{{ admin.email }}</td>
       <td>{{ admin.is_active|yesno:"Yes,No" }}</td>
       <td>
-        <form method="post" style="display:inline">
+        <form method="post">
           {% csrf_token %}<input type="hidden" name="user" value="{{ admin.pk }}">
-          <button class="btn ghost btn-sm" type="submit" name="action" value="{% if admin.is_active %}deactivate{% else %}activate{% endif %}">{% if admin.is_active %}Deactivate{% else %}Activate{% endif %}</button>
-          <button class="btn ghost btn-sm" type="submit" name="action" value="invite">Send password link</button>
+          <button class="btn ghost btn-sm" type="submit" name="action" value="resend_invitation">Resend invitation</button>
+          <button class="btn ghost btn-sm" type="submit" name="action" value="reset_password">Reset password</button>
+          <button class="btn ghost btn-sm" type="submit" name="action" value="unlock">Unlock</button>
+          {% if admin.is_active %}
+            <button class="btn ghost btn-sm" type="submit" name="action" value="deactivate">Deactivate</button>
+            <button class="btn ghost btn-sm" type="submit" name="action" value="remove" onclick="return confirm('Remove this administrator? Their record is kept, but access is removed.');">Remove</button>
+          {% else %}
+            <button class="btn ghost btn-sm" type="submit" name="action" value="activate">Reactivate</button>
+          {% endif %}
         </form>
       </td>
     </tr>
   {% empty %}
-    <tr><td colspan="5" class="muted">No administrator accounts.</td></tr>
+    <tr><td colspan="5" class="muted">No administrator accounts. Add the first one above.</td></tr>
   {% endfor %}
 </table>
-<p class="muted">Creating, resetting and deactivating institution administrators never gives platform staff access to institution data.</p>
+<p class="muted">The last active administrator cannot be deactivated or removed. Creating, resetting and deactivating institution administrators never gives platform staff access to institution data.</p>
 {% endblock %}

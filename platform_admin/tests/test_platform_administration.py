@@ -13,6 +13,7 @@ from decimal import Decimal
 from django.urls import reverse
 from django.utils import timezone
 
+from accounts.models import User
 from core.models import Institution, InstitutionModule, Notification
 from platform_admin.models import (
     Plan,
@@ -274,6 +275,15 @@ class InstitutionAdministrationTests(PlatformTestBase):
         self.assertEqual(self.client.get(url).status_code, 403)
 
         self.login(self.main)
+        # The last active administrator is protected, so keep a backup before
+        # testing that a normal deactivation/reactivation still works.
+        User.objects.create_user(
+            "backupadmin",
+            email="backupadmin@example.com",
+            password=STRONG_PASSWORD,
+            role=User.Role.ADMIN,
+            institution=self.inst,
+        )
         response = self.client.post(
             url, {"action": "deactivate", "user": self.inst_admin.pk}
         )

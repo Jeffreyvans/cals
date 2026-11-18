@@ -320,3 +320,17 @@ SMTP setting anywhere, so Render's blocked outbound ports are never used.
   expects a failed email not to roll back an admission.
 - [x] Verification: 1409 tests pass, `ruff check .` is clean and
   `makemigrations --check` reports no changes.
+
+## PHASE 12 - Institution onboarding from the platform admin area
+Status (2026-11-18): Part 1 complete; Parts 2 and 3 pending.
+
+The platform admin can now take a newly created institution from empty to a
+working first administrator without leaving the platform area. The work reuses
+the existing invitation, branding, audit, notification and central email code.
+
+### Part 1 - First administrator
+- [x] Added `InstitutionOnboarding` (`platform_admin/migrations/0004`) to remember the one-time milestones: first administrator created, first administrator signed in, welcome email sent/resend count, setup started/completed and platform-created sign-up links. Passwords, tokens and links are never stored in this row.
+- [x] Added `platform_admin/onboarding.py`: derives the seven-step checklist from live rows, provisions administrators in invitation or temporary-password mode, sends the branded welcome email through `queue_message`/`send_message`, notifies the institution, writes platform audit rows without secrets, and manages resend/reset/unlock/deactivate/reactivate/remove with a last-active-administrator guard.
+- [x] Added `InstitutionAdministratorForm` and the platform views/URLs for `admins/new/` and `admins/<user_pk>/credentials/`. The temporary password or one-time set-password link is stored in the session for exactly one on-screen display with Copy and Print; it cannot be shown again. When delivery fails, the screen offers a one-time link instead.
+- [x] Updated the institution detail and administrator list templates with a progress checklist, "what is missing", management actions and a welcome-email resend form. The approval flow now uses the same welcome email template and service as direct onboarding.
+- [x] Added `platform_admin/tests/test_institution_onboarding.py` (10 tests) and updated the existing deactivation test for the new last-admin rule. Verification: 1,498 tests pass, `ruff check .` is clean and `makemigrations --check` reports no changes.

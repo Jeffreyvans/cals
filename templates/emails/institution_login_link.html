@@ -1,0 +1,11 @@
+{% extends "emails/base_email.html" %}
+{% block title %}Sign in to {{ institution.name }}{% endblock %}
+{% block preheader %}Your branded EduSphere sign-in link.{% endblock %}
+{% block content %}
+<p style="margin:0 0 18px;">Hello,</p>
+<p style="margin:0 0 18px;">Here is the permanent sign-in link for <strong>{{ institution.name }}</strong>:</p>
+<p style="margin:0 0 18px;"><a href="{{ login_url }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">Sign in to {{ institution.name }}</a></p>
+<p style="margin:0 0 18px; color:#6f4a36; font-size:14px;">If the button does not work, copy this address into your browser:<br>
+  <span style="color:#4e342e; word-break:break-all;">{{ login_url }}</span></p>
+<p style="margin:0 0 18px;">Need help? Call or WhatsApp <strong>{{ support_phone }}</strong>, or email <strong>{{ support_email }}</strong>.</p>
+{% endblock %}

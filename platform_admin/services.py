@@ -674,40 +674,17 @@ def _consent_log(institution, application, actor, request):
 
 
 def _send_welcome(institution, admin_user, application, plan, request=None):
-    from core.notifications import absolute_url
+    """The approval flow uses the same welcome email as direct onboarding."""
+    from .onboarding import _current_invitation_link, send_welcome_email
 
-    login_url = absolute_url(reverse("institution_login", args=[institution.slug]))
-    subject = f"Welcome to EduSphere - set up {institution.name}"
-    body = (
-        f"Hello {admin_user.get_full_name() or admin_user.username},\n\n"
-        f"{institution.name} has been approved on the {plan.name if plan else 'EduSphere'} plan.\n\n"
-        "Your setup steps:\n"
-        "1. Open the invitation email and choose your password.\n"
-        "2. Sign in and check the institution details and branding.\n"
-        "3. Set the academic year, terms and the classes or programmes you use.\n"
-        "4. Switch on the modules you need and invite your staff.\n"
-        "5. Add students or import them from a spreadsheet.\n\n"
-        f"Sign in here: {login_url}\n\n"
-        "The institution stays inactive until you choose your password. If you "
-        "need help, reply to this message.\n"
+    return send_welcome_email(
+        institution,
+        admin_user,
+        request=request,
+        invitation_link=_current_invitation_link(admin_user),
+        application=application,
+        plan=plan,
     )
-    html_body = render_email_html(
-        "emails/platform_application_approved.html",
-        {
-            "institution": institution,
-            "user": admin_user,
-            "application": application,
-            "plan": plan,
-            "login_url": login_url,
-        },
-    )
-    message = queue_message(
-        "email", admin_user.email, body, subject=subject,
-        institution=institution, related_object=application, html_body=html_body,
-        email_type=INSTITUTION_APPLICATION_APPROVED,
-    )
-    send_message(message)
-    return message
 
 
 def approve_application(application, actor, plan=None, request=None):

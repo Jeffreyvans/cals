@@ -221,6 +221,27 @@ class InstitutionCreateForm(forms.ModelForm):
         return institution
 
 
+class InstitutionAdministratorForm(forms.Form):
+    """Create the first (or another) administrator of an institution."""
+
+    full_name = forms.CharField(max_length=200, label="Full name")
+    email = forms.EmailField(max_length=200, required=False, label="Email address")
+    phone = forms.CharField(max_length=30, required=False, label="Phone")
+    access_mode = forms.ChoiceField(
+        choices=(
+            ("invitation", "Send an invitation email (single-use link, 72 hours)"),
+            ("temporary_password", "Use a temporary password (show it once)"),
+        ),
+        label="How should this person get access?",
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("access_mode") == "invitation" and not cleaned.get("email"):
+            self.add_error("email", "An invitation needs an email address.")
+        return cleaned
+
+
 class PlanForm(forms.ModelForm):
     # The model stores a JSON list, but people choose module names, so the form
     # owns a multiple-choice field and writes a plain list back to the model.

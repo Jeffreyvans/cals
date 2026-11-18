@@ -26,7 +26,7 @@ from core.models import AuditEntry, Institution, InstitutionModule, Notification
 from core.modules import ALL_MODULES, MODULE_LABELS
 from core.notifications import notify
 
-from . import services
+from . import onboarding, services
 from .access import institution_admin_required, platform_required
 from .forms import (
     AccessDecisionForm,
@@ -34,6 +34,7 @@ from .forms import (
     AnnouncementForm,
     DataProcessingAcceptanceForm,
     EmergencyAccessForm,
+    InstitutionAdministratorForm,
     InstitutionApplicationForm,
     InstitutionCreateForm,
     InstitutionEditForm,
@@ -636,6 +637,20 @@ def institution_detail(request, pk):
                 )
                 messages.success(request, "Institution details saved.")
                 return redirect("platform_admin:institution_detail", pk=institution.pk)
+        elif action == "resend_welcome":
+            if not request.platform_staff.has_permission("platform.manage_admins"):
+                raise PermissionDenied("Your platform role cannot manage administrators.")
+            admin_user = get_object_or_404(
+                onboarding.administrators(institution), pk=request.POST.get("user")
+            )
+            message = onboarding.resend_welcome_email(
+                institution, admin_user, actor=request.user, request=request
+            )
+            if message is None or getattr(message, "status", "") != "sent":
+                messages.error(request, "We could not send the email. Try again in a few minutes.")
+            else:
+                messages.success(request, "Welcome email sent again.")
+            return redirect("platform_admin:institution_detail", pk=institution.pk)
         elif action in {"suspend", "reinstate", "archive", "restore", "delete"}:
             if not request.platform_staff.has_permission("platform.manage_institutions"):
                 raise PermissionDenied("Your platform role cannot change institutions.")
@@ -679,6 +694,8 @@ def institution_detail(request, pk):
             "staff": request.platform_staff,
             "statement": DATA_PROCESSING_STATEMENT,
             "consent_logs": institution.data_consent_logs.all()[:5],
+            "checklist": onboarding.admin_checklist(institution),
+            "welcome_admins": onboarding.administrators(institution).exclude(email=""),
         },
     )
 
@@ -732,40 +749,111 @@ def institution_modules(request, pk):
 
 @platform_required("platform.manage_admins")
 def institution_admins(request, pk):
+    """List and manage the administrators of one institution.
+
+    Platform staff may manage access here. They never see student, health,
+    counselling, finance or results records from this screen.
+    """
     institution = _institution_or_404(pk)
-    admins = User.objects.filter(institution=institution, role=User.Role.ADMIN)
+    admins = onboarding.administrators(institution)
     if request.method == "POST":
         action = request.POST.get("action", "")
-        user = get_object_or_404(User, pk=request.POST.get("user"), institution=institution)
-        before = {"is_active": user.is_active}
-        if action == "deactivate":
-            user.is_active = False
-            user.save(update_fields=["is_active"])
-        elif action == "activate":
-            user.is_active = True
-            user.save(update_fields=["is_active"])
-        elif action == "invite":
-            from accounts.user_admin import create_invitation
-
-            create_invitation(user, actor=request.user, request=request)
-        else:
-            raise Http404("Unknown action.")
-        services.log_platform_action(
-            request.user,
-            f"institution.admin_{action}",
-            institution=institution,
-            record_type="User",
-            record_id=user.pk,
-            before=before,
-            after={"is_active": user.is_active},
-            request=request,
-        )
+        admin_user = get_object_or_404(admins, pk=request.POST.get("user"))
+        try:
+            secret = onboarding.institution_admin_action(
+                institution, admin_user, action,
+                actor=request.user, request=request,
+            )
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+            return redirect("platform_admin:institution_admins", pk=institution.pk)
+        if secret:
+            request.session["onboarding_credential"] = {
+                "user_id": admin_user.pk,
+                "institution_id": institution.pk,
+                "secret": secret,
+                "access_mode": "temporary_password" if action == "reset_password" else "invitation",
+                "action": action,
+            }
+            request.session.modified = True
+            return redirect(
+                "platform_admin:onboarding_credential",
+                pk=institution.pk, user_pk=admin_user.pk,
+            )
         messages.success(request, "Administrator updated.")
         return redirect("platform_admin:institution_admins", pk=institution.pk)
     return render(
         request,
         "platform_admin/institution_admins.html",
-        {"institution": institution, "admins": admins, "staff": request.platform_staff},
+        {
+            "institution": institution,
+            "admins": admins,
+            "staff": request.platform_staff,
+            "checklist": onboarding.admin_checklist(institution),
+        },
+    )
+
+
+@platform_required("platform.manage_admins")
+def onboarding_admin_create(request, pk):
+    """Add the first (or another) institution administrator."""
+    institution = _institution_or_404(pk)
+    form = InstitutionAdministratorForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            result = onboarding.add_administrator(
+                institution,
+                full_name=form.cleaned_data["full_name"],
+                email=form.cleaned_data["email"],
+                phone=form.cleaned_data["phone"],
+                access_mode=form.cleaned_data["access_mode"],
+                actor=request.user,
+                request=request,
+            )
+        except ValidationError as exc:
+            form.add_error(None, " ".join(exc.messages))
+        else:
+            request.session["onboarding_credential"] = {
+                "user_id": result.user.pk,
+                "institution_id": institution.pk,
+                "secret": result.secret,
+                "access_mode": result.access_mode,
+                "email_failed": result.email_failed,
+                "action": "create",
+            }
+            request.session.modified = True
+            return redirect(
+                "platform_admin:onboarding_credential",
+                pk=institution.pk, user_pk=result.user.pk,
+            )
+    return render(
+        request,
+        "platform_admin/onboarding_admin_form.html",
+        {"institution": institution, "form": form, "staff": request.platform_staff},
+    )
+
+
+@platform_required("platform.manage_admins")
+def onboarding_credential(request, pk, user_pk):
+    """Show a temporary password or one-time link exactly once."""
+    institution = _institution_or_404(pk)
+    admin_user = get_object_or_404(onboarding.administrators(institution), pk=user_pk)
+    data = request.session.pop("onboarding_credential", None)
+    if not data or data.get("user_id") != admin_user.pk or data.get("institution_id") != institution.pk:
+        messages.info(request, "Those one-time details have already been shown.")
+        return redirect("platform_admin:institution_detail", pk=institution.pk)
+    return render(
+        request,
+        "platform_admin/onboarding_credential.html",
+        {
+            "institution": institution,
+            "admin_user": admin_user,
+            "secret": data.get("secret", ""),
+            "access_mode": data.get("access_mode", ""),
+            "email_failed": bool(data.get("email_failed")),
+            "action": data.get("action", ""),
+            "staff": request.platform_staff,
+        },
     )
 
 

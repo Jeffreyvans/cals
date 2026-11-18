@@ -621,6 +621,40 @@ class PlatformAuditLog(models.Model):
 
 # ---------- platform staff, inbox, settings, consent ----------
 
+class InstitutionOnboarding(models.Model):
+    """Progress markers for a newly created institution.
+
+    Most checklist items are derived from live rows (logo, year, modules, plan),
+    but a few events happen only once and must survive a page reload: the first
+    administrator being created, signing in, and the welcome email. Nothing in
+    this row ever holds a password, a token or an invitation link.
+    """
+
+    institution = models.OneToOneField(
+        Institution, on_delete=models.CASCADE, related_name="onboarding"
+    )
+    first_admin_created_at = models.DateTimeField(null=True, blank=True)
+    first_admin_login_at = models.DateTimeField(null=True, blank=True)
+    welcome_email_sent_at = models.DateTimeField(null=True, blank=True)
+    welcome_email_count = models.PositiveIntegerField(default=0)
+    setup_started_at = models.DateTimeField(null=True, blank=True)
+    setup_completed_at = models.DateTimeField(null=True, blank=True)
+    signup_links_created_at = models.DateTimeField(null=True, blank=True)
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created"]
+
+    def __str__(self):
+        return f"Onboarding for {self.institution}"
+
+    @classmethod
+    def for_institution(cls, institution):
+        row, _created = cls.objects.get_or_create(institution=institution)
+        return row
+
+
 class PlatformRole(models.Model):
     """A configurable subset of platform permissions, e.g. Support or Billing."""
 

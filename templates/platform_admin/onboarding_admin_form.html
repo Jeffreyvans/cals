@@ -1,0 +1,22 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Add administrator &middot; {{ institution.name }}{% endblock %}
+{% block platform_heading %}Add an administrator &middot; {{ institution.name }}{% endblock %}
+{% block platform_content %}
+<p class="muted">This person receives the <strong>institution administrator</strong> role for {{ institution.name }} only. They never become a platform administrator.</p>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <p><label>{{ form.full_name.label }}<input name="full_name" value="{{ form.full_name.value|default:'' }}" required maxlength="200" autofocus></label>
+    {% for error in form.full_name.errors %}<span class="error">{{ error }}</span>{% endfor %}</p>
+  <p><label>{{ form.email.label }}<input name="email" type="email" value="{{ form.email.value|default:'' }}" maxlength="200"></label>
+    {% for error in form.email.errors %}<span class="error">{{ error }}</span>{% endfor %}</p>
+  <p><label>{{ form.phone.label }}<input name="phone" value="{{ form.phone.value|default:'' }}" maxlength="30"></label></p>
+  <p><label>{{ form.access_mode.label }}
+    <select name="access_mode">
+      {% for value, label in form.access_mode.choices %}<option value="{{ value }}" {% if form.access_mode.value == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></label></p>
+  <p class="muted">An invitation link can be used once and expires after 72 hours. A temporary password is shown once on the next screen and must be changed at first sign-in. No password is ever emailed.</p>
+  <p><button class="btn" type="submit">Create administrator</button>
+    <a class="btn ghost" href="{% url 'platform_admin:institution_detail' institution.pk %}">Cancel</a></p>
+</form>
+{% endblock %}

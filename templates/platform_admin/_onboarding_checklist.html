@@ -1,0 +1,37 @@
+<section class="onboarding-panel">
+  <h2>Onboarding <span class="muted">{{ checklist.done }} of {{ checklist.total }} done &middot; {{ checklist.percent }}%</span></h2>
+  <p class="muted">Progress towards {{ institution.name }} being ready to work.</p>
+  <div class="progress" role="img" aria-label="{{ checklist.percent }} percent complete">
+    <div class="progress-bar" style="width: {{ checklist.percent }}%"></div>
+  </div>
+  <ul class="checklist">
+    {% for item in checklist.items %}
+      <li class="{% if item.done %}done{% else %}todo{% endif %}">
+        <span aria-hidden="true">{% if item.done %}&check;{% else %}&cir;{% endif %}</span>
+        <strong>{{ item.label }}</strong>
+        <span class="muted">&mdash; {{ item.detail }}</span>
+        {% if item.url and not item.done %}<a href="{{ item.url }}">Do this</a>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+  {% if checklist.missing %}
+    <p><strong>Still missing:</strong> {{ checklist.missing|join:", " }}.</p>
+  {% else %}
+    <p class="msg success">Every onboarding step is complete.</p>
+  {% endif %}
+  <p>
+    <a class="btn btn-sm" href="{% url 'platform_admin:onboarding_admin_create' institution.pk %}">Add institution administrator</a>
+    <a class="btn ghost btn-sm" href="{% url 'platform_admin:institution_admins' institution.pk %}">Manage administrators</a>
+  </p>
+  {% if welcome_admins %}
+    <form method="post" class="inline">
+      {% csrf_token %}<input type="hidden" name="action" value="resend_welcome">
+      <p><label>Resend the welcome email
+        <select name="user">
+          {% for admin in welcome_admins %}<option value="{{ admin.pk }}">{{ admin.get_full_name|default:admin.username }} &lt;{{ admin.email }}&gt;</option>{% endfor %}
+        </select></label>
+        <button class="btn ghost btn-sm" type="submit">Resend welcome email</button>
+      </p>
+    </form>
+  {% endif %}
+</section>

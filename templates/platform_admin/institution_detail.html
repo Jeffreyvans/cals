@@ -14,6 +14,8 @@
 {% elif institution.suspended_at %}<div class="msg warning">Suspended {{ institution.suspended_at|date:"j M Y H:i" }}. {{ institution.suspended_reason }}</div>
 {% else %}<div class="msg success">Active. {{ user_count }} user accounts.</div>{% endif %}
 
+{% include "platform_admin/_onboarding_checklist.html" %}
+
 <h2>Details</h2>
 <form method="post" class="inline wide">
   {% csrf_token %}<input type="hidden" name="action" value="edit">

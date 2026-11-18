@@ -35,6 +35,10 @@ urlpatterns = [
          name="institution_modules"),
     path("platform/institutions/<int:pk>/admins/", views.institution_admins,
          name="institution_admins"),
+    path("platform/institutions/<int:pk>/admins/new/", views.onboarding_admin_create,
+         name="onboarding_admin_create"),
+    path("platform/institutions/<int:pk>/admins/<int:user_pk>/credentials/",
+         views.onboarding_credential, name="onboarding_credential"),
     # Plans, subscriptions, invoices and payments.
     path("platform/plans/", views.plans, name="plans"),
     path("platform/plans/<int:pk>/", views.plan_detail, name="plan_detail"),
