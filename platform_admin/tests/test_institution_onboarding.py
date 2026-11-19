@@ -404,7 +404,7 @@ class AdministratorUsernameTests(PlatformTestBase):
     @staticmethod
     def sign_in_instruction(institution, username):
         login_url = absolute_url(reverse("institution_login", args=[institution.slug]))
-        return f"Sign in at {login_url} with your username {username} or your email address."
+        return f"Sign in at {login_url} with your email or username {username}."
 
     def test_add_form_has_optional_username_after_full_name(self):
         institution = self.create_institution()
@@ -444,7 +444,7 @@ class AdministratorUsernameTests(PlatformTestBase):
         self.assertContains(page, admin.username)
         self.assertContains(
             page,
-            f"with your username <strong>{admin.username}</strong> or your email address.",
+            f"with your email or username <strong>{admin.username}</strong>.",
         )
         self.assertContains(page, "Copy")
         self.assertContains(page, "Print")
@@ -514,7 +514,7 @@ class AdministratorUsernameTests(PlatformTestBase):
         self.assertContains(page, admin.username)
         self.assertContains(
             page,
-            f"with your username <strong>{admin.username}</strong> or your email address.",
+            f"with your email or username <strong>{admin.username}</strong>.",
         )
         self.assertContains(page, "Copy")
         self.assertContains(page, "Print")

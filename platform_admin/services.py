@@ -815,7 +815,7 @@ def approve_application(application, actor, plan=None, request=None):
             (
                 f"Hello {locked.contact_person},\n\n"
                 f"Your application for {locked.institution_name} has been approved.\n\n"
-                f"Sign in at {login_link} with your username {admin_user.username} or your email address.\n"
+                f"Sign in at {login_link} with your email or username {admin_user.username}.\n"
                 "Check your inbox for the invitation to choose your password, then "
                 "follow the setup steps in the welcome email. No password is included "
                 "in this message.\n\n"

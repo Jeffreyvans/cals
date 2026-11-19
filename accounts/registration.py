@@ -590,7 +590,7 @@ def _send_staff_decision(reg_request, approved, reason=""):
             f"Hello {reg_request.full_name},\n\n"
             f"Your EduSphere staff account at {institution.name} has "
             f"been approved as {reg_request.position_label}.\n"
-            f"Sign in at {login_link} with your username {user.username} or your email address.\n\n"
+            f"Sign in at {login_link} with your email or username {user.username}.\n\n"
             "Use the password you chose when you registered.\n"
         )
         subject = "Your EduSphere staff account is approved"
@@ -644,6 +644,12 @@ def approve_staff_request(reg_request, actor, position=None, department=None,
             )
 
         user = reg_request.user
+        if getattr(user, "email", ""):
+            from .user_admin import validate_user_email
+
+            user.email = validate_user_email(
+                user.email, institution=institution, exclude_user=user, staff_or_admin=True
+            )
         old_username = user.username
         if str(username or "").strip():
             user.username = validate_username(username, exclude_user=user)
@@ -716,7 +722,7 @@ def approve_staff_request(reg_request, actor, position=None, department=None,
             user,
             "Your staff account is approved",
             f"You can now sign in as {STAFF_POSITIONS[position].label}. "
-            f"Sign in at {login_link} with your username {user.username} or your email address.",
+            f"Sign in at {login_link} with your email or username {user.username}.",
             link=reverse("login"),
             category="registration",
             institution=institution,

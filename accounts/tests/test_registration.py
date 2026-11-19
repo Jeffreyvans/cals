@@ -182,6 +182,8 @@ class StudentRegistrationTests(RegistrationBase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Your account is ready")
+        self.assertContains(response, "with your email or username")
+        self.assertContains(response, "<strong>tariro</strong>")
         self.student_user.refresh_from_db()
         self.assertTrue(self.student_user.is_active)
         self.assertEqual(self.student_user.username, "tariro")
@@ -427,12 +429,13 @@ class StaffRegistrationTests(RegistrationBase):
         self.assertNotContains(listing, "Farai Ncube")
 
     def test_the_staff_sent_page_confirms_without_promising_approval(self):
-        self.client.post(reverse("register_staff"), self.staff_payload())
-        response = self.client.get(reverse("register_staff_sent"))
+        response = self.client.post(reverse("register_staff"), self.staff_payload(), follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Your request has been sent")
         self.assertContains(response, "cannot sign in until")
         self.assertContains(response, escape(STAFF_GENERIC_PENDING))
+        self.assertContains(response, "with your email or username")
+        self.assertContains(response, "<strong>farai</strong>")
 
 
 class InstitutionRegistrationSettingsTests(RegistrationBase):
@@ -511,7 +514,7 @@ class UsernameApprovalTests(RegistrationBase):
             recipient=reg_request.email, subject__icontains="approved"
         )
         self.assertIn(
-            "with your username farai.new_2026 or your email address", decision.body
+            "with your email or username farai.new_2026.", decision.body
         )
 
     def test_invalid_username_is_a_field_error(self):

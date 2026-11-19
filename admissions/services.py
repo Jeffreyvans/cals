@@ -461,7 +461,7 @@ def _welcome_body(student, username, request=None):
         f"Welcome to {institution.name}, {student.name}.\n\n"
         f"Your place has been confirmed.\n"
         f"Student number: {student.student_no}\n"
-        f"Sign in at {login_link} with your username {username} or your email address.\n\n"
+        f"Sign in at {login_link} with your email or username {username}.\n\n"
         f"Programme: {student.programme.name}\n"
         "If you were given a temporary password, sign in and change it. "
         "No password is included in this message.\n"

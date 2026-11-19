@@ -45,20 +45,43 @@ class EduSpherePasswordResetForm(PasswordResetForm):
     def get_users(self, identifier):
         identifier = normalize_identifier(identifier)
         if not identifier:
-            return User.objects.none()
+            return []
         active_users = User._default_manager.filter(is_active=True)
         if "@" in identifier:
-            users = active_users.filter(email__iexact=normalize_email(identifier))
-            users = users | active_users.filter(username__iexact=identifier)
+            users = (
+                active_users.filter(email__iexact=normalize_email(identifier))
+                | active_users.filter(username__iexact=identifier)
+            )
         else:
-            users = active_users.filter(username__iexact=identifier)
-            # Also allow lookup by email value even if entered oddly; usernames won't contain spaces.
-            users = users | active_users.filter(email__iexact=identifier.lower())
+            users = (
+                active_users.filter(username__iexact=identifier)
+                | active_users.filter(email__iexact=identifier.lower())
+            )
+
+        candidates = []
         seen = set()
-        for user in users.distinct().iterator():
-            if user.has_usable_password() and user.pk not in seen:
-                seen.add(user.pk)
-                yield user
+        for user in users.distinct():
+            if user.pk in seen or not user.has_usable_password():
+                continue
+            seen.add(user.pk)
+            candidates.append(user)
+
+        if not candidates:
+            return []
+        if len(candidates) == 1:
+            return candidates
+
+        # The same email can belong to accounts in different institutions. Treat an
+        # ambiguous identifier as no match so the response stays non-revealing and
+        # the wrong account is never reset; the person can use their username.
+        first = candidates[0]
+        if any(
+            candidate.username.lower() != first.username.lower()
+            or candidate.institution_id != first.institution_id
+            for candidate in candidates[1:]
+        ):
+            return []
+        return [first]
 
     def save(self, request=None, **kwargs):
         identifier = self.cleaned_data.get("email", "")
@@ -116,10 +139,18 @@ class EduSpherePasswordResetView(PasswordResetView):
         return super().post(request, *args, **kwargs)
 
 
+def _login_link_for(user):
+    institution = getattr(user, "institution", None)
+    if institution is not None and getattr(institution, "slug", ""):
+        return absolute_url(reverse("institution_login", args=[institution.slug]))
+    return absolute_url(reverse("login"))
+
+
 def send_password_reset_confirmation_notice(user):
     """Tell the account owner that a reset link was actually used."""
     if not getattr(user, "email", ""):
         return None
+    login_link = _login_link_for(user)
     return send_email(
         PASSWORD_RESET_CONFIRMATION,
         user.email,
@@ -127,7 +158,8 @@ def send_password_reset_confirmation_notice(user):
         (
             f"Hello {user.get_full_name() or user.username},\n\n"
             "Your EduSphere password has been changed using the one-time reset "
-            "link. You can now sign in with the new password.\n\n"
+            "link.\n"
+            f"Sign in at {login_link} with your email or username {user.username}.\n\n"
             "If you did not do this, contact your institution immediately.\n"
         ),
         institution=getattr(user, "institution", None),
@@ -140,13 +172,15 @@ def send_password_change_notice(user, forced=False):
     if not getattr(user, "email", ""):
         return None
     kind = FORCED_PASSWORD_CHANGE_NOTICE if forced else PASSWORD_CHANGE_NOTICE
+    login_link = _login_link_for(user)
     return send_email(
         kind,
         user.email,
         "Your EduSphere password was changed",
         (
             f"Hello {user.get_full_name() or user.username},\n\n"
-            "The password on your EduSphere account has been changed.\n\n"
+            "The password on your EduSphere account has been changed.\n"
+            f"Sign in at {login_link} with your email or username {user.username}.\n\n"
             "If you did not make this change, contact your institution.\n"
         ),
         institution=getattr(user, "institution", None),

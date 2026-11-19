@@ -171,6 +171,18 @@ class IdentifierSignInTests(SignInBase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(int(self.client.session["_auth_user_id"]), self.solo.pk)
 
+    def test_institution_sign_in_accepts_mixed_case_username_and_email(self):
+        by_username = self._post(reverse("institution_login", args=["alpha"]), "SOLO.USER")
+        self.assertEqual(by_username.status_code, 302)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.solo.pk)
+        self.client.logout()
+
+        by_email = self._post(
+            reverse("institution_login", args=["alpha"]), " SOLO@EXAMPLE.TEST "
+        )
+        self.assertEqual(by_email.status_code, 302)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.solo.pk)
+
     def test_unknown_identifier_and_wrong_password_share_one_error(self):
         for identifier, password in (("nobody@example.test", STRONG), ("solo.user", "wrong")):
             with self.subTest(identifier=identifier):
@@ -247,7 +259,7 @@ class PasswordResetIdentifierTests(SignInBase):
             login_link = absolute_url(reverse("institution_login", args=[institution.slug]))
         else:
             login_link = absolute_url(reverse("login"))
-        return f"Sign in at {login_link} with your username {user.username} or your email address."
+        return f"Sign in at {login_link} with your email or username {user.username}."
 
     def _html_instruction(self, user):
         institution = user.institution
@@ -257,8 +269,7 @@ class PasswordResetIdentifierTests(SignInBase):
             login_link = absolute_url(reverse("login"))
         return (
             f'<a href="{login_link}" style="color:#5d4037;">{login_link}</a> '
-            f'with your username <strong style="color:#2b1a12;">{user.username}</strong> '
-            "or your email address."
+            f'with your email or username <strong style="color:#2b1a12;">{user.username}</strong>.'
         )
 
     def _assert_reset_sent(self, identifier, user):
@@ -321,6 +332,25 @@ class PasswordResetIdentifierTests(SignInBase):
         self.assertNotContains(unknown, "No account")
         self.assertNotContains(known, "No account")
 
+    def test_an_email_shared_by_different_institutions_does_not_send_a_reset(self):
+        with override_settings(SITE_URL="https://school.example"):
+            response = self._post_reset(" SHARED@EXAMPLE.TEST ")
+        self.assertRedirects(
+            response, reverse("password_reset_done"), fetch_redirect_response=False
+        )
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertFalse(
+            OutboundMessage.all_objects.filter(
+                recipient__in=[self.alpha_user.email, self.beta_user.email],
+                email_type=PASSWORD_RESET_REQUEST,
+            ).exists()
+        )
+
+    def test_a_shared_email_can_still_reset_by_username_for_each_account(self):
+        self._assert_reset_sent("ALPHA.STUDENT", self.alpha_user)
+        mail.outbox = []
+        self._assert_reset_sent("beta.student", self.beta_user)
+
 
 class ProvisioningInstructionTests(TestCase):
     @classmethod
@@ -345,7 +375,7 @@ class ProvisioningInstructionTests(TestCase):
     @staticmethod
     def instruction(user):
         login_link = absolute_url(reverse("institution_login", args=[user.institution.slug]))
-        return f"Sign in at {login_link} with your username {user.username} or your email address."
+        return f"Sign in at {login_link} with your email or username {user.username}."
 
     def test_admin_temp_password_confirmation_shows_username_and_instruction_once(self):
         self.client.force_login(self.admin)
@@ -372,7 +402,7 @@ class ProvisioningInstructionTests(TestCase):
         page = self.client.get(reverse("user_created"))
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, account.username)
-        self.assertContains(page, f"with your username <strong>{account.username}</strong> or your email address.")
+        self.assertContains(page, f"with your email or username <strong>{account.username}</strong>.")
         self.assertContains(page, page.context["credentials"]["password"].replace("&", "&amp;"))
         self.assertNotContains(page, "An invitation email was sent")
         again = self.client.get(reverse("user_created"))
@@ -405,7 +435,7 @@ class ProvisioningInstructionTests(TestCase):
         self.assertEqual(account.username, "invited.staff")
         page = self.client.get(reverse("user_created"))
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, f"with your username <strong>{account.username}</strong> or your email address.")
+        self.assertContains(page, f"with your email or username <strong>{account.username}</strong>.")
         self.assertContains(page, "An invitation email was sent")
         invitation_messages = OutboundMessage.all_objects.filter(
             recipient=account.email
@@ -417,7 +447,7 @@ class ProvisioningInstructionTests(TestCase):
             any(expected_instruction in (m.body or "") for m in invitation_messages)
         )
         self.assertTrue(
-            any(f'with your username <strong style="color:#2b1a12;">{account.username}</strong> or your email address.' in (m.html_body or "") for m in invitation_messages)
+            any(f'with your email or username <strong style="color:#2b1a12;">{account.username}</strong>.' in (m.html_body or "") for m in invitation_messages)
         )
         self.assertFalse(any(STRONG in (m.body or "") for m in invitation_messages))
 

@@ -362,3 +362,15 @@ class ReservedUsername(models.Model):
     def save(self, *args, **kwargs):
         self.username = str(self.username or "").strip().lower()[:150]
         super().save(*args, **kwargs)
+
+
+def reserve_username_on_user_delete(sender, instance, **kwargs):
+    """Keep a deleted account's username reserved forever."""
+    if not getattr(instance, "username", ""):
+        return
+    from .usernames import reserve_username
+
+    reserve_username(instance.username)
+
+
+models.signals.post_delete.connect(reserve_username_on_user_delete, sender=User)

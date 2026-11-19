@@ -13,7 +13,7 @@
   <div class="card">
     <p><strong>Username:</strong> <code>{{ reset.user.username }}</code></p>
     <p><strong>Temporary password:</strong> <code>{{ temporary_password }}</code></p>
-    <p><strong>Sign-in instructions:</strong> Sign in at <a href="{{ login_link }}">{{ login_link }}</a> with your username <strong>{{ reset.user.username }}</strong> or your email address.</p>
+    <p><strong>Sign-in instructions:</strong> Sign in at <a href="{{ login_link }}">{{ login_link }}</a> with your email or username <strong>{{ reset.user.username }}</strong>.</p>
     <p class="muted">Copy the temporary password now. It is not stored and cannot be shown again. The user must choose a new password at first sign-in.</p>
   </div>
   {% endif %}

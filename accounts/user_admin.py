@@ -291,7 +291,7 @@ def _login_link(user):
 
 def _sign_in_instruction(user):
     return (
-        f"Sign in at {_login_link(user)} with your username {user.username} or your email address."
+        f"Sign in at {_login_link(user)} with your email or username {user.username}."
     )
 
 

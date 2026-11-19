@@ -22,9 +22,9 @@
     <p><strong>Temporary password:</strong> <code>{{ credentials.password }}</code></p>
     <p><strong>Sign-in instructions:</strong>
       {% if inst.slug %}
-        Sign in at <a href="{% url 'institution_login' inst.slug %}">{% url 'institution_login' inst.slug %}</a> with your username <strong>{{ credentials.username }}</strong> or your email address.
+        Sign in at <a href="{% url 'institution_login' inst.slug %}">{% url 'institution_login' inst.slug %}</a> with your email or username <strong>{{ credentials.username }}</strong>.
       {% else %}
-        Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a> with your username <strong>{{ credentials.username }}</strong> or your email address.
+        Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a> with your email or username <strong>{{ credentials.username }}</strong>.
       {% endif %}
     </p>
   </div>
@@ -46,9 +46,9 @@
   <h2>What happens next</h2>
   <p><strong>Sign-in instructions:</strong>
     {% if inst.slug %}
-      Sign in at <a href="{% url 'institution_login' inst.slug %}">{% url 'institution_login' inst.slug %}</a> with your username <strong>{{ credentials.username|default:account.username }}</strong> or your email address.
+      Sign in at <a href="{% url 'institution_login' inst.slug %}">{% url 'institution_login' inst.slug %}</a> with your email or username <strong>{{ credentials.username|default:account.username }}</strong>.
     {% else %}
-      Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a> with your username <strong>{{ credentials.username|default:account.username }}</strong> or your email address.
+      Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a> with your email or username <strong>{{ credentials.username|default:account.username }}</strong>.
     {% endif %}
   </p>
   <p>They open the link, choose a password, and sign in. If the invitation expires, send a new one from their account page.</p>

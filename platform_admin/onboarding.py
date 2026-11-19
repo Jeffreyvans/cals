@@ -58,7 +58,7 @@ SUPPORT_EMAIL = "sphereeedu@gmail.com"
 
 
 def _sign_in_instruction(login_url, username):
-    return f"Sign in at {login_url} with your username {username} or your email address."
+    return f"Sign in at {login_url} with your email or username {username}."
 
 GETTING_STARTED = (
     "Upload your logo.",

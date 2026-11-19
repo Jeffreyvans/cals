@@ -546,5 +546,5 @@ class UsernameFieldTests(UserAdminBase):
         )
         self.assertIn("new.staff.name", notice.body)
         self.assertIn(
-            "with your username new.staff.name or your email address", notice.body
+            "with your email or username new.staff.name.", notice.body
         )

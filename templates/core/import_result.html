@@ -24,9 +24,9 @@
   <a href="{% url 'import_credentials' batch.pk %}">Download the results file</a>.
   The file includes each username and the sign-in instructions:
   {% if batch.institution.slug %}
-    Sign in at <a href="{% url 'institution_login' batch.institution.slug %}">{% url 'institution_login' batch.institution.slug %}</a> with your username <strong>&lt;username&gt;</strong> or your email address.
+    Sign in at <a href="{% url 'institution_login' batch.institution.slug %}">{% url 'institution_login' batch.institution.slug %}</a> with your email or username <strong>&lt;username&gt;</strong>.
   {% else %}
-    Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a> with your username <strong>&lt;username&gt;</strong> or your email address.
+    Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a> with your email or username <strong>&lt;username&gt;</strong>.
   {% endif %}
   The passwords are removed from the system as soon as you download the file, so keep it safe.
 </div>

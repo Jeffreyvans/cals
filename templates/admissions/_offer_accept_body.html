@@ -18,7 +18,7 @@
       {% else %}
         Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a>
       {% endif %}
-      with your username <strong>{{ student.temporary_username|default:student.user.username }}</strong> or your email address.
+      with your email or username <strong>{{ student.temporary_username|default:student.user.username }}</strong>.
     </p>
     <p><a class="btn" href="{% if application.institution.slug %}{% url 'institution_login' application.institution.slug %}{% else %}{% url 'login' %}{% endif %}">Sign in</a></p>
     <p class="muted">{% if student.temporary_password %}Change the temporary password after signing in. {% endif %}Sign-in instructions were emailed to {{ application.email }}. No password was emailed.</p>

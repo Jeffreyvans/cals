@@ -272,7 +272,7 @@ def import_credentials(request, pk):
     for row in credentials:
         username = row.get("username", "")
         instructions = (
-            f"Sign in at {login_link} with your username {username} or your email address."
+            f"Sign in at {login_link} with your email or username {username}."
             if username else f"Sign in at {login_link}."
         )
         writer.writerow([
