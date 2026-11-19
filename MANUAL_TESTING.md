@@ -1,4 +1,4 @@
-# Manual testing - institution onboarding
+# Manual testing - institution onboarding and bulk student upload
 
 Use a staging copy with a real platform administrator account and working
 `SITE_URL` / Mailjet settings (see `DEPLOY.md`). Every scenario starts from
@@ -122,7 +122,74 @@ an institution that existed before onboarding. There is no onboarding row for
 them, so they land on `/dashboard/` normally and are not sent to the guided
 setup. Similarly, programmatic/forced logins never open the setup.
 
+## 10. Bulk upload students
+
+Use a registrar who holds `students.bulk_import` in a test institution. First
+create the programme `DIT`, the term `Term 1` and the courses `DIT101` and
+`DIT102` (or tick "Create missing" in the preview). Save this as `students.csv`
+in UTF-8:
+
+```csv
+Registration number,First name,Surname,Date of birth,Gender,Email,Phone,Programme,Year or grade,Stream or cohort,Intake or admission year,Guardian name,Guardian phone,Course codes or names,Term,Status,Username
+STU-1001,Tariro,Dube,2008-03-04,Female,tariro.dube@example.com,0771234567,DIT,1,Blue,2026,Mrs Dube,0773333333,DIT101;DIT102,Term 1,active,
+,Chipo,Nyoni,2009-07-12,Female,chipo.nyoni@example.com,0772345678,DIT,1,Blue,2026,Mr Nyoni,0774444444,DIT101,Term 1,active,
+```
+
+1. **Upload and preview.** Open `/imports/students/new/`, choose the CSV (a
+   real `.xlsx` works too) and upload it. Check the column mapping, then open
+   the preview. Both rows should be **create**, with `STU-1001` kept and
+   `(generated)` shown for Chipo, two enrolment additions each and no errors.
+   Use the filters and download the preview report. Re-upload a `.txt` renamed
+   to `.csv` and a file over 5 MB/5,000 rows to see the real file-type and size
+   checks.
+2. **Run the batch.** Choose **No login** first, leave "Create missing" unticked
+   and leave "Apply registration rules" ticked. Confirm the run. The result
+   page must show two writes, one `ImportBatch`, the enrolments, and no
+   temporary password. Download both result CSVs. Reload the result page: a
+   temporary password, when used, cannot be shown a second time.
+3. **Re-upload and update.** Upload the same file again. The preview should
+   show two **no change** rows and the run should write nothing. Now change
+   Tariro's phone to `0779999999` and clear the guardian cells, then run. Only
+   the phone changes; `STU-1001`, the guardian name/phone, enrolments and marks
+   stay as they were. Set the year to `4` in the same row: it is warned about
+   and kept until "Update year or grade" is ticked.
+4. **Review and duplicates.** Add a row with a different first name but the
+   same surname, date of birth and programme and no registration number/email.
+   It must be **skip**, flagged for review, with nothing changed. Put the same
+   registration number on two rows: both rows must be errors. Add a blank row
+   and a bad email to confirm they are ignored/reported without stopping good
+   rows.
+5. **Missing objects.** Use a row with programme `Form 5`, stream `Blue`,
+   intake year `2029` and course `SCIENCE101`. With "Create missing" off it is
+   an error naming the programme/course. Tick all three creation options,
+   preview the new objects, run, and confirm they are marked "Created by
+   import, review needed" and that the existing `DIT` programme was not
+   renamed.
+6. **Enrolment rules and removal.** Remove `DIT102` from Tariro's row, keep
+   `DIT101` and run without confirming removal: a warning appears and the
+   enrolment stays. Tick removal and confirm: `DIT102` becomes `dropped` and
+   its row (and any mark/attendance) is still present. With rules skipped, a
+   full course is added anyway with a warning; with rules on it is blocked.
+7. **Invitations and credentials.** Run a new file in **Invitation** mode and
+   check one queued invitation per new account in the email log; no password
+   is emailed or written to the audit trail. With
+   `BULK_UPLOAD_EMAIL_CHUNK=1`, one delivery call sends one message and the
+   rest stay queued for the next call. Use **Temporary password** in another
+   batch: the password is shown once, is downloadable once and forces a change
+   at first login. **No login** creates no usable password.
+8. **Undo and safety.** Undo a fresh batch: the created student is removed,
+   the user is deactivated and queued invitations are cancelled. Repeat with a
+   batch that raised a first invoice: undo skips that student and leaves the
+   invoice, user and student in place. Give a created student a mark or
+   attendance and confirm undo also skips them.
+9. **Permissions and tenants.** Sign in as a user without
+   `students.bulk_import`: the upload URL is refused. With another institution
+   open, try to view or run the first institution's batch URL: it is not
+   visible and no student is matched across institutions.
+
 ## Cleanup
 
 Delete the test institution, its test users and any custom DNS records. Remove
-the temporary provider key change from scenario 7.
+the temporary provider key change from scenario 7. Delete the sample students
+and imported objects created by scenario 10, or undo only the batches that have
+no financial or academic history.

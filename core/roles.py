@@ -92,6 +92,7 @@ DEFAULT_ROLES = [
             "students.view_all",
             "students.view_own",
             "students.create",
+            "students.bulk_import",
             "students.edit",
             "students.transfer",
             "students.promote",

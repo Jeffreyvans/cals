@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Student upload finished{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Student upload finished</h1>
+    <p class="muted">{{ batch.filename }} &middot; {{ batch.get_access_mode_display }}</p>
+  </div>
+  <a class="btn ghost" href="{% url 'import_list' %}">All imports</a>
+</div>
+
+{% if batch.undone_at %}
+<div class="msg">This upload was undone on {{ batch.undone_at|date:"j M Y, H:i" }}. {{ batch.undone_count }} rows were reverted.</div>
+{% endif %}
+
+<div class="metrics">
+  <div><strong>{{ batch.imported_count }}</strong><span>rows written</span></div>
+  <div><strong>{{ summary.created|default:0 }}</strong><span>created</span></div>
+  <div><strong>{{ summary.updated|default:0 }}</strong><span>updated</span></div>
+  <div><strong>{{ summary.skipped|default:0 }}</strong><span>flagged / skipped</span></div>
+  <div><strong>{{ errors|length }}</strong><span>error rows</span></div>
+  <div><strong>{{ warnings|length }}</strong><span>warning rows</span></div>
+</div>
+
+{% if has_credentials %}
+<div class="msg success">
+  <strong>The results file is ready.</strong>
+  <a href="{% url 'bulk_upload_results' batch.pk %}">Download registration numbers, usernames and one-time passwords</a>.
+  Passwords are shown once and removed from the system when you download the file.
+</div>
+{% elif batch.credentials_downloaded %}
+<div class="msg">The results file was downloaded. One-time passwords are no longer stored and cannot be shown again.</div>
+{% endif %}
+
+{% if errors %}
+<div class="msg error">
+  <strong>{{ errors|length }} rows had a problem.</strong>
+  <a href="{% url 'bulk_upload_report' batch.pk %}?type=errors">Download the error report</a>.
+</div>
+{% endif %}
+{% if warnings %}
+<div class="msg"><a href="{% url 'bulk_upload_report' batch.pk %}?type=warnings">Download the warning report</a> ({{ warnings|length }} rows).</div>
+{% endif %}
+
+<div class="row">
+  <a class="btn ghost" href="{% url 'bulk_upload_preview' batch.pk %}">Review this upload</a>
+  <a class="btn ghost" href="{% url 'bulk_upload_start' %}">Upload another file</a>
+</div>
+
+{% if can_undo %}
+<form method="post" action="{% url 'bulk_upload_undo' batch.pk %}" class="inline">
+  {% csrf_token %}
+  <button class="btn ghost">Undo this upload</button>
+</form>
+<p class="muted">Undo removes students this upload created only while they are unused, and restores changed fields only when nobody has edited them since. It never deletes marks, attendance, payment history or audit entries.</p>
+{% endif %}
+{% endblock %}

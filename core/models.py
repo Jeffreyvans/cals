@@ -549,6 +549,7 @@ class ImportBatch(TenantModel):
 
     class Kind(models.TextChoices):
         STUDENTS = "students", "Students"
+        STUDENT_UPLOAD = "student_upload", "Bulk upload students"
         STAFF = "staff", "Staff"
         COURSES = "courses", "Courses"
         SUBJECTS = "subjects", "Subjects"
@@ -563,6 +564,7 @@ class ImportBatch(TenantModel):
     class AccessMode(models.TextChoices):
         INVITATION = "invitation", "Send invitation email"
         TEMPORARY_PASSWORD = "temporary_password", "Temporary password"
+        NO_LOGIN = "no_login", "No login yet"
 
     institution = models.ForeignKey(
         Institution, on_delete=models.CASCADE, related_name="import_batches")
@@ -574,6 +576,14 @@ class ImportBatch(TenantModel):
     imported_count = models.PositiveIntegerField(default=0)
     error_count = models.PositiveIntegerField(default=0)
     errors = models.JSONField(default=list, blank=True)
+    # Bulk student upload: the choices made for the batch, the per-row plan and
+    # the values needed to undo it. Ordinary imports simply leave these empty.
+    options = models.JSONField(default=dict, blank=True)
+    warnings = models.JSONField(default=list, blank=True)
+    row_results = models.JSONField(default=list, blank=True)
+    summary = models.JSONField(default=dict, blank=True)
+    created_objects = models.JSONField(default=list, blank=True)
+    undo_log = models.JSONField(default=list, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="import_batches")
@@ -608,6 +618,37 @@ class ImportBatch(TenantModel):
     def data_rows(self):
         """The rows without the header row."""
         return list((self.rows or [])[1:])
+
+
+class BulkUploadMatch(TenantModel):
+    """A stable link between a spreadsheet row and the student it created.
+
+    Registration numbers and logins are the normal ways to find a student on a
+    re-upload. A file that only holds names needs something stable as well: this
+    row remembers a fingerprint of the source row so the same file can be
+    uploaded again without creating a second student. It is never used to merge
+    with a student who was already at the institution before the first upload.
+    """
+
+    institution = models.ForeignKey(
+        Institution, on_delete=models.CASCADE, related_name="bulk_upload_matches")
+    match_key = models.CharField(max_length=64, db_index=True)
+    student = models.ForeignKey(
+        "academics.Student", on_delete=models.CASCADE, related_name="bulk_upload_matches")
+    batch = models.ForeignKey(
+        ImportBatch, on_delete=models.CASCADE, related_name="bulk_upload_matches")
+    source_row = models.PositiveIntegerField(default=0)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["institution", "match_key"], name="uniq_bulk_upload_match")
+        ]
+
+    def __str__(self):
+        return f"Upload match for {self.student} (row {self.source_row})"
 
 
 # ---------- background jobs ----------

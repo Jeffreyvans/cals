@@ -413,6 +413,7 @@ def _normalize_access_mode(access_mode):
     return {
         "invite": "invitation",
         "temp_password": "temporary_password",
+        "none": "no_login",
     }.get(access_mode, access_mode)
 
 
@@ -429,15 +430,18 @@ def provision_user(
     access_mode="invitation",
     actor=None,
     request=None,
+    send_email=True,
 ):
-    """Create a login in one of the two access modes.
+    """Create a login in one of the access modes.
 
     Invitation: an unusable password plus a one-time 72-hour link.
     Temporary password: a strong random password shown once to the administrator
     and a forced change at the next sign-in.
+    No login: an account with an unusable password and no invitation yet.
 
     An invitation to a person without an email falls back to a temporary
-    password, because there is nowhere to send the link.
+    password, because there is nowhere to send the link. Bulk imports pass
+    ``send_email=False`` so invitations can be queued and rate limited later.
     """
     if role is None:
         role = Role.all_objects.filter(institution=institution, code="lecturer").first()
@@ -454,7 +458,7 @@ def provision_user(
         username = generate_username_for_email(email, f"{first_name} {last_name}")
 
     access_mode = _normalize_access_mode(access_mode)
-    if access_mode not in ("invitation", "temporary_password"):
+    if access_mode not in ("invitation", "temporary_password", "no_login"):
         raise ValidationError("Choose how the new user gets access.")
     if access_mode == "invitation" and not email:
         access_mode = "temporary_password"
@@ -489,10 +493,11 @@ def provision_user(
     user.save()
     reserve_username(user.username)
 
-    if access_mode == "invitation":
-        invitation = create_invitation(user, actor=actor, request=request)
-    elif email:
-        send_account_created_notice(user)
+    if send_email:
+        if access_mode == "invitation":
+            invitation = create_invitation(user, actor=actor, request=request)
+        elif access_mode == "temporary_password" and email:
+            send_account_created_notice(user)
 
     log_action(
         actor,

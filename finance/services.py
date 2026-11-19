@@ -5,13 +5,15 @@ these functions instead of writing journal lines themselves.
 """
 
 import csv
+import threading
 import time
+from contextlib import nullcontext
 from datetime import date, timedelta
 from decimal import Decimal
 from io import StringIO
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, OperationalError, transaction
+from django.db import IntegrityError, OperationalError, connection, transaction
 from django.db.models import F, Q, Sum
 from django.utils import timezone
 
@@ -105,38 +107,46 @@ def tax_rate_in_force(institution, category, day=None):
     return stored if stored is not None else DEFAULT_VAT_RATE
 
 
+# SQLite ignores ``select_for_update`` and only allows one writer at a time.
+# A process-wide lock keeps concurrent threads queued instead of fighting over
+# the write lock; the database retry logic below still covers other processes.
+_SQLITE_NUMBER_LOCK = threading.Lock()
+
+
 def next_document_number(institution, document_type, day=None):
     """Allocate the next gap-free number for a document type.
 
     The counter is advanced with an atomic ``F()`` update inside a row lock, so
     simultaneous requests each get a distinct number. On SQLite (where
-    ``select_for_update`` is a no-op) the unique constraint on the sequence row
-    catches the rare double insert and the call retries. SQLite can also refuse
-    a write with a "database is locked" error while another request holds the
-    table; that is a transient contention error, so it is retried too.
+    ``select_for_update`` is a no-op) a local lock serialises the threads and
+    the unique constraint on the sequence row catches a double insert from
+    another process. A transient "database is locked" error is retried too.
     """
     day = day or timezone.localdate()
     label = str(day.year)
     prefix = DOCUMENT_PREFIXES.get(document_type, str(document_type)[:3].upper())
+    allocation_lock = (
+        _SQLITE_NUMBER_LOCK if connection.vendor == "sqlite" else nullcontext()
+    )
     for _attempt in range(8):
-        try:
-            with transaction.atomic():
-                sequence, _created = DocumentSequence.all_objects.select_for_update(
-                ).get_or_create(
-                    institution=institution, document_type=document_type,
-                    financial_year=label, defaults={"last_number": 0})
-                DocumentSequence.all_objects.filter(pk=sequence.pk).update(
-                    last_number=F("last_number") + 1)
-                sequence.refresh_from_db()
-                return f"{prefix}-{label}-{sequence.last_number:06d}"
-        except IntegrityError:
-            continue
-        except OperationalError as exc:
-            message = str(exc).lower()
-            if "locked" not in message and "busy" not in message:
-                raise
-            time.sleep(0.02 * (_attempt + 1))
-            continue
+        with allocation_lock:
+            try:
+                with transaction.atomic():
+                    sequence, _created = DocumentSequence.all_objects.select_for_update(
+                    ).get_or_create(
+                        institution=institution, document_type=document_type,
+                        financial_year=label, defaults={"last_number": 0})
+                    DocumentSequence.all_objects.filter(pk=sequence.pk).update(
+                        last_number=F("last_number") + 1)
+                    sequence.refresh_from_db()
+                    return f"{prefix}-{label}-{sequence.last_number:06d}"
+            except IntegrityError:
+                continue
+            except OperationalError as exc:
+                message = str(exc).lower()
+                if "locked" not in message and "busy" not in message:
+                    raise
+        time.sleep(0.02 * (_attempt + 1))
     raise ValidationError(
         "Could not allocate a document number right now. Please try again.")
 

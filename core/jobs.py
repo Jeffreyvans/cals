@@ -151,6 +151,10 @@ def store_job_file(job, filename, content, content_type):
 
 def perform_import(batch, actor, job=None):
     """Validate and write one batch. Shared by the view and the worker."""
+    from core import bulk_upload
+
+    if batch.kind == bulk_upload.KIND:
+        return bulk_upload.perform(batch, actor, job=job)
     if job is not None:
         update_job(job, progress=10, message="Checking the rows")
     results = importer.validate(

@@ -334,12 +334,15 @@ def create_student_record(
     fee_structure=None,
     due_date=None,
     status=Student.Status.ACTIVE,
+    send_email=True,
 ):
     """Create the login and student record in one place.
 
     Admissions uses this when an offer is accepted, and an administrator uses
     it when adding a student directly, so there is one code path for student
-    numbers, logins and the optional first invoice.
+    numbers, logins and the optional first invoice. A bulk job passes
+    ``send_email=False`` and delivers invitations through the central email
+    function in rate-limited chunks instead.
     """
     actor_institution = getattr(actor, "institution_id", None)
     if actor_institution is not None and actor_institution != institution.pk:
@@ -370,6 +373,7 @@ def create_student_record(
             access_mode=access_mode,
             actor=actor,
             request=request,
+            send_email=send_email,
         )
         student = Student(
             institution=institution,

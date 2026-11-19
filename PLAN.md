@@ -348,3 +348,51 @@ the existing invitation, branding, audit, notification and central email code.
 - [x] Cross-checked every requirement against the code and tests. Closed the remaining gaps: legacy administrators are no longer sent to the guided setup, failed invitation/password-reset emails are surfaced on the one-time credential screen, a failed welcome email is not counted as delivered, and the application-approval follow-up now carries the support contacts. Added `platform_admin/tests/test_onboarding_part3.py` (6 tests) plus a legacy-admin regression test.
 - [x] Wrote `ONBOARDING_REPORT.md` (requirement matrix, verification, decisions and caveats) and `MANUAL_TESTING.md` (nine click-by-click scenarios including email-failure simulation and custom-domain verification).
 - [x] Final verification: 1,556 tests pass, `ruff check .` is clean and `makemigrations --check --dry-run` reports no changes.
+
+## PHASE 13 - Dedicated bulk upload of students (session 35, 2026-11-19)
+Status: complete.
+
+Institution registrars can now create and update students, programmes/classes,
+years/grades, streams/cohorts, courses and enrolments from one UTF-8 CSV or
+`.xlsx` file. The work reuses the shared import reader, admissions creation,
+numbering, audit and central email paths; the older `students` import is
+unchanged.
+
+- [x] Added a separate `student_upload` import kind, gated by the new
+  `students.bulk_import` permission, with dedicated upload, preview, run,
+  result, CSV report and undo screens/templates and navigation links.
+- [x] The reader enforces a 5 MB/5,000-row configurable limit, real file types,
+  blank-row skipping, trimming, header aliases and an optional column mapping.
+  The preview supports filters, counts, old-to-new changes, new objects, dry
+  runs and a downloadable report, and asks for confirmation before running.
+- [x] Strong matching uses registration number, then email or username; a
+  per-institution `BulkUploadMatch` fingerprint recognises a previous upload
+  with no identity fields. Surname + date of birth + programme is only a
+  review flag and never auto-merges. Duplicate identity values in one file
+  flag every row in the duplicate group.
+- [x] Updates write only supplied fields. Blank cells never erase stored
+  values, a registration number never changes, and logins, fees, results,
+  attendance and history are untouched. Pure `no_change` rows are not written;
+  enrolment-only changes promote the row to an update.
+- [x] New students go through `create_student_record` with manual or generated
+  numbers, an institution `no_login`/invitation/temporary-password access mode
+  and an optional first invoice. Credentials are shown once; invitations are
+  queued through `send_email(send=False)` and delivered in rate-limited chunks.
+- [x] Missing programmes, courses, classes, years, programme years and cohorts
+  are previewed and created only when ticked, marked "Created by import,
+  review needed", and never rename or delete existing objects. Enrolments are
+  added only when missing; existing marks/attendance are preserved, rules are
+  skipped with a warning when unticked, and removals require an explicit
+  confirmation and set status to `dropped`.
+- [x] Each row writes in its own transaction into one `ImportBatch`; results,
+  warnings, audit entries and undo data avoid secrets. A background job uses
+  Celery when available and a daemon-thread fallback otherwise. Safe undo
+  deactivates created users, cancels queued invitations and keeps students
+  with invoices, payments, marks or attendance.
+- [x] Hardened the shared concurrent document-number allocator with a
+  process-wide SQLite lock so ten simultaneous allocations stay gap-free.
+- [x] Added `core/tests/test_bulk_upload.py` (26 tests) covering the full
+  matrix; `MANUAL_TESTING.md` has a ready-to-paste sample file and click-by-click
+  scenarios.
+- [x] Verification: 1,627 tests pass, `ruff check .` is clean and
+  `python manage.py makemigrations --check --dry-run` reports no changes.

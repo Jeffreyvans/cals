@@ -52,6 +52,31 @@ def run_import_job(job_id):
         return jobs.fail_job(job, exc)
 
 
+@shared_task(name="core.send_bulk_upload_invites")
+def send_bulk_upload_invites(job_id):
+    """Deliver the queued invitations of one student upload in small chunks."""
+    from core import bulk_upload
+
+    job = _load_job(job_id)
+    if job is None:
+        return None
+    batch = ImportBatch.all_objects.filter(
+        pk=job.object_id, institution_id=job.institution_id).first()
+    if batch is None:
+        return jobs.fail_job(job, "The uploaded file is no longer available.")
+    try:
+        jobs.start_job(job, "Sending invitations")
+        sent = bulk_upload.deliver_invitations(batch, job=job)
+        return jobs.finish_job(
+            job,
+            {"url": f"/imports/{batch.pk}/result/", "sent": sent},
+            f"{sent} invitations sent",
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("Invitation job %s failed", job.pk)
+        return jobs.fail_job(job, exc)
+
+
 @shared_task(name="core.send_newsletter_job")
 def send_newsletter_job(job_id):
     """Queue a newsletter for every recipient and show the progress."""

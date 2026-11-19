@@ -286,8 +286,11 @@ class PasswordResetIdentifierTests(SignInBase):
         self.assertTrue(sent.alternatives)
         self.assertIn(html_instruction, sent.alternatives[0][0])
         self.assertNotIn(STRONG, sent.body)
+        # Both accounts in this class share an address, so scope the audit row
+        # to the account that was actually reset.
         logged = OutboundMessage.all_objects.get(
-            recipient=user.email, email_type=PASSWORD_RESET_REQUEST
+            recipient=user.email, email_type=PASSWORD_RESET_REQUEST,
+            related_object_type="User", related_object_id=str(user.pk),
         )
         self.assertIn(html_instruction, logged.html_body)
         self.assertIn(instruction, logged.body)

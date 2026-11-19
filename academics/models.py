@@ -559,6 +559,12 @@ class CoursePrerequisite(TenantModel):
 
 
 class Student(TenantModel):
+    class Gender(models.TextChoices):
+        FEMALE = "female", "Female"
+        MALE = "male", "Male"
+        OTHER = "other", "Other"
+        UNSPECIFIED = "unspecified", "Prefer not to say"
+
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
         ENROLLED = "enrolled", "Enrolled"
@@ -582,6 +588,8 @@ class Student(TenantModel):
         on_delete=models.SET_NULL, related_name="students")
     year_or_grade = models.CharField("Year / Grade", max_length=20, default="1")
     date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(
+        max_length=20, choices=Gender.choices, blank=True, default="")
     guardian_name = models.CharField(max_length=120, blank=True)
     guardian_phone = models.CharField(max_length=30, blank=True)
     photo = models.ImageField(
@@ -601,6 +609,10 @@ class Student(TenantModel):
             models.Index(fields=["institution", "school_class"], name="student_inst_class_idx"),
             models.Index(fields=["institution", "programme"], name="student_inst_prog_idx"),
             models.Index(fields=["student_no"], name="student_no_idx"),
+            models.Index(fields=["institution", "student_no"],
+                         name="student_inst_number_idx"),
+            models.Index(fields=["institution", "date_of_birth"],
+                         name="student_inst_dob_idx"),
             models.Index(fields=["-created"], name="student_created_idx"),
         ]
 

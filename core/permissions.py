@@ -10,6 +10,7 @@ PERMISSIONS = [
     ("students.view_all", "See every student record", "students"),
     ("students.view_own", "See only their own record", "students"),
     ("students.create", "Register new students", "students"),
+    ("students.bulk_import", "Bulk upload students from a spreadsheet", "students"),
     ("students.edit", "Edit student records", "students"),
     ("students.transfer", "Transfer students in or out", "students"),
     ("students.promote", "Promote students to the next class", "students"),

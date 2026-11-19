@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Bulk upload students{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Bulk upload students</h1>
+    <p class="muted">Create or update students, their programme or class, year or grade and course enrolments from one spreadsheet.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'import_list' %}">All imports</a>
+</div>
+
+<div class="msg">
+  <strong>Before you start</strong>
+  <ul>
+    <li>Download the template to see the columns and an example row. You can use CSV or Excel.</li>
+    <li>Leave a cell blank when you do not want to change that field.</li>
+    <li>Registration number is optional; the institution numbering format supplies one when it is blank.</li>
+    <li>Nothing is written until you have checked the preview and confirmed the upload.</li>
+  </ul>
+  <a class="btn ghost" href="{% url 'bulk_upload_template' %}">Download the student template</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="inline wide">
+  {% csrf_token %}
+  <fieldset>
+    <legend>How should new students get access?</legend>
+    {% for code, label in access_modes %}
+      <p><label><input type="radio" name="access_mode" value="{{ code }}" {% if code == "invite" and forloop.first %}checked{% endif %}> {{ label }}</label></p>
+    {% endfor %}
+    <p class="helptext">Invitations are sent through the institution's branded email after the upload. A person without an email gets a temporary password.</p>
+  </fieldset>
+  <p><label>Spreadsheet
+    <input type="file" name="file" accept=".csv,.xlsx,.xlsm" required>
+    <span class="helptext">UTF-8 CSV or a real Excel workbook, up to {{ max_mb }} MB and {{ max_rows }} data rows. Empty rows are ignored.</span></label></p>
+  <div class="row"><button class="btn">Upload and check the columns</button></div>
+</form>
+
+<h3>What this upload can do</h3>
+<ul>
+  <li>Find existing students by registration number, email or username, and update only the columns you supply.</li>
+  <li>Flag a surname, date of birth and programme match for review; it never merges records automatically.</li>
+  <li>Add missing programmes, courses, classes, years and enrolments, but only when you tick those options.</li>
+  <li>Show every create, update, skip and error on the preview screen before anything is saved.</li>
+</ul>
+{% endblock %}

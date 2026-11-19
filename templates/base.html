@@ -164,9 +164,12 @@
             <a href="{% url 'college_structure' %}"><svg class="ico"><use href="#i-layers"/></svg><span>College structure</span></a>
           {% endif %}
         {% endif %}
-        {% if "students.create" in my_perms or "admin.manage_users" in my_perms or "academics.manage_courses" in my_perms or "finance.manage_fee_structures" in my_perms %}
+        {% if "students.create" in my_perms or "students.bulk_import" in my_perms or "admin.manage_users" in my_perms or "academics.manage_courses" in my_perms or "finance.manage_fee_structures" in my_perms %}
           <p class="nav-label">Data</p>
           <a href="{% url 'import_start' %}"><svg class="ico"><use href="#i-plus"/></svg><span>Bulk import</span></a>
+          {% if "students.bulk_import" in my_perms %}
+            <a href="{% url 'bulk_upload_start' %}"><svg class="ico"><use href="#i-user-plus"/></svg><span>Bulk upload students</span></a>
+          {% endif %}
         {% endif %}
         {% if user.role == 'bursar' or user.role == 'admin' or can_approve or user.is_superuser or "admin.manage_users" in my_perms %}
           <p class="nav-label">Administration</p>

@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-11-16 (session 30, reliable email on the Render free plan).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-19 (session 35, dedicated bulk student upload).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -561,3 +561,63 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
 - [x] Fixed the gaps found: `queue_setup_after_login()` now requires an onboarding row with `first_admin_created_at` set, so institutions that predate this feature sign in normally. `institution_admin_action()` returns `AdminActionResult` with an `email_failed` flag derived from the latest `OutboundMessage.status`, so a failed invitation/reset still hands over the one-time credential. `send_welcome_email()` only records `welcome_email_sent_at`/count when the status is `"sent"`; the approval follow-up email now passes the support contacts into its branded template. Corrected two docstrings/template notes that wrongly claimed invitation links are never in any email.
 - [x] Added `platform_admin/tests/test_onboarding_part3.py` (6 tests: failed welcome resend, failed login-link email, failed invitation resend, failed password reset, support contacts in approval email, no token in approval audits) and one legacy-admin regression test in Part 2. Onboarding-specific coverage is now 68 tests.
 - [x] Wrote `ONBOARDING_REPORT.md` and `MANUAL_TESTING.md`. Final verification is fully green: **1,556 tests pass**, `ruff check .` clean, `makemigrations --check` reports no changes. The earlier flaky finance concurrency test also passed in this run.
+
+## Dedicated bulk upload of students (session 35, 2026-11-19)
+- [x] Added a new `ImportBatch.Kind` value and importer kind `student_upload`,
+  with `students.bulk_import` in the permission catalogue and role matrix. The
+  old `students` bulk import and `students.create` behaviour are unchanged.
+- [x] Added `core/bulk_upload.py`: a read-only `Planner` that builds every row
+  (create, update, no_change, skip, error, warnings, old-to-new changes and
+  objects to create) and a writer that re-checks and writes each row in its own
+  transaction into one `ImportBatch`. `perform()` queues invitations once;
+  `deliver_invitations()` sends at most `BULK_UPLOAD_EMAIL_CHUNK` messages per
+  call so a large upload cannot flood the institution's email allowance.
+- [x] Added `BulkUploadMatch(institution, match_key)` (migration
+  `core/0022_importbatch_created_objects_importbatch_options_and_more.py`) so
+  a file without registration number, email or username updates the student
+  it created before instead of duplicating them. A strong identifier always
+  wins over a fingerprint; surname + date of birth + programme only flags a
+  row for review.
+- [x] Added `Student.gender`, matching indexes and user indexes (migrations
+  `academics/0023_...` and `accounts/0013_...`). The bulk permission migration
+  is `core/0021_students_bulk_import_permission.py`.
+- [x] Reused `create_student_record`/`provision_user` with `send_email=False`
+  and added an explicit `no_login` access mode. Invitation messages are queued
+  through `send_email(..., send=False)` and are rate-limited, branded and
+  cancellable by undo. Credentials appear only in the one-time result page and
+  download; audits never contain a password or token.
+- [x] Added dedicated URLs and templates (`bulk_upload_start`,
+  `bulk_upload_preview`, `bulk_upload_result`, `bulk_upload_template`, CSV
+  reports and undo) under `/imports/students/...`, linked from the navigation
+  and the import list. The preview uses the shared import reader, supports
+  column aliases/mapping, dry runs, filters and a report even before the batch
+  has run. Generic import screens redirect to the dedicated ones.
+- [x] Missing programmes/classes/streams/years/courses are created only when
+  ticked and marked "Created by import, review needed"; existing objects are
+  never renamed or deleted. Enrolment additions preserve existing marks and
+  attendance, registration rules can be skipped with a warning, and removals
+  need a confirmed option and set status to `dropped` rather than deleting.
+- [x] Safe undo deactivates created users, cancels queued invitations and
+  leaves any created student with an invoice, payment, mark or attendance
+  untouched. Undo data is JSON-serialised with dates as ISO strings and
+  compared with a tolerant helper so a legitimate undo is not mistaken for a
+  later edit.
+- [x] Fixed bugs found while making the new suite green: `Planner.load()` read
+  `BulkUploadMatch` rows as dictionaries; user updates used a model class
+  instead of `User.objects` and rolled back; enrolment-only changes were not
+  promoted to `update` because the writer inspected the stale local list;
+  duplicate identity rows flagged only the later row; update rows with a blank
+  surname were rejected before matching; `undo_log` contained raw dates.
+- [x] Hardened `finance.services.next_document_number` with a process-wide
+  SQLite lock. The 10-thread numbering test now passes repeatedly instead of
+  occasionally exhausting its retries with "database is locked"; PostgreSQL
+  still uses its row lock.
+- [x] Added `core/tests/test_bulk_upload.py` (26 tests): new file, re-upload,
+  blank-cell preservation, all strong match paths, fuzzy review, duplicate and
+  bad rows, missing-object create/reject, enrolment add/remove, year gating,
+  registration rules, tenant isolation, permissions, credentials once,
+  secret-free audit, invitation chunking, undo safeguards and file/view flows.
+  Added a sample CSV and nine manual scenarios to `MANUAL_TESTING.md`.
+- [x] Verification: full suite **1,627 passed**, `ruff check .` clean,
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected". `manage.py check` shows only the expected console-email warning.

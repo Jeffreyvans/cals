@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Check the student upload{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Check the student upload</h1>
+    <p class="muted">{{ batch.filename }} &middot; {{ total }} rows read. Nothing has been written yet.</p>
+  </div>
+  <a class="btn ghost" href="{% url 'bulk_upload_start' %}">Upload another file</a>
+</div>
+
+{% if dry_run %}
+<div class="msg success"><strong>Dry run.</strong> This is exactly what would be saved. The upload has not been written.</div>
+{% endif %}
+
+<div class="metrics">
+  <div><strong>{{ summary.created|default:0 }}</strong><span>create</span></div>
+  <div><strong>{{ summary.updated|default:0 }}</strong><span>update</span></div>
+  <div><strong>{{ summary.unchanged|default:0 }}</strong><span>no change</span></div>
+  <div><strong>{{ summary.skipped|default:0 }}</strong><span>flagged / skipped</span></div>
+  <div><strong>{{ summary.errors|default:0 }}</strong><span>errors</span></div>
+  <div><strong>{{ summary.warnings|default:0 }}</strong><span>warnings</span></div>
+</div>
+
+<div class="msg">
+  New records planned: {{ summary.programmes_created|default:0 }} programme(s),
+  {{ summary.courses_created|default:0 }} course(s),
+  {{ summary.classes_created|default:0 }} class/year record(s).
+  <a href="{% url 'bulk_upload_report' batch.pk %}?type=errors">Download errors</a> &middot;
+  <a href="{% url 'bulk_upload_report' batch.pk %}?type=warnings">Download warnings</a>
+</div>
+
+<div class="filters">
+  <a href="{% url 'bulk_upload_preview' batch.pk %}?filter=all" {% if filter == "all" %}class="active"{% endif %}>All ({{ total }})</a>
+  <a href="{% url 'bulk_upload_preview' batch.pk %}?filter=errors" {% if filter == "errors" %}class="active"{% endif %}>Errors</a>
+  <a href="{% url 'bulk_upload_preview' batch.pk %}?filter=warnings" {% if filter == "warnings" %}class="active"{% endif %}>Warnings</a>
+</div>
+
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead>
+    <tr><th>Row</th><th>Student</th><th>Action</th><th>Matched by</th><th>Changes</th><th>Problems</th></tr>
+  </thead>
+  <tbody>
+  {% for row in results %}
+    <tr>
+      <td>{{ row.row }}</td>
+      <td>
+        <strong>{{ row.name|default:"—" }}</strong>
+        <div class="muted">{{ row.registration_number|default:"(generated)" }}{% if row.username %} &middot; {{ row.username }}{% endif %}</div>
+      </td>
+      <td><span class="badge">{{ row.action }}</span>{% if row.fuzzy %}<div class="muted">review needed</div>{% endif %}</td>
+      <td>{{ row.match|default:"—" }}</td>
+      <td>
+        {% for change in row.changes %}<div>{{ change.field }}: {{ change.from|default:"—" }} &rarr; {{ change.to|default:"—" }}</div>{% empty %}<span class="muted">none</span>{% endfor %}
+        {% for item in row.created %}<div class="muted">Will create {{ item.model }}: {{ item.name|default:item.title|default:item.code }}</div>{% endfor %}
+        {% for enrolment in row.enrolments %}<div class="muted">Enrolment {{ enrolment.course }}: {{ enrolment.action }}{% if enrolment.issues %} ({{ enrolment.issues|join:" " }}){% endif %}</div>{% endfor %}
+      </td>
+      <td>
+        {% for error in row.errors %}<div class="badge">{{ error }}</div>{% endfor %}
+        {% for warning in row.warnings %}<div class="muted">{{ warning }}</div>{% endfor %}
+        {% if not row.errors and not row.warnings %}<span class="muted">none</span>{% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No rows match this filter.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if shown_rows < filtered %}<p class="muted">Showing {{ shown_rows }} of {{ filtered }} rows in this view.</p>{% endif %}
+
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  <fieldset>
+    <legend>How should new students get access?</legend>
+    {% for code, label in access_modes %}
+      <p><label><input type="radio" name="access_mode" value="{{ code }}" {% if current_access_mode == code %}checked{% endif %}> {{ label }}</label></p>
+    {% endfor %}
+  </fieldset>
+  <fieldset>
+    <legend>Choices for this upload</legend>
+    <p><label><input type="checkbox" name="create_programmes" {% if options_form.create_missing_programmes %}checked{% endif %}> Create missing programmes</label></p>
+    <p><label><input type="checkbox" name="create_courses" {% if options_form.create_missing_courses %}checked{% endif %}> Create missing courses</label></p>
+    <p><label><input type="checkbox" name="create_classes" {% if options_form.create_missing_classes %}checked{% endif %}> Create missing classes, streams and years</label></p>
+    <p><label><input type="checkbox" name="apply_rules" {% if options_form.apply_registration_rules %}checked{% endif %}> Apply prerequisites, capacity and credit rules</label></p>
+    <p><label><input type="checkbox" name="update_year" {% if options_form.update_year_grade %}checked{% endif %}> Update year or grade on existing students</label></p>
+    <p><label><input type="checkbox" name="first_invoice" {% if options_form.first_invoice %}checked{% endif %}> Create a first invoice for new students</label></p>
+    <p><label><input type="checkbox" name="manual_numbers" {% if options_form.allow_manual_numbers %}checked{% endif %}> Use registration numbers from the file</label></p>
+    <p><label><input type="checkbox" name="send_invitations" {% if options_form.send_invitations %}checked{% endif %}> Send invitation emails</label></p>
+    <p><label><input type="checkbox" name="remove_enrolments" {% if options_form.remove_missing_enrolments %}checked{% endif %}> Drop enrolments that are not in the file</label></p>
+    <p><label><input type="checkbox" name="confirm_remove" {% if options_form.confirmed_remove %}checked{% endif %}> I confirm that missing enrolments may be dropped</label></p>
+    <p><label>Term <input name="term" value="{{ options.term|default:'' }}" maxlength="60" placeholder="Term 1"></label></p>
+    <p><label>Intake year <input name="intake_year" value="{{ options.intake_year|default:'' }}" maxlength="20" placeholder="2026"></label></p>
+  </fieldset>
+  <div class="row">
+    <button class="btn ghost" name="refresh">Refresh the preview</button>
+    <button class="btn ghost" name="dry_run" value="1">Show a dry run</button>
+    <button class="btn" formaction="{% url 'bulk_upload_run' batch.pk %}">Confirm and upload {{ summary.created|default:0 }} new and {{ summary.updated|default:0 }} changed students</button>
+    <a class="btn ghost" href="{% url 'import_map' batch.pk %}">Change the columns</a>
+  </div>
+</form>
+{% endblock %}

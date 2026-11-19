@@ -178,7 +178,11 @@ if DATABASE_URL:
 else:
     DATABASES = {"default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / env_str("EDUSPHERE_DB_PATH", "db.sqlite3")}}
+        "NAME": BASE_DIR / env_str("EDUSPHERE_DB_PATH", "db.sqlite3"),
+        # Imports and background workers can write at the same time.
+        # Waiting on the SQLite write lock avoids transient "database is locked"
+        # errors during concurrent number allocation.
+        "OPTIONS": {"timeout": 30}}}
 AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
@@ -509,6 +513,12 @@ EMAIL_RESET_LIMIT = env_int("EMAIL_RESET_LIMIT", 5)
 EMAIL_IP_LIMIT = env_int("EMAIL_IP_LIMIT", 20)
 EMAIL_BULK_LIMIT = env_int("EMAIL_BULK_LIMIT", 500)
 EMAIL_RATE_WINDOW_SECONDS = env_int("EMAIL_RATE_WINDOW_SECONDS", 3600)
+
+# Student bulk upload. Both limits are configurable so a small instance can be
+# stricter and a large one can raise them without a code change.
+BULK_UPLOAD_MAX_BYTES = env_int("BULK_UPLOAD_MAX_BYTES", 5 * 1024 * 1024)
+BULK_UPLOAD_MAX_ROWS = env_int("BULK_UPLOAD_MAX_ROWS", 5000)
+BULK_UPLOAD_EMAIL_CHUNK = env_int("BULK_UPLOAD_EMAIL_CHUNK", 50)
 
 # A reset link expires in one hour and can only be used once (Django's view
 # removes the token after a successful reset).

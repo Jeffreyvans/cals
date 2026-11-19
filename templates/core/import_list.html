@@ -6,7 +6,12 @@
     <h1>Bulk import</h1>
     <p class="muted">Upload a spreadsheet, check the columns, then write the rows into {{ inst.name }}.</p>
   </div>
-  <a class="btn" href="{% url 'import_start' %}">Start an import</a>
+  <div>
+    <a class="btn" href="{% url 'import_start' %}">Start an import</a>
+    {% if "students.bulk_import" in my_perms %}
+      <a class="btn ghost" href="{% url 'bulk_upload_start' %}">Bulk upload students</a>
+    {% endif %}
+  </div>
 </div>
 
 <div class="tbl-wrap">

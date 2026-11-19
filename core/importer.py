@@ -18,6 +18,7 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
@@ -33,6 +34,16 @@ from accounts.usernames import (
 
 MAX_ROWS = 5000
 MAX_BYTES = 5 * 1024 * 1024
+
+
+def max_rows():
+    """The configured row limit, read at call time so settings can override it."""
+    return int(getattr(settings, "BULK_UPLOAD_MAX_ROWS", MAX_ROWS))
+
+
+def max_bytes():
+    """The configured upload size limit in bytes."""
+    return int(getattr(settings, "BULK_UPLOAD_MAX_BYTES", MAX_BYTES))
 
 TEXT = "text"
 NUMBER = "number"
@@ -75,6 +86,61 @@ STUDENT_FIELDS = [
     _field("status", "Status", kind=CHOICE, aliases=("status", "student status"),
            choices=("active", "deferred", "graduated", "withdrawn")),
 ]
+
+# The columns of the dedicated student bulk-upload. A row can hold several
+# courses in one cell, or use the extra course columns for one course each.
+BULK_STUDENT_FIELDS = [
+    _field("registration_number", "Registration number",
+           aliases=("registration number", "registration no", "reg number", "reg no",
+                    "student number", "student no", "admission number", "student id")),
+    _field("first_name", "First name", required=True,
+           aliases=("first name", "given name", "firstname", "name of student")),
+    _field("last_name", "Surname", required=True,
+           aliases=("surname", "last name", "family name", "lastname")),
+    _field("date_of_birth", "Date of birth", kind=DATE,
+           aliases=("date of birth", "dob", "birth date", "birthday")),
+    _field("gender", "Gender", kind=CHOICE,
+           aliases=("gender", "sex"), choices=("female", "male", "other", "unspecified")),
+    _field("email", "Email", aliases=("email", "email address", "student email", "e mail")),
+    _field("phone", "Phone", aliases=("phone", "mobile", "cell", "student phone",
+                                      "phone number")),
+    _field("programme", "Programme or class code or name",
+           aliases=("programme", "program", "programme code", "programme name",
+                    "class", "class code", "class name", "course of study", "level")),
+    _field("year_or_grade", "Year or grade",
+           aliases=("year or grade", "year/grade", "year", "grade", "form", "class year")),
+    _field("stream_or_cohort", "Stream or cohort",
+           aliases=("stream or cohort", "stream", "cohort", "stream name", "cohort name")),
+    _field("intake_year", "Intake or admission year",
+           aliases=("intake or admission year", "intake", "intake year",
+                    "admission year", "academic year", "year of entry")),
+    _field("guardian_name", "Guardian name",
+           aliases=("guardian name", "guardian", "parent", "parent name")),
+    _field("guardian_phone", "Guardian phone",
+           aliases=("guardian phone", "parent phone", "next of kin phone")),
+    _field("courses", "Course codes or names",
+           aliases=("course codes or names", "courses", "course", "course code",
+                    "course codes", "course name", "subjects", "subject codes"),
+           help_text="Separate several courses with semicolons, or use the extra course columns."),
+]
+for _course_column in range(1, 6):
+    BULK_STUDENT_FIELDS.append(
+        _field(
+            f"course_{_course_column}",
+            f"Course {_course_column}",
+            aliases=(f"course {_course_column}", f"course {_course_column} code",
+                     f"course {_course_column} name", f"subject {_course_column}"),
+            help_text="Optional: one course per column instead of a semicolon list.",
+        )
+    )
+BULK_STUDENT_FIELDS.extend([
+    _field("term", "Term", aliases=("term", "term name", "semester")),
+    _field("status", "Status", kind=CHOICE, aliases=("status", "student status"),
+           choices=("active", "enrolled", "deferred", "suspended", "transferred_out",
+                    "withdrawn", "graduated", "alumni")),
+    _field("username", "Username", aliases=("username", "login", "user name",
+                                            "login username")),
+])
 
 STAFF_FIELDS = [
     _field("username", "Login username", required=True, aliases=("username", "login", "user name")),
@@ -127,6 +193,12 @@ KINDS = {
         "permission": "students.create",
         "fields": STUDENT_FIELDS,
         "help": "One row per student. First name and last name are needed.",
+    },
+    "student_upload": {
+        "label": "Bulk upload students",
+        "permission": "students.bulk_import",
+        "fields": BULK_STUDENT_FIELDS,
+        "help": "Create and update students, their classes, years and course enrolments.",
     },
     "staff": {
         "label": "Staff",
@@ -199,8 +271,9 @@ def read_rows(uploaded_file, filename):
             cell = raw_row[index] if index < len(raw_row) else ""
             row[header] = "" if cell is None else str(cell).strip()
         rows.append(row)
-        if len(rows) > MAX_ROWS:
-            raise ImportError(f"The file has more than {MAX_ROWS} rows. Split it into smaller files.")
+        if len(rows) > max_rows():
+            raise ImportError(
+                f"The file has more than {max_rows()} rows. Split it into smaller files.")
     return [{header: header for header in headers}] + rows
 
 
@@ -208,7 +281,10 @@ def _read_csv(uploaded_file):
     uploaded_file.seek(0)
     raw = uploaded_file.read()
     if isinstance(raw, bytes):
-        raw = raw.decode("utf-8-sig", errors="replace")
+        try:
+            raw = raw.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ImportError("The CSV file must be saved as UTF-8.") from exc
     sample = raw[:4096]
     try:
         dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
@@ -224,6 +300,10 @@ def _read_xlsx(uploaded_file):
     except ImportError as exc:  # pragma: no cover - depends on the install
         raise ImportError("Excel files need the openpyxl library. Install it or upload a CSV.") from exc
     uploaded_file.seek(0)
+    signature = uploaded_file.read(4)
+    uploaded_file.seek(0)
+    if signature[:2] != b"PK":
+        raise ImportError("That file is not an Excel workbook. Upload a real .xlsx file.")
     try:
         book = load_workbook(uploaded_file, read_only=True, data_only=True)
     except Exception as exc:
@@ -237,17 +317,29 @@ def _read_xlsx(uploaded_file):
 
 
 # ---------- mapping the columns ----------
+def _header_key(value):
+    """A forgiving comparison key: "Date_Of_Birth" becomes "date of birth"."""
+    text = re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+    return re.sub(r"\s+", " ", text)
+
+
 def guess_mapping(headers, fields):
-    """Guess which column belongs to which field."""
+    """Guess which column belongs to which field.
+
+    Header names are compared case-insensitively and punctuation is ignored, so
+    "Reg No", "reg_no" and "Registration Number" all find the same column. The
+    administrator can still change any guess on the mapping screen.
+    """
     mapping = {}
     taken = set()
-    for field in fields:
-        wanted = [field["label"].lower(), field["key"].replace("_", " ")] + list(field["aliases"])
+    prepared = [
+        (field, {_header_key(item) for item in
+                 [field["label"], field["key"].replace("_", " "), *field["aliases"]]})
+        for field in fields
+    ]
+    for field, wanted in prepared:
         for header in headers:
-            if header in taken:
-                continue
-            lowered = header.lower().strip()
-            if lowered in wanted:
+            if header not in taken and _header_key(header) in wanted:
                 mapping[field["key"]] = header
                 taken.add(header)
                 break
@@ -264,7 +356,8 @@ def parse_date(value, label, errors):
     text = _clean(value)
     if not text:
         return None
-    for pattern in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y/%m/%d"):
+    for pattern in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y/%m/%d",
+                    "%d/%m/%y", "%d %b %Y", "%d %B %Y", "%b %d %Y"):
         try:
             return datetime.strptime(text, pattern).date()
         except ValueError:
@@ -645,8 +738,16 @@ def _check_fee_structures(values, errors, context, seen_numbers, seen_usernames,
     return values, errors
 
 
+def _check_bulk_students(values, errors, context, seen_numbers, seen_usernames, seen_emails):
+    """Basic column checks; the full matching plan lives in ``core.bulk_upload``."""
+    from core.bulk_upload import check_row
+
+    return check_row(values, errors, context.institution)
+
+
 CHECKERS = {
     "students": _check_students,
+    "student_upload": _check_bulk_students,
     "staff": _check_staff,
     "courses": _check_courses,
     "subjects": _check_subjects,

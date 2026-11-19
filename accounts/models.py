@@ -89,6 +89,8 @@ class User(AbstractUser):
             models.Index(fields=["institution", "role"], name="user_inst_role_idx"),
             models.Index(fields=["institution", "is_active"], name="user_inst_active_idx"),
             models.Index(fields=["email"], name="user_email_idx"),
+            models.Index(fields=["institution", "email"], name="user_inst_email_idx"),
+            models.Index(fields=["institution", "username"], name="user_inst_username_idx"),
         ]
 
     @property
