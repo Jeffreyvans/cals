@@ -391,8 +391,16 @@ unchanged.
   with invoices, payments, marks or attendance.
 - [x] Hardened the shared concurrent document-number allocator with a
   process-wide SQLite lock so ten simultaneous allocations stay gap-free.
+<<<<<<< HEAD
 - [x] Added `core/tests/test_bulk_upload.py` (26 tests) covering the full
   matrix; `MANUAL_TESTING.md` has a ready-to-paste sample file and click-by-click
   scenarios.
 - [x] Verification: 1,627 tests pass, `ruff check .` is clean and
+=======
+- [x] Added `core/tests/test_bulk_upload.py` (29 tests) covering the full
+  matrix, including undo of updates, the Excel template and bounded queries for
+  5,000 rows; `MANUAL_TESTING.md` has a ready-to-paste sample file and
+  click-by-click scenarios.
+- [x] Verification: 1,630 tests pass, `ruff check .` is clean and
+>>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
   `python manage.py makemigrations --check --dry-run` reports no changes.

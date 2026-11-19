@@ -603,8 +603,14 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
   compared with a tolerant helper so a legitimate undo is not mistaken for a
   later edit.
 - [x] Fixed bugs found while making the new suite green: `Planner.load()` read
+<<<<<<< HEAD
   `BulkUploadMatch` rows as dictionaries; user updates used a model class
   instead of `User.objects` and rolled back; enrolment-only changes were not
+=======
+  `BulkUploadMatch` rows as dictionaries; user updates and their undo used a
+  model class instead of `User.objects` and rolled back; enrolment-only changes
+  were not
+>>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
   promoted to `update` because the writer inspected the stale local list;
   duplicate identity rows flagged only the later row; update rows with a blank
   surname were rejected before matching; `undo_log` contained raw dates.
@@ -612,6 +618,7 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
   SQLite lock. The 10-thread numbering test now passes repeatedly instead of
   occasionally exhausting its retries with "database is locked"; PostgreSQL
   still uses its row lock.
+<<<<<<< HEAD
 - [x] Added `core/tests/test_bulk_upload.py` (26 tests): new file, re-upload,
   blank-cell preservation, all strong match paths, fuzzy review, duplicate and
   bad rows, missing-object create/reject, enrolment add/remove, year gating,
@@ -619,5 +626,16 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
   secret-free audit, invitation chunking, undo safeguards and file/view flows.
   Added a sample CSV and nine manual scenarios to `MANUAL_TESTING.md`.
 - [x] Verification: full suite **1,627 passed**, `ruff check .` clean,
+=======
+- [x] Added `core/tests/test_bulk_upload.py` (29 tests): new file, re-upload,
+  blank-cell preservation, all strong match paths, fuzzy review, duplicate and
+  bad rows, missing-object create/reject, enrolment add/remove, year gating,
+  registration rules, tenant isolation, permissions, credentials once,
+  secret-free audit, invitation chunking, undo safeguards (including reverting
+  updates and refusing later edits), the Excel template, and a 5,000-row
+  bounded-query planning check. Added a sample CSV and nine manual scenarios
+  to `MANUAL_TESTING.md`.
+- [x] Verification: full suite **1,630 passed**, `ruff check .` clean,
+>>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
   `python manage.py makemigrations --check --dry-run` reports "No changes
   detected". `manage.py check` shows only the expected console-email warning.

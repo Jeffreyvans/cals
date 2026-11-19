@@ -1572,7 +1572,11 @@ def undo(batch, actor=None, request=None):
                         for change in changes:
                             model = change.get("model")
                             manager = Student.all_objects if model == "Student" else (
+<<<<<<< HEAD
                                 User if model == "User" else Enrollment.all_objects)
+=======
+                                User.objects if model == "User" else Enrollment.all_objects)
+>>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
                             obj = manager.select_for_update().filter(
                                 pk=change["pk"], institution=batch.institution).first()
                             if obj is None or any(

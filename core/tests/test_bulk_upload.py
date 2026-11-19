@@ -9,12 +9,24 @@ from __future__ import annotations
 import json
 from datetime import date
 from decimal import Decimal
+<<<<<<< HEAD
+=======
+from io import BytesIO
+>>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+<<<<<<< HEAD
 from django.test import TestCase, override_settings
 from django.urls import reverse
+=======
+from django.db import connection
+from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
+from openpyxl import load_workbook
+>>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
 
 from academics.models import (
     AcademicYear,
@@ -413,6 +425,27 @@ class PlannerAndWriteTests(BulkUploadBase):
         self.assertTrue(Student.all_objects.filter(student_no="GOOD-1").exists())
         self.assertEqual(batch.status, ImportBatch.Status.IMPORTED)
 
+<<<<<<< HEAD
+=======
+    def test_five_thousand_rows_are_planned_with_bounded_queries(self):
+        rows = [
+            self._row(
+                registration_number=f"LARGE-{index:05d}",
+                first_name=f"Student{index}",
+                last_name="Bulk",
+                programme="DIT",
+            )
+            for index in range(5000)
+        ]
+        batch = self._batch(rows)
+        with CaptureQueriesContext(connection) as queries:
+            results, summary = bulk_upload.Planner(batch).build()
+        self.assertEqual(summary["created"], 5000)
+        self.assertEqual(len(results), 5000)
+        # Lookups are cached for the batch: planning must not issue a query per row.
+        self.assertLess(len(queries), 50)
+
+>>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
     def test_no_change_rows_are_not_written_but_enrolment_only_changes_are(self):
         student = self._existing_student(
             self.inst, "same.data", self.data.programme, number="SAME-1",
@@ -488,6 +521,54 @@ class PlannerAndWriteTests(BulkUploadBase):
         self.assertTrue(student.user.is_active)
         self.assertTrue(Invoice.all_objects.filter(student=student).exists())
 
+<<<<<<< HEAD
+=======
+    def test_undo_reverts_supplied_updates_and_skips_later_edits(self):
+        student = self._existing_student(
+            self.inst, "update.me", self.data.programme, number="UPDATE-1",
+            email="old@example.com", phone="0771111111",
+            first_name="Tariro", last_name="Dube",
+            guardian_name="Mrs Dube", guardian_phone="0773333333",
+            year_or_grade="2")
+        row = self._row(
+            registration_number="UPDATE-1", first_name="Changed",
+            email="new@example.com", phone="0772222222",
+            guardian_name="Mr New", year_or_grade="4", programme="DIT")
+        batch = self._batch([row], options={"update_year_grade": True})
+
+        written, errors = self._run(batch)
+        self.assertEqual((written, errors), (1, []))
+        student.refresh_from_db()
+        student.user.refresh_from_db()
+        self.assertEqual(student.user.first_name, "Changed")
+        self.assertEqual(student.user.email, "new@example.com")
+        self.assertEqual(student.user.phone, "0772222222")
+        self.assertEqual(student.guardian_name, "Mr New")
+        self.assertEqual(student.year_or_grade, "4")
+
+        undone, skipped = bulk_upload.undo(batch, actor=self.actor)
+        self.assertEqual((undone, skipped), (1, []))
+        student.refresh_from_db()
+        student.user.refresh_from_db()
+        self.assertEqual(student.user.first_name, "Tariro")
+        self.assertEqual(student.user.email, "old@example.com")
+        self.assertEqual(student.user.phone, "0771111111")
+        self.assertEqual(student.guardian_name, "Mrs Dube")
+        self.assertEqual(student.guardian_phone, "0773333333")
+        self.assertEqual(student.year_or_grade, "2")
+
+        # A later edit wins: undo must not overwrite work done after the import.
+        later = self._batch([row], options={"update_year_grade": True})
+        self._run(later)
+        student.user.phone = "0779999999"
+        student.user.save(update_fields=["phone"])
+        undone, skipped = bulk_upload.undo(later, actor=self.actor)
+        self.assertEqual(undone, 0)
+        self.assertEqual(len(skipped), 1)
+        student.user.refresh_from_db()
+        self.assertEqual(student.user.phone, "0779999999")
+
+>>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
     def test_deliver_invitations_is_rate_limited_in_chunks(self):
         batch = self._batch([
             self._base_row(email="first@example.com"),
@@ -620,6 +701,26 @@ class FileAndViewTests(TestCase):
         self.assertEqual(
             self.client.get(reverse("bulk_upload_start")).status_code, 200)
 
+<<<<<<< HEAD
+=======
+    def test_excel_has_the_documented_columns_example_and_instructions(self):
+        self._login(self.actor)
+        response = self.client.get(reverse("bulk_upload_template"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            "attachment", response.headers["Content-Disposition"])
+        book = load_workbook(BytesIO(response.content))
+        self.assertEqual(book.sheetnames, ["Students", "Instructions"])
+        sheet = book["Students"]
+        headers = [cell.value for cell in sheet[1]]
+        self.assertEqual(
+            headers,
+            [field["label"] for field in importer.FIELDS_BY_KIND[bulk_upload.KIND]],
+        )
+        self.assertEqual(sheet["A2"].value, "STU-2026-0001")
+        self.assertEqual(book["Instructions"]["A1"].value, "How to use this template")
+
+>>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
     def test_results_file_shows_credentials_once_and_audit_stays_clean(self):
         batch = self._batch(
             [self._base_row()],
