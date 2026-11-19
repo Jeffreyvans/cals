@@ -9,9 +9,9 @@ from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import UserInvitation
+from accounts.models import ReservedUsername, UserInvitation
 from accounts.user_admin import accept_invitation
-from core.models import OutboundMessage
+from core.models import AuditEntry, Institution, OutboundMessage
 from core.notifications import absolute_url
 from platform_admin.models import InstitutionOnboarding, PlatformAuditLog, Subscription
 from platform_admin.onboarding import add_administrator, admin_checklist
@@ -386,4 +386,187 @@ class OnboardingFlowTests(PlatformTestBase):
             temp,
             reverse("platform_admin:onboarding_credential", args=[institution.pk, temp_user.pk]),
             fetch_redirect_response=False,
+        )
+
+
+class AdministratorUsernameTests(PlatformTestBase):
+    """The optional username field and the platform administrator rename flow."""
+
+    def create_institution(self, name="Username College", slug="username-college"):
+        self.login(self.main)
+        response = self.client.post(
+            reverse("platform_admin:institution_create"),
+            institution_payload(name=name, slug=slug),
+        )
+        self.assertEqual(response.status_code, 302)
+        return Institution.objects.get(slug=slug)
+
+    @staticmethod
+    def sign_in_instruction(institution, username):
+        login_url = absolute_url(reverse("institution_login", args=[institution.slug]))
+        return f"Sign in at {login_url} with your username {username} or your email address."
+
+    def test_add_form_has_optional_username_after_full_name(self):
+        institution = self.create_institution()
+        page = self.client.get(
+            reverse("platform_admin:onboarding_admin_create", args=[institution.pk])
+        )
+        self.assertEqual(page.status_code, 200)
+        content = page.content.decode()
+        names = ("full_name", "username", "email", "phone", "access_mode")
+        positions = [content.index(f'name="{name}"') for name in names]
+        self.assertEqual(positions, sorted(positions))
+        self.assertContains(
+            page, "Leave blank and we will create one from the email address."
+        )
+        self.assertContains(page, "js/username-check.js")
+
+    def test_blank_username_is_generated_from_email_and_shown_everywhere(self):
+        institution = self.create_institution()
+        response = self.client.post(
+            reverse("platform_admin:onboarding_admin_create", args=[institution.pk]),
+            {
+                "full_name": "Generated Person",
+                "username": "",
+                "email": "generated.person@onboarding.example",
+                "access_mode": "invite",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        admin = institution.users.get(email="generated.person@onboarding.example")
+        self.assertEqual(admin.username, "generated.person")
+        instruction = self.sign_in_instruction(institution, admin.username)
+
+        credential_url = reverse(
+            "platform_admin:onboarding_credential", args=[institution.pk, admin.pk]
+        )
+        page = self.client.get(credential_url)
+        self.assertContains(page, admin.username)
+        self.assertContains(
+            page,
+            f"with your username <strong>{admin.username}</strong> or your email address.",
+        )
+        self.assertContains(page, "Copy")
+        self.assertContains(page, "Print")
+
+        invitation = OutboundMessage.objects.get(
+            recipient=admin.email, subject__icontains="Your"
+        )
+        welcome = OutboundMessage.objects.get(
+            recipient=admin.email, subject__icontains="Welcome to EduSphere"
+        )
+        self.assertIn(instruction, invitation.body)
+        self.assertIn(instruction, welcome.body)
+
+    def test_provided_username_is_normalised_and_bad_names_are_field_errors(self):
+        institution = self.create_institution()
+        url = reverse("platform_admin:onboarding_admin_create", args=[institution.pk])
+
+        response = self.client.post(url, {
+            "full_name": "Mixed Case",
+            "username": "Mixed.Case_2026",
+            "email": "mixed.case@onboarding.example",
+            "access_mode": "invite",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            institution.users.filter(username="mixed.case_2026").exists()
+        )
+
+        cases = (
+            ("PLATFORMMAIN", "already in use", "duplicate@example.test"),
+            ("ADMIN", "reserved", "reserved@example.test"),
+            ("two words", "spaces", "spaces@example.test"),
+            ("abc", "4 to 30", "short@example.test"),
+        )
+        for username, message, email in cases:
+            with self.subTest(username=username):
+                response = self.client.post(url, {
+                    "full_name": "Bad Name",
+                    "username": username,
+                    "email": email,
+                    "access_mode": "invite",
+                })
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.context["form"].errors["username"])
+                self.assertIn(message, " ".join(response.context["form"].errors["username"]))
+                self.assertFalse(institution.users.filter(email=email).exists())
+
+    def test_temporary_password_screen_shows_username_and_secret_once(self):
+        institution = self.create_institution()
+        response = self.client.post(
+            reverse("platform_admin:onboarding_admin_create", args=[institution.pk]),
+            {
+                "full_name": "Temporary Person",
+                "username": "temp.person",
+                "email": "temp.person@onboarding.example",
+                "access_mode": "temp_password",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        admin = institution.users.get(email="temp.person@onboarding.example")
+        page = self.client.get(
+            reverse("platform_admin:onboarding_credential", args=[institution.pk, admin.pk])
+        )
+        secret = page.context["secret"]
+        self.assertTrue(secret)
+        self.assertContains(page, "Temporary password")
+        self.assertContains(page, admin.username)
+        self.assertContains(
+            page,
+            f"with your username <strong>{admin.username}</strong> or your email address.",
+        )
+        self.assertContains(page, "Copy")
+        self.assertContains(page, "Print")
+        for message in OutboundMessage.objects.filter(recipient=admin.email):
+            self.assertNotIn(secret, message.body)
+            self.assertNotIn(secret, message.html_body)
+
+    def test_platform_admin_can_edit_username_with_audit_and_email(self):
+        institution = self.create_institution()
+        admin = add_administrator(
+            institution,
+            full_name="Rename Me",
+            email="rename.me@onboarding.example",
+            access_mode="invitation",
+            actor=self.main,
+        ).user
+        old_username = admin.username
+        url = reverse(
+            "platform_admin:onboarding_admin_username",
+            args=[institution.pk, admin.pk],
+        )
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "js/username-check.js")
+        self.assertContains(page, old_username)
+
+        response = self.client.post(url, {"username": "RENAMED.PERSON"})
+        self.assertEqual(response.status_code, 302)
+        admin.refresh_from_db()
+        self.assertEqual(admin.username, "renamed.person")
+
+        audit = PlatformAuditLog.objects.get(
+            action="institution.admin_username_changed",
+            record_id=str(admin.pk),
+        )
+        self.assertEqual(audit.before, {"username": old_username})
+        self.assertEqual(audit.after, {"username": "renamed.person"})
+        self.assertEqual(audit.actor, self.main)
+        self.assertTrue(
+            AuditEntry.all_objects.filter(
+                action="user.username_changed", institution=institution
+            ).exists()
+        )
+        self.assertTrue(ReservedUsername.objects.filter(username=old_username).exists())
+
+        notices = OutboundMessage.objects.filter(
+            recipient=admin.email, subject__icontains="username has changed"
+        )
+        self.assertTrue(notices.exists())
+        self.assertTrue(
+            any(
+                self.sign_in_instruction(institution, "renamed.person") in notice.body
+                for notice in notices
+            )
         )

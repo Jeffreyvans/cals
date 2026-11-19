@@ -427,3 +427,124 @@ class BulkImportTests(UserAdminBase):
         self.assertEqual(skipped, ["useduser"])
         used.refresh_from_db()
         self.assertTrue(used.is_active)
+
+
+class UsernameFieldTests(UserAdminBase):
+    """The optional username field on staff/student forms and account edits."""
+
+    def test_staff_form_has_optional_username_after_full_name(self):
+        self.login(self.admin)
+        page = self.client.get(reverse("user_add_staff"))
+        self.assertEqual(page.status_code, 200)
+        content = page.content.decode()
+        names = ("full_name", "username", "email", "role")
+        positions = [content.index(f'name="{name}"') for name in names]
+        self.assertEqual(positions, sorted(positions))
+        self.assertContains(
+            page, "Leave blank and we will create one from the email address."
+        )
+        self.assertContains(page, "js/username-check.js")
+        self.assertContains(page, "data-username-check-url")
+
+    def test_student_form_has_optional_username(self):
+        self.login(self.admin)
+        page = self.client.get(reverse("user_add_student"))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'name="username"')
+        self.assertContains(
+            page, "Leave blank and we will create one from the email address."
+        )
+        self.assertContains(page, "data-username-check-url")
+
+    def test_staff_blank_username_is_generated_from_email(self):
+        self.login(self.admin)
+        response = self.client.post(
+            reverse("user_add_staff"),
+            self.staff_payload(
+                email="generated.staff@example.com",
+                staff_no="EMP-GEN",
+                username="",
+            ),
+        )
+        self.assertRedirects(response, reverse("user_created"))
+        account = User.objects.get(email="generated.staff@example.com")
+        self.assertEqual(account.username, "generated.staff")
+
+    def test_staff_username_is_normalised_and_bad_names_are_field_errors(self):
+        self.login(self.admin)
+        response = self.client.post(
+            reverse("user_add_staff"),
+            self.staff_payload(
+                email="mixed.case@example.com",
+                staff_no="EMP-MIX",
+                username="Mixed.Case_2026",
+            ),
+        )
+        self.assertRedirects(response, reverse("user_created"))
+        self.assertTrue(User.objects.filter(username="mixed.case_2026").exists())
+
+        cases = (
+            ("ADMIN", "reserved"),
+            ("two words", "spaces"),
+            ("abc", "4 to 30"),
+            ("alphaadmin", "already in use"),
+        )
+        for index, (username, message) in enumerate(cases):
+            with self.subTest(username=username):
+                response = self.client.post(
+                    reverse("user_add_staff"),
+                    self.staff_payload(
+                        email=f"bad-{index}@example.com",
+                        staff_no=f"EMP-BAD-{index}",
+                        username=username,
+                    ),
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.context["form"].errors["username"])
+                self.assertIn(
+                    message, " ".join(response.context["form"].errors["username"])
+                )
+
+    def test_institution_admin_can_edit_username_with_audit_and_email(self):
+        account = User.objects.create_user(
+            "old.staff.name",
+            password=STRONG,
+            role="lecturer",
+            institution=self.inst,
+            email="old.staff@example.com",
+        )
+        self.login(self.admin)
+        url = reverse("user_edit", args=[account.pk])
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "data-username-check-url")
+        self.assertContains(page, f'data-username-exclude="{account.pk}"')
+
+        response = self.client.post(
+            url,
+            {
+                "username": "NEW.STAFF.NAME",
+                "first_name": "Old",
+                "last_name": "Staff",
+                "email": "old.staff@example.com",
+                "phone": "",
+                "role": self.roles["lecturer"].pk,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        account.refresh_from_db()
+        self.assertEqual(account.username, "new.staff.name")
+        self.assertTrue(
+            AuditEntry.all_objects.filter(
+                institution=self.inst,
+                action="user.updated",
+                object_id=str(account.pk),
+            ).exists()
+        )
+        notice = OutboundMessage.objects.get(
+            recipient=account.email, subject__icontains="username has changed"
+        )
+        self.assertIn("new.staff.name", notice.body)
+        self.assertIn(
+            "with your username new.staff.name or your email address", notice.body
+        )

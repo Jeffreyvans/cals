@@ -22,10 +22,16 @@
 <div class="msg">
   <strong>The usernames and any one-time passwords are ready.</strong>
   <a href="{% url 'import_credentials' batch.pk %}">Download the results file</a>.
+  The file includes each username and the sign-in instructions:
+  {% if batch.institution.slug %}
+    Sign in at <a href="{% url 'institution_login' batch.institution.slug %}">{% url 'institution_login' batch.institution.slug %}</a> with your username <strong>&lt;username&gt;</strong> or your email address.
+  {% else %}
+    Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a> with your username <strong>&lt;username&gt;</strong> or your email address.
+  {% endif %}
   The passwords are removed from the system as soon as you download the file, so keep it safe.
 </div>
 {% elif batch.credentials_downloaded %}
-<div class="msg">The results file was downloaded. One-time passwords are no longer stored and cannot be shown again.</div>
+<div class="msg">The results file was downloaded and includes usernames and sign-in instructions. One-time passwords are no longer stored and cannot be shown again.</div>
 {% endif %}
 
 {% if errors %}

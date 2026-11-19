@@ -24,6 +24,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import EmailVerification
+from accounts.usernames import normalize_email as normalize_email_value
+from accounts.usernames import normalize_identifier, reserve_username
 from accounts.validators import validate_strong_password
 from platform_admin.services import ensure_platform_staff
 
@@ -60,8 +62,8 @@ def env_flag(name, default=False):
 
 def _credentials():
     return {
-        "username": os.environ.get(USERNAME_VAR, "").strip(),
-        "email": os.environ.get(EMAIL_VAR, "").strip(),
+        "username": normalize_identifier(os.environ.get(USERNAME_VAR, "")).lower()[:150],
+        "email": normalize_email_value(os.environ.get(EMAIL_VAR, "")),
         "password": os.environ.get(PASSWORD_VAR, ""),
     }
 
@@ -249,6 +251,7 @@ def ensure_platform_admin_from_env(*, via="management command"):
         return ProvisionResult("conflict", messages=[message])
 
     if user is None:
+        reserve_username(username)
         user = User(
             username=username,
             email=email,
@@ -263,6 +266,7 @@ def ensure_platform_admin_from_env(*, via="management command"):
         user.must_change_password = force_change
         user.password_set_from_env = True
         user.save()
+        reserve_username(user.username)
 
         ensure_platform_staff(user, "main_admin", is_main_admin=True)
         _verified_email(user)
@@ -272,9 +276,11 @@ def ensure_platform_admin_from_env(*, via="management command"):
         logger.info(message)
         return ProvisionResult("created", user=user, messages=[message])
 
+    reserve_username(user.username)
     _apply_admin_flags(user)
     ensure_platform_staff(user, "main_admin", is_main_admin=True)
     _verified_email(user)
+    reserve_username(user.username)
     _log_rights(user)
 
     if reset_password:

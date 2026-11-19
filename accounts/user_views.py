@@ -243,6 +243,7 @@ def user_add_staff(request):
                 full_name=data["full_name"],
                 email=data["email"],
                 phone=data.get("phone", ""),
+                username=data.get("username", ""),
                 role=data["role"],
                 departments=data.get("departments"),
                 job_title=data.get("job_title", ""),
@@ -394,12 +395,14 @@ def user_edit(request, pk):
     if request.method == "POST" and form.is_valid():
         data = form.cleaned_data
         try:
+            username = data.get("username") if is_institution_admin(request.user) else None
             update_user(
                 account,
                 first_name=data["first_name"],
                 last_name=data["last_name"],
                 email=data.get("email", ""),
                 phone=data.get("phone", ""),
+                username=username,
                 actor=request.user,
                 request=request,
             )

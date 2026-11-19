@@ -5,8 +5,10 @@ from __future__ import annotations
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 
 from accounts.models import SignupLink
+from accounts.username_fields import USERNAME_FORMAT_HINT, UsernameField
 from core.models import Institution
 from core.modules import ALL_MODULES, MODULE_LABELS
 from core.slugs import normalize_domain, normalize_slug, validate_slug
@@ -238,6 +240,7 @@ class InstitutionAdministratorForm(forms.Form):
     """Create the first (or another) administrator of an institution."""
 
     full_name = forms.CharField(max_length=200, label="Full name")
+    username = UsernameField()
     email = forms.EmailField(max_length=200, required=False, label="Email address")
     phone = forms.CharField(max_length=30, required=False, label="Phone")
     access_mode = forms.ChoiceField(
@@ -247,11 +250,32 @@ class InstitutionAdministratorForm(forms.Form):
         label="How should this person get access?",
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["username"].widget.attrs["data-username-check-url"] = reverse(
+            "username_availability"
+        )
+
     def clean(self):
         cleaned = super().clean()
         if cleaned.get("access_mode") == "invite" and not cleaned.get("email"):
             self.add_error("email", "An invitation needs an email address.")
         return cleaned
+
+
+class AdministratorUsernameForm(forms.Form):
+    """Let a platform administrator rename an institution administrator."""
+
+    username = UsernameField(required=True, help_text=USERNAME_FORMAT_HINT)
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        field = self.fields["username"]
+        field.exclude_user = user
+        field.widget.attrs["data-username-check-url"] = reverse("username_availability")
+        if user is not None and user.pk:
+            field.widget.attrs["data-username-exclude"] = str(user.pk)
 
 
 class PlatformSignupLinkForm(forms.Form):

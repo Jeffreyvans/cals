@@ -16,6 +16,7 @@
       <td>{{ admin.email }}</td>
       <td>{{ admin.is_active|yesno:"Yes,No" }}</td>
       <td>
+        <a class="btn ghost btn-sm" href="{% url 'platform_admin:onboarding_admin_username' institution.pk admin.pk %}">Edit username</a>
         <form method="post">
           {% csrf_token %}<input type="hidden" name="user" value="{{ admin.pk }}">
           <button class="btn ghost btn-sm" type="submit" name="action" value="resend_invitation">Resend invitation</button>

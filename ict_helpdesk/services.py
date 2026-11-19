@@ -11,12 +11,21 @@ from core.audit import log_action
 
 from .models import AccountResetRequest, Ticket
 
-PASSWORD_ALPHABET = string.ascii_letters + string.digits
+PASSWORD_ALPHABET = string.ascii_letters + string.digits + "!@#$%&*+-?"
 
 
-def generate_temporary_password(length=12):
-    """A random password shown once to the person completing the reset."""
-    return "".join(secrets.choice(PASSWORD_ALPHABET) for _ in range(length))
+def generate_temporary_password(length=14):
+    """A random temporary password shown once to the person completing the reset."""
+    required = (
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.digits),
+        secrets.choice("!@#$%&*+-?"),
+    )
+    rest = [secrets.choice(PASSWORD_ALPHABET) for _ in range(max(4, length - 4))]
+    characters = list(required) + rest
+    secrets.SystemRandom().shuffle(characters)
+    return "".join(characters)
 
 
 @transaction.atomic
@@ -59,7 +68,19 @@ def complete_account_reset(reset, actor=None):
     password = generate_temporary_password()
     user = reset.user
     user.set_password(password)
-    user.save(update_fields=["password"])
+    user.must_change_password = True
+    user.password_set_from_env = False
+    user.failed_login_count = 0
+    user.locked_until = None
+    user.save(
+        update_fields=[
+            "password",
+            "must_change_password",
+            "password_set_from_env",
+            "failed_login_count",
+            "locked_until",
+        ]
+    )
     reset.status = AccountResetRequest.Status.COMPLETED
     reset.completed_at = timezone.now()
     reset.completed_by = actor if getattr(actor, "is_authenticated", False) else None

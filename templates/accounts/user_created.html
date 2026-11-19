@@ -20,37 +20,22 @@
     <p><strong>Institution:</strong> {{ inst.name }}</p>
     <p><strong>Username:</strong> <code>{{ credentials.username }}</code></p>
     <p><strong>Temporary password:</strong> <code>{{ credentials.password }}</code></p>
+    <p><strong>Sign-in instructions:</strong>
+      {% if inst.slug %}
+        Sign in at <a href="{% url 'institution_login' inst.slug %}">{% url 'institution_login' inst.slug %}</a> with your username <strong>{{ credentials.username }}</strong> or your email address.
+      {% else %}
+        Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a> with your username <strong>{{ credentials.username }}</strong> or your email address.
+      {% endif %}
+    </p>
   </div>
   <p class="muted">The person must choose a new password the first time they sign in. Never send this password by email.</p>
   <div class="row">
-    <button class="btn" type="button" id="copyCredentials">Copy</button>
-    <button class="btn ghost" type="button" onclick="window.print()">Print</button>
+    <button class="btn" type="button" id="copyCredentials" data-copy-target="credentials">Copy</button>
+    <button class="btn ghost" type="button" data-print>Print</button>
     <a class="btn ghost" href="{% url 'user_list' %}">Done</a>
   </div>
 </div>
 
-<script>
-(function () {
-  var button = document.getElementById("copyCredentials");
-  if (!button) return;
-  button.addEventListener("click", function () {
-    var box = document.getElementById("credentials");
-    var text = box ? box.innerText : "";
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () {
-        button.textContent = "Copied";
-      });
-    } else {
-      var range = document.createRange();
-      range.selectNodeContents(box);
-      var selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      button.textContent = "Selected";
-    }
-  });
-})();
-</script>
 {% else %}
 <div class="msg success">
   An invitation email was sent to {{ account.email|default:"the new user" }}. The link can be used once and expires in 72 hours.
@@ -59,6 +44,13 @@
 
 <div class="card">
   <h2>What happens next</h2>
+  <p><strong>Sign-in instructions:</strong>
+    {% if inst.slug %}
+      Sign in at <a href="{% url 'institution_login' inst.slug %}">{% url 'institution_login' inst.slug %}</a> with your username <strong>{{ credentials.username|default:account.username }}</strong> or your email address.
+    {% else %}
+      Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a> with your username <strong>{{ credentials.username|default:account.username }}</strong> or your email address.
+    {% endif %}
+  </p>
   <p>They open the link, choose a password, and sign in. If the invitation expires, send a new one from their account page.</p>
   <div class="row">
     <a class="btn" href="{% url 'user_detail' account.pk %}">Open the account</a>

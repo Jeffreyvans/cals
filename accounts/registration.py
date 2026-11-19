@@ -46,6 +46,11 @@ from core.roles import ensure_roles
 from core.tenancy import use_institution
 
 from .models import EmailVerification, StaffRegistrationRequest, User
+from .usernames import (
+    ensure_username_available,
+    reserve_username,
+    validate_username,
+)
 
 STUDENT_GENERIC_ERROR = (
     "We could not match these details to a record at this institution. "
@@ -402,9 +407,9 @@ def register_student(
             )
             return {"outcome": "existing", "student": student}
 
-        if User.objects.filter(username__iexact=username).exclude(
-            pk=student.user_id
-        ).exists():
+        try:
+            username = ensure_username_available(username, exclude_user=student.user)
+        except ValidationError:
             record_student_attempt(request, institution, registration_number)
             log_action(
                 None,
@@ -417,7 +422,11 @@ def register_student(
             return {"outcome": "mismatch"}
 
         user = student.user
+        old_username = user.username
+        reserve_username(old_username)
+        reserve_username(username)
         user.username = username
+        reserve_username(username)
         user.first_name = user.first_name or normalize_text(surname)
         user.last_name = user.last_name or normalize_text(surname)
         user.role = User.Role.STUDENT
@@ -466,14 +475,11 @@ def _notify_registration_admins(reg_request):
             )
 
 
-def _unique_username(base):
-    base = normalize_text(base)[:30] or "staff"
-    candidate = base
-    suffix = 0
-    while User.objects.filter(username__iexact=candidate).exists():
-        suffix += 1
-        candidate = f"{base[:25]}{suffix}"
-    return candidate
+def _unique_username(base, email=""):
+    """Compatibility wrapper for legacy callers. Returns a reserved username."""
+    from .usernames import generate_unique_username
+
+    return generate_unique_username(email=email, base=base, fallback="staff")
 
 
 @transaction.atomic
@@ -515,14 +521,17 @@ def register_staff(
         raise ValidationError("Choose a department from this institution.")
 
     with use_institution(institution):
-        if User.objects.filter(username__iexact=username).exists():
+        try:
+            username = ensure_username_available(username)
+        except ValidationError:
             raise ValidationError(
                 "That username is already in use. Try another username, or sign in "
                 "if you already have an account."
-            )
+            ) from None
+        reserve_username(username)
         if User.objects.filter(
             institution=institution, email__iexact=email, is_active=True
-        ).exists():
+        ).exclude(role__in=(User.Role.STUDENT, User.Role.PARENT)).exists():
             raise ValidationError(
                 "An account already uses that email address at this institution. "
                 "Try signing in or resetting your password."
@@ -530,7 +539,7 @@ def register_staff(
 
         first_name, _, last_name = full_name.partition(" ")
         user = User(
-            username=_unique_username(username),
+            username=username,
             email=email,
             first_name=first_name[:150],
             last_name=last_name[:150],
@@ -541,6 +550,7 @@ def register_staff(
         )
         user.set_password(password)
         user.save()
+        reserve_username(username)
 
         reg_request = StaffRegistrationRequest.objects.create(
             institution=institution,
@@ -566,18 +576,28 @@ def register_staff(
 
 
 def _send_staff_decision(reg_request, approved, reason=""):
+    from core.notifications import absolute_url
+
+    user = reg_request.user
+    institution = reg_request.institution
+    login_link = (
+        absolute_url(reverse("institution_login", args=[institution.slug]))
+        if getattr(institution, "slug", "")
+        else absolute_url(reverse("login"))
+    )
     if approved:
         body = (
             f"Hello {reg_request.full_name},\n\n"
-            f"Your EduSphere staff account at {reg_request.institution.name} has "
+            f"Your EduSphere staff account at {institution.name} has "
             f"been approved as {reg_request.position_label}.\n"
-            "You can now sign in with the username and password you chose.\n"
+            f"Sign in at {login_link} with your username {user.username} or your email address.\n\n"
+            "Use the password you chose when you registered.\n"
         )
         subject = "Your EduSphere staff account is approved"
     else:
         body = (
             f"Hello {reg_request.full_name},\n\n"
-            f"Your EduSphere staff registration at {reg_request.institution.name} "
+            f"Your EduSphere staff registration at {institution.name} "
             "was not approved.\n"
         )
         if reason:
@@ -589,7 +609,7 @@ def _send_staff_decision(reg_request, approved, reason=""):
         reg_request.email,
         body,
         subject=subject,
-        institution=reg_request.institution,
+        institution=institution,
         related_object=reg_request,
         email_type=REGISTRATION_REQUEST_DECISION,
     )
@@ -598,7 +618,7 @@ def _send_staff_decision(reg_request, approved, reason=""):
 
 @transaction.atomic
 def approve_staff_request(reg_request, actor, position=None, department=None,
-                          request=None):
+                          username="", request=None):
     """Approve a request, activate the login and attach the role and profile."""
     if reg_request.status != StaffRegistrationRequest.Status.PENDING:
         raise ValidationError("This request has already been decided.")
@@ -624,6 +644,17 @@ def approve_staff_request(reg_request, actor, position=None, department=None,
             )
 
         user = reg_request.user
+        old_username = user.username
+        if str(username or "").strip():
+            user.username = validate_username(username, exclude_user=user)
+        else:
+            # The person already chose a username when they requested access.
+            # Leaving the approval field blank keeps it rather than silently
+            # replacing it with a suffixed copy of the email local part.
+            user.username = user.username
+        if user.username != old_username:
+            reserve_username(old_username)
+        reserve_username(user.username)
         user.primary_role = role
         user.role = STAFF_POSITIONS[position].legacy_role
         user.is_active = True
@@ -668,13 +699,24 @@ def approve_staff_request(reg_request, actor, position=None, department=None,
             "registration.staff_approved",
             instance=reg_request,
             before=before,
-            after={"status": reg_request.status, "position": position},
+            after={
+                "status": reg_request.status,
+                "position": position,
+                "username": user.username,
+            },
             request=request,
+        )
+        from core.notifications import absolute_url
+        login_link = (
+            absolute_url(reverse("institution_login", args=[institution.slug]))
+            if getattr(institution, "slug", "")
+            else absolute_url(reverse("login"))
         )
         notify(
             user,
             "Your staff account is approved",
-            f"You can now sign in as {STAFF_POSITIONS[position].label}.",
+            f"You can now sign in as {STAFF_POSITIONS[position].label}. "
+            f"Sign in at {login_link} with your username {user.username} or your email address.",
             link=reverse("login"),
             category="registration",
             institution=institution,

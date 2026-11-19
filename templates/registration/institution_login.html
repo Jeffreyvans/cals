@@ -28,15 +28,18 @@
 
 <div class="page-shell narrow">
   <div class="panel">
+    {% for message in messages %}
+      <div class="alert alert-error" role="alert">{{ message }}</div>
+    {% endfor %}
     {% if form.errors %}
-      <div class="alert alert-error" role="alert">Wrong username or password. Try again.</div>
+      <div class="alert alert-error" role="alert">{{ identifier_invalid_message|default:"Wrong email, username or password. Try again." }}</div>
     {% endif %}
     <form method="post" action="{{ request.path }}" class="form-stack">
       {% csrf_token %}
       {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
       <div class="field">
-        <label for="id_username">Username</label>
-        <input id="id_username" name="username" type="text" autocomplete="username" required autofocus placeholder="e.g. admin" value="{{ form.username.value|default:'' }}">
+        <label for="id_username">Email or username</label>
+        <input id="id_username" name="username" type="text" autocomplete="username" required autofocus placeholder="Email or username" value="{{ form.username.value|default:'' }}">
       </div>
       <div class="field">
         <label for="id_password">Password</label>

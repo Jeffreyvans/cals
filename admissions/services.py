@@ -16,7 +16,6 @@ from django.db import transaction
 from django.utils import timezone
 
 from academics.models import Student, Term
-from accounts.models import User
 from core.audit import log_action
 from core.email_types import WELCOME
 from core.notifications import notify, queue_message, send_message
@@ -298,15 +297,15 @@ def make_offer(application, acceptance_deadline, deposit_amount=Decimal("0"),
 
 
 def _unique_username(application):
-    base = (application.email.split("@")[0] or
-            f"{application.first_name}.{application.last_name}")
-    base = re.sub(r"[^a-zA-Z0-9._-]", "", base).lower() or "applicant"
-    candidate = base[:30]
-    suffix = 0
-    while User.objects.filter(username=candidate).exists():
-        suffix += 1
-        candidate = f"{base[:25]}{suffix}"
-    return candidate
+    """Return a reserved, unique username derived from the applicant's details."""
+    from accounts.usernames import base_from_email, generate_unique_username, sanitize_username_base
+
+    seed = base_from_email(getattr(application, "email", ""))
+    if not seed:
+        seed = sanitize_username_base(
+            f"{getattr(application, 'first_name', '')}.{getattr(application, 'last_name', '')}"
+        )
+    return generate_unique_username(email=getattr(application, "email", ""), base=seed, fallback="applicant")
 
 
 @transaction.atomic
@@ -444,16 +443,28 @@ def create_student_record(
         return {"student": student, "account": account, "invoice": invoice}
 
 
-def _welcome_body(student, username, password, request=None):
+def _welcome_login_link(student):
+    from django.urls import reverse
+
     from core.notifications import absolute_url
 
-    line = f"Student number: {student.student_no}\nUsername: {username}\nTemporary password: {password}"
-    portal = absolute_url("/me/")
+    institution = student.institution
+    if getattr(institution, "slug", ""):
+        return absolute_url(reverse("institution_login", args=[institution.slug]))
+    return absolute_url(reverse("login"))
+
+
+def _welcome_body(student, username, request=None):
+    login_link = _welcome_login_link(student)
+    institution = student.institution
     return (
-        f"Welcome to {student.institution.name}, {student.name}.\n\n"
-        f"Your place has been confirmed.\n{line}\n\n"
-        f"Sign in at {portal} and change your password.\n"
+        f"Welcome to {institution.name}, {student.name}.\n\n"
+        f"Your place has been confirmed.\n"
+        f"Student number: {student.student_no}\n"
+        f"Sign in at {login_link} with your username {username} or your email address.\n\n"
         f"Programme: {student.programme.name}\n"
+        "If you were given a temporary password, sign in and change it. "
+        "No password is included in this message.\n"
     )
 
 
@@ -498,7 +509,7 @@ def accept_offer(offer, accepted_by_name="", deposit_method="", deposit_referenc
                     last_name=application.last_name,
                     email=application.email,
                     phone=application.phone,
-                    username=_unique_username(application),
+                    username="",
                     programme=application.programme,
                     programme_year=application.programme_year,
                     cohort=application.cohort,
@@ -564,7 +575,7 @@ def accept_offer(offer, accepted_by_name="", deposit_method="", deposit_referenc
                            institution=application.institution,
                            after={"student": student.pk, "student_no": student.student_no})
 
-                body = _welcome_body(student, username, temp_password, request)
+                body = _welcome_body(student, username, request)
                 message = queue_message(
                     "email", application.email, body,
                     subject=f"Welcome to {application.institution.name}",
@@ -577,6 +588,7 @@ def accept_offer(offer, accepted_by_name="", deposit_method="", deposit_referenc
                        institution=application.institution)
                 student.temporary_password = temp_password
                 student.temporary_username = username
+                student.temporary_login_link = _welcome_login_link(student)
                 return student
         if expired:
             raise AdmissionError("The acceptance deadline has passed.")

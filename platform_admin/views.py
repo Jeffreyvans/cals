@@ -39,6 +39,7 @@ from .access import institution_admin_required, platform_required
 from .forms import (
     AccessDecisionForm,
     AccessRequestForm,
+    AdministratorUsernameForm,
     AnnouncementForm,
     DataProcessingAcceptanceForm,
     EmergencyAccessForm,
@@ -843,6 +844,7 @@ def onboarding_admin_create(request, pk):
             result = onboarding.add_administrator(
                 institution,
                 full_name=form.cleaned_data["full_name"],
+                username=form.cleaned_data["username"],
                 email=form.cleaned_data["email"],
                 phone=form.cleaned_data["phone"],
                 access_mode=form.cleaned_data["access_mode"],
@@ -850,7 +852,11 @@ def onboarding_admin_create(request, pk):
                 request=request,
             )
         except ValidationError as exc:
-            form.add_error(None, " ".join(exc.messages))
+            for message in exc.messages:
+                if "username" in message.lower():
+                    form.add_error("username", message)
+                else:
+                    form.add_error(None, message)
         else:
             request.session["onboarding_credential"] = {
                 "user_id": result.user.pk,
@@ -873,6 +879,40 @@ def onboarding_admin_create(request, pk):
 
 
 @platform_required("platform.manage_admins")
+def onboarding_admin_username(request, pk, user_pk):
+    """Rename an institution administrator; the person is told by email."""
+    institution = _institution_or_404(pk)
+    admin_user = get_object_or_404(onboarding.administrators(institution), pk=user_pk)
+    form = AdministratorUsernameForm(request.POST or None, user=admin_user)
+    if request.method == "POST" and form.is_valid():
+        try:
+            onboarding.change_administrator_username(
+                institution,
+                admin_user,
+                form.cleaned_data["username"],
+                actor=request.user,
+                request=request,
+            )
+        except ValidationError as exc:
+            form.add_error("username", " ".join(exc.messages))
+        else:
+            messages.success(
+                request, f"Username changed to {admin_user.username}. The person was emailed."
+            )
+            return redirect("platform_admin:institution_admins", pk=institution.pk)
+    return render(
+        request,
+        "platform_admin/admin_username_form.html",
+        {
+            "institution": institution,
+            "admin_user": admin_user,
+            "form": form,
+            "staff": request.platform_staff,
+        },
+    )
+
+
+@platform_required("platform.manage_admins")
 def onboarding_credential(request, pk, user_pk):
     """Show a temporary password or one-time link exactly once."""
     institution = _institution_or_404(pk)
@@ -881,6 +921,7 @@ def onboarding_credential(request, pk, user_pk):
     if not data or data.get("user_id") != admin_user.pk or data.get("institution_id") != institution.pk:
         messages.info(request, "Those one-time details have already been shown.")
         return redirect("platform_admin:institution_detail", pk=institution.pk)
+    login_link = absolute_url(institution.login_url_path())
     return render(
         request,
         "platform_admin/onboarding_credential.html",
@@ -891,6 +932,7 @@ def onboarding_credential(request, pk, user_pk):
             "access_mode": data.get("access_mode", ""),
             "email_failed": bool(data.get("email_failed")),
             "action": data.get("action", ""),
+            "login_link": login_link,
             "staff": request.platform_staff,
         },
     )

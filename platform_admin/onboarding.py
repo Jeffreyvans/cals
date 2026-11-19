@@ -27,7 +27,14 @@ from accounts.user_admin import (
     normalized_email,
     resend_invitation,
     reset_password,
-    unique_username,
+    send_username_changed_notice,
+    validate_user_email,
+)
+from accounts.usernames import (
+    claim_username,
+    generate_username_for_email,
+    reserve_username,
+    validate_username,
 )
 from core.audit import log_action
 from core.email_types import INSTITUTION_APPLICATION_APPROVED, WELCOME
@@ -48,6 +55,10 @@ User = get_user_model()
 
 SUPPORT_PHONE = "+263774573765"
 SUPPORT_EMAIL = "sphereeedu@gmail.com"
+
+
+def _sign_in_instruction(login_url, username):
+    return f"Sign in at {login_url} with your username {username} or your email address."
 
 GETTING_STARTED = (
     "Upload your logo.",
@@ -184,11 +195,12 @@ def _institution_notice(institution, admin, actor=None):
     """Tell the institution (not the new administrator) about the new account."""
     if not institution.contact_email:
         return None
+    login_url = absolute_url(reverse("institution_login", args=[institution.slug]))
     body = (
         f"Hello {institution.name},\n\n"
         f"A platform administrator added {admin.get_full_name() or admin.username} "
         f"as an administrator for your institution.\n\n"
-        f"Username: {admin.username}\n"
+        f"{_sign_in_instruction(login_url, admin.username)}\n"
         "No password is included in this email. If the person cannot sign in, "
         "ask the platform administrator to send a new invitation or reset the password.\n\n"
         f"Support: {SUPPORT_PHONE} / {SUPPORT_EMAIL}\n"
@@ -225,7 +237,7 @@ def send_welcome_email(
     body = (
         f"Hello {admin.get_full_name() or admin.username},\n\n"
         f"Welcome to EduSphere. {institution.name} is ready for you.\n\n"
-        f"Sign in here: {login_url}\n"
+        f"{_sign_in_instruction(login_url, admin.username)}\n"
     )
     if invitation_link:
         body += f"Choose your password here (single use, 72 hours): {invitation_link}\n"
@@ -324,6 +336,7 @@ def add_administrator(
     full_name,
     email,
     phone="",
+    username="",
     access_mode="invitation",
     actor=None,
     request=None,
@@ -341,8 +354,11 @@ def add_administrator(
     email = normalized_email(email)
     if access_mode == "invitation" and not email:
         raise ValidationError("An invitation needs an email address.")
-    if email and institution_users(institution).filter(email__iexact=email).exists():
-        raise ValidationError("That email address is already used at this institution.")
+    if email:
+        try:
+            email = validate_user_email(email, institution=institution, staff_or_admin=True)
+        except ValidationError as exc:
+            raise ValidationError(exc.messages) from exc
 
     with use_institution(institution):
         role = ensure_roles(institution).get("institution_admin")
@@ -350,7 +366,11 @@ def add_administrator(
             raise ValidationError("The institution administrator role is missing.")
         parts = full_name.split(None, 1)
         first_name, last_name = parts[0][:150], (parts[1] if len(parts) > 1 else "")[:150]
-        username = unique_username(email.split("@")[0] if email else first_name, email)
+        if str(username or "").strip():
+            username = validate_username(username)
+        else:
+            username = generate_username_for_email(email, full_name)
+        reserve_username(username)
         user = User(
             username=username,
             email=email,
@@ -454,6 +474,55 @@ def add_administrator(
         email_status=email_status,
         email_failed=email_failed,
     )
+
+
+@transaction.atomic
+def change_administrator_username(
+    institution, admin_user, username, *, actor=None, request=None
+):
+    """Rename an institution administrator, audit it and email the person."""
+    if not administrators(institution).filter(pk=admin_user.pk).exists():
+        raise ValidationError("That person is not an administrator of this institution.")
+    key = validate_username(username, exclude_user=admin_user)
+    if key == admin_user.username:
+        return admin_user
+    old_username = admin_user.username
+    reserve_username(old_username)
+    if not claim_username(key):
+        raise ValidationError("That username is already in use. Choose another one.")
+    admin_user.username = key
+    admin_user.save(update_fields=["username"])
+
+    log_action(
+        actor,
+        "user.username_changed",
+        institution=institution,
+        instance=admin_user,
+        before={"username": old_username},
+        after={"username": key},
+        request=request,
+    )
+    log_platform_action(
+        actor,
+        "institution.admin_username_changed",
+        institution=institution,
+        record_type="User",
+        record_id=admin_user.pk,
+        detail={"username": key},
+        before={"username": old_username},
+        after={"username": key},
+        request=request,
+    )
+    login_url = absolute_url(reverse("institution_login", args=[institution.slug]))
+    send_username_changed_notice(admin_user, old_username, key)
+    notify(
+        admin_user,
+        "Your EduSphere username has changed",
+        f"Your new username is {key}. {_sign_in_instruction(login_url, key)}",
+        link=reverse("institution_login", args=[institution.slug]),
+        institution=institution,
+    )
+    return admin_user
 
 
 def create_platform_signup_link(
@@ -575,7 +644,7 @@ def email_login_link(institution, admin, *, actor=None, request=None):
     login_url = absolute_url(reverse("institution_login", args=[institution.slug]))
     body = (
         f"Hello {admin.get_full_name() or admin.username},\n\n"
-        f"Sign in to {institution.name} here: {login_url}\n\n"
+        f"{_sign_in_instruction(login_url, admin.username)}\n\n"
         f"Support: {SUPPORT_PHONE} / {SUPPORT_EMAIL}\n"
     )
     message = queue_message(
@@ -587,8 +656,13 @@ def email_login_link(institution, admin, *, actor=None, request=None):
         related_object=institution,
         html_body=render_email_html(
             "emails/institution_login_link.html",
-            {"institution": institution, "login_url": login_url,
-             "support_phone": SUPPORT_PHONE, "support_email": SUPPORT_EMAIL},
+            {
+                "institution": institution,
+                "login_url": login_url,
+                "admin": admin,
+                "support_phone": SUPPORT_PHONE,
+                "support_email": SUPPORT_EMAIL,
+            },
         ),
     )
     send_message(message)

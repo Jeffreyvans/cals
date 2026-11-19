@@ -12,6 +12,9 @@
 {% else %}
 <p style="margin:0 0 18px;">Sign in with the temporary password your platform administrator gave you. You will be asked to choose a new one at first sign-in. No password is ever emailed.</p>
 {% endif %}
+<p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e;">
+  Sign in at <a href="{{ login_url }}" style="color:#5d4037;">{{ login_url }}</a> with your username <strong style="color:#2b1a12;">{{ user.username }}</strong> or your email address.
+</p>
 <p style="margin:0 0 12px;">Your getting-started checklist:</p>
 <ol style="margin:0 0 18px; padding-left:22px; color:#4e342e;">
   {% for step in getting_started %}<li>{{ step }}</li>{% endfor %}

@@ -13,6 +13,7 @@ import base64
 from datetime import date
 
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.utils.text import slugify
 
 from core.models import Institution
@@ -286,28 +287,32 @@ def clean_grading(data):
 
 def clean_admin(data):
     """The first administrator account."""
-    from accounts.models import User
+    from accounts.usernames import normalize_email, normalize_identifier, username_taken
 
     errors = []
     clean = {
-        "username": _clean(data.get("username"))[:150],
+        "username": normalize_identifier(data.get("username")).lower()[:150],
         "first_name": _clean(data.get("first_name"))[:150],
         "last_name": _clean(data.get("last_name"))[:150],
-        "email": _clean(data.get("email"))[:200],
+        "email": normalize_email(data.get("email"))[:200],
         "password": data.get("password") or "",
     }
     if not clean["username"]:
         errors.append("The administrator needs a username.")
-    elif not clean["username"].replace(".", "").replace("_", "").replace("-", "").isalnum():
-        errors.append("The username may only contain letters, numbers, dots, dashes and underscores.")
-    elif User.objects.filter(username=clean["username"]).exists():
-        errors.append(f"The username '{clean['username']}' is already taken.")
+    else:
+        if not clean["username"].replace(".", "").replace("_", "").replace("-", "").isalnum():
+            errors.append("The username may only contain letters, numbers, dots, dashes and underscores.")
+        elif username_taken(clean["username"]):
+            errors.append("That username is already in use. Choose another one.")
     if not clean["first_name"]:
         errors.append("The administrator needs a first name.")
     if not clean["last_name"]:
         errors.append("The administrator needs a last name.")
-    if clean["email"] and "@" not in clean["email"]:
-        errors.append("The email address does not look like an email address.")
+    if clean["email"]:
+        try:
+            validate_email(clean["email"])
+        except ValidationError:
+            errors.append("The email address does not look like an email address.")
     if len(clean["password"]) < 8:
         errors.append("The password must be at least 8 characters long.")
     confirmation = data.get("password_confirm")
@@ -407,8 +412,13 @@ def build_institution(state):
             SchoolSettings.get(institution)
             roles = ensure_roles(institution)
 
+            from accounts.usernames import claim_username, reserve_username
+
+            claimed = claim_username(admin["username"])
+            if not claimed:
+                raise ValidationError(["admin: That username is already in use. Choose another one."])
             user = User.objects.create_user(
-                username=admin["username"],
+                username=claimed,
                 password=admin["password"],
                 first_name=admin["first_name"],
                 last_name=admin["last_name"],
@@ -417,6 +427,7 @@ def build_institution(state):
                 is_staff=True,
                 institution=institution,
             )
+            reserve_username(user.username)
             admin_role = roles.get("institution_admin")
             if admin_role is not None:
                 user.primary_role = admin_role

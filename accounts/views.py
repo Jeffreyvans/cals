@@ -9,6 +9,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 
 from core.access import permission_required_code
 from core.audit import log_action
@@ -16,8 +17,12 @@ from core.email_types import CONTACT_FORM
 from core.models import Department, Institution
 from core.notifications import EMAIL_FAILURE_MESSAGE, send_platform_email
 
+from .admin_forms import RegistrationApprovalForm
 from .forms import (
+    IDENTIFIER_AMBIGUOUS_MESSAGE,
+    IDENTIFIER_INVALID_MESSAGE,
     ContactForm,
+    IdentifierAuthenticationForm,
     InstitutionAuthenticationForm,
     StaffRegistrationForm,
     StudentRegistrationForm,
@@ -66,6 +71,27 @@ class LoginLockoutMixin:
     wrong password is treated the same whichever door the visitor used.
     """
 
+    def _identifier_target_account(self, form):
+        target = getattr(form, "resolved_user", None)
+        if target is not None:
+            return target
+        identifier = (self.request.POST.get("username") or "").strip()
+        if not identifier:
+            return None
+        try:
+            from .forms import (
+                _resolve_institution_login_user,
+                _resolve_main_login_user,
+            )
+
+            if getattr(form, "institution", None) is not None:
+                user, _ = _resolve_institution_login_user(identifier, form.institution)
+                return user
+            user, _normalized, status = _resolve_main_login_user(identifier)
+            return user if status == "ok" else None
+        except Exception:
+            return User.objects.filter(username=identifier).first()
+
     def form_valid(self, form):
         from .user_admin import clear_failed_logins
 
@@ -81,8 +107,11 @@ class LoginLockoutMixin:
     def form_invalid(self, form):
         from .user_admin import is_locked, note_failed_login
 
-        username = (self.request.POST.get("username") or "").strip()
-        account = User.objects.filter(username=username).first()
+        # Cross-institution email ambiguity is guidance, not a failed password attempt.
+        if getattr(form, "ambiguous_identifier", False):
+            return super().form_invalid(form)
+
+        account = self._identifier_target_account(form)
         if account is not None and account.is_active:
             if is_locked(account):
                 messages.error(
@@ -99,12 +128,17 @@ class EduSphereLoginView(LoginLockoutMixin, LoginView):
     """The public landing page and the sign-in form on one screen."""
 
     template_name = "registration/login.html"
+    form_class = IdentifierAuthenticationForm
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.setdefault("contact_form", ContactForm())
         context.setdefault("contact_sent", False)
         context.setdefault("contact_rate_limited", False)
+        context["identifier_invalid_message"] = IDENTIFIER_INVALID_MESSAGE
+        # A trusted, static guidance message; keeping the apostrophe literal
+        # makes it readable in the rendered alert.
+        context["identifier_ambiguous_message"] = mark_safe(IDENTIFIER_AMBIGUOUS_MESSAGE)
         return context
 
     def post(self, request, *args, **kwargs):
@@ -214,6 +248,7 @@ class InstitutionLoginView(LoginLockoutMixin, LoginView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["institution"] = self.institution
+        context["identifier_invalid_message"] = IDENTIFIER_INVALID_MESSAGE
         links = open_signup_links(self.institution)
         registration_available = self.institution.public_registration or bool(links)
         show_register = (
@@ -297,6 +332,7 @@ def register_student_view(request):
                         ),
                         "activated": True,
                         "student": result["student"],
+                        "username": data.get("username") or getattr(result.get("user"), "username", ""),
                         "verification_sent": result.get("verification_sent", False),
                         "institution": institution,
                     },
@@ -392,9 +428,12 @@ def register_staff_view(request):
                 record_form_attempt(
                     request, f"register.staff.{data['institution'].pk}"
                 )
-                request.session["pending_registration_name"] = (
-                    reg_request.full_name
-                )
+                request.session["pending_staff_registration"] = {
+                    "name": reg_request.full_name,
+                    "username": reg_request.user.username,
+                    "institution": data["institution"].name,
+                    "institution_slug": getattr(data["institution"], "slug", ""),
+                }
                 return redirect("register_staff_sent")
     else:
         initial = {}
@@ -420,11 +459,20 @@ def register_staff_view(request):
 
 
 def register_staff_sent(request):
+    pending = request.session.pop("pending_staff_registration", None) or {}
+    # Backward compatibility with older session key.
+    if not pending:
+        name = request.session.pop("pending_registration_name", "")
+        if name:
+            pending = {"name": name}
     return _public_page(
         request,
         "registration/register_staff_sent.html",
         {
-            "name": request.session.pop("pending_registration_name", ""),
+            "name": pending.get("name", ""),
+            "username": pending.get("username", ""),
+            "institution": pending.get("institution", ""),
+            "institution_slug": pending.get("institution_slug", ""),
             "message": STAFF_GENERIC_PENDING,
         },
     )
@@ -519,57 +567,67 @@ def registration_request_detail(request, pk):
         ).filter(institution=institution),
         pk=pk,
     )
+    approval_form = RegistrationApprovalForm(
+        request.POST if request.method == "POST" and request.POST.get("action") == "approve" else None,
+        institution=reg_request.institution,
+        registrant=reg_request.user,
+    )
     if request.method == "POST":
         action = request.POST.get("action")
-        try:
-            if action == "approve":
-                department = None
-                department_id = request.POST.get("department")
-                if department_id:
-                    department = Department.all_objects.filter(
-                        institution=reg_request.institution, pk=department_id
-                    ).first()
-                approve_staff_request(
-                    reg_request,
-                    request.user,
-                    position=request.POST.get("position") or reg_request.position,
-                    department=department,
-                    request=request,
-                )
-                messages.success(
-                    request,
-                    f"{reg_request.full_name} was approved as "
-                    f"{reg_request.position_label}.",
-                )
-            elif action == "reject":
+        if action == "approve":
+            if approval_form.is_valid():
+                try:
+                    approve_staff_request(
+                        reg_request,
+                        request.user,
+                        position=approval_form.cleaned_data["position"],
+                        department=approval_form.cleaned_data["department"],
+                        username=approval_form.cleaned_data["username"],
+                        request=request,
+                    )
+                except ValidationError as exc:
+                    messages.error(request, " ".join(exc.messages))
+                else:
+                    messages.success(
+                        request,
+                        f"{reg_request.full_name} was approved as "
+                        f"{reg_request.position_label}.",
+                    )
+                    return redirect("registration_request_detail", pk=reg_request.pk)
+            else:
+                messages.error(request, "Check the highlighted fields and try again.")
+        elif action == "reject":
+            try:
                 reject_staff_request(
                     reg_request,
                     request.user,
                     request.POST.get("reason", ""),
                     request=request,
                 )
+            except ValidationError as exc:
+                messages.error(request, " ".join(exc.messages))
+            else:
                 messages.success(
                     request, f"{reg_request.full_name}'s request was rejected."
                 )
-            else:
-                messages.error(request, "Choose approve or reject.")
-        except ValidationError as exc:
-            messages.error(request, " ".join(exc.messages))
-        return redirect("registration_request_detail", pk=reg_request.pk)
+                return redirect("registration_request_detail", pk=reg_request.pk)
+        else:
+            messages.error(request, "Choose approve or reject.")
+            return redirect("registration_request_detail", pk=reg_request.pk)
 
-    departments = Department.all_objects.filter(
-        institution=reg_request.institution
-    ).order_by("name")
     return render(
         request,
         "registration/registration_request_detail.html",
         {
             "reg_request": reg_request,
+            "approval_form": approval_form,
             "positions": [
                 {"code": code, "label": STAFF_POSITIONS[code].label}
                 for code in allowed_staff_positions(reg_request.institution)
             ],
-            "departments": departments,
+            "departments": Department.all_objects.filter(
+                institution=reg_request.institution
+            ).order_by("name"),
         },
     )
 
@@ -647,6 +705,7 @@ def _signup_student(request, link):
                         "path": "student",
                         "activated": True,
                         "student": result["student"],
+                        "username": data.get("username") or getattr(result.get("user"), "username", ""),
                         "verification_sent": result.get("verification_sent", False),
                     },
                 )
@@ -742,6 +801,7 @@ def _signup_staff(request, link):
                         "path": "staff",
                         "staff_sent": True,
                         "staff_name": reg_request.full_name,
+                        "staff_username": reg_request.user.username,
                         "message": STAFF_GENERIC_PENDING,
                     },
                 )

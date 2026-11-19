@@ -18,7 +18,18 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import transaction
+
+from accounts.usernames import (
+    normalize_email as normalize_email_value,
+)
+from accounts.usernames import (
+    normalize_identifier,
+    reserve_username,
+    username_taken,
+)
 
 MAX_ROWS = 5000
 MAX_BYTES = 5 * 1024 * 1024
@@ -121,7 +132,7 @@ KINDS = {
         "label": "Staff",
         "permission": "admin.manage_users",
         "fields": STAFF_FIELDS,
-        "help": "One row per staff member. A login is created and the person is invited or given a temporary password.",
+        "help": "One row per staff member. A login is created and sign-in instructions are sent or shown.",
     },
     "courses": {
         "label": "Courses",
@@ -370,9 +381,7 @@ class Context:
         return self.roles.get((name or "").strip().lower())
 
     def taken_username(self, username):
-        from accounts.models import User
-
-        return User.objects.filter(username__iexact=username).exists()
+        return username_taken(username)
 
     def taken_email(self, email, exclude_pk=None):
         from accounts.models import User
@@ -382,6 +391,18 @@ class Context:
         queryset = User.objects.filter(
             institution=self.institution, email__iexact=email, is_active=True
         )
+        if exclude_pk is not None:
+            queryset = queryset.exclude(pk=exclude_pk)
+        return queryset.exists()
+
+    def taken_staff_email(self, email, exclude_pk=None):
+        from accounts.models import User
+
+        if not email:
+            return False
+        queryset = User.objects.filter(
+            institution=self.institution, email__iexact=email, is_active=True
+        ).exclude(role__in=(User.Role.STUDENT, User.Role.PARENT))
         if exclude_pk is not None:
             queryset = queryset.exclude(pk=exclude_pk)
         return queryset.exists()
@@ -428,34 +449,38 @@ def validate(kind, rows, mapping, institution):
 
 
 def _valid_email(value):
-    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value or ""))
+    try:
+        validate_email(value)
+    except ValidationError:
+        return False
+    return True
 
 
-def _check_email(values, errors, context, seen_emails):
-    email = (values.get("email") or "").strip().lower()
+def _check_email(values, errors, context, seen_emails, staff_only=False):
+    email = normalize_email_value(values.get("email") or "")
     if not email:
         return ""
     if not _valid_email(email):
         errors.append(f"'{values.get('email')}' is not an email address.")
         return email
-    if email in seen_emails:
+    key = email
+    if key in seen_emails:
         errors.append(f"Email '{email}' is used twice in this file.")
-    elif context.taken_email(email):
-        errors.append(
-            f"An account at this institution already uses the email '{email}'."
-        )
-    seen_emails[email] = True
+    else:
+        if staff_only and context.taken_staff_email(email):
+            errors.append(
+                f"An account at this institution already uses the email '{email}'."
+            )
+    seen_emails[key] = True
     return email
 
 
 def _check_students(values, errors, context, seen_numbers, seen_usernames, seen_emails):
     from academics.models import Student
-    from accounts.models import User
     from core.numbering import number_key
 
     student_no = str(values.get("student_no", "") or "").strip().upper()
     values["student_no"] = student_no
-    username = values.get("username", "")
     if student_no:
         key = number_key(student_no)
         if key in seen_numbers:
@@ -465,16 +490,25 @@ def _check_students(values, errors, context, seen_numbers, seen_usernames, seen_
             institution=context.institution).values_list("student_no", flat=True)
         if any(number_key(number) == key for number in existing):
             errors.append(f"Student number '{student_no}' is already used by another student.")
+
+    email = _check_email(values, errors, context, seen_emails, staff_only=False)
+    values["email"] = email
+
+    username = normalize_identifier(values.get("username", "")).lower()
     if not username:
-        username = re.sub(r"[^a-zA-Z0-9._-]", "", student_no) or f"student{len(seen_usernames) + 1}"
-        values["username"] = username
-    if username:
-        if username.lower() in seen_usernames:
-            errors.append(f"Username '{username}' is used twice in this file.")
-        elif User.objects.filter(username__iexact=username).exists():
-            errors.append(f"Username '{username}' is already taken.")
-        seen_usernames[username.lower()] = True
-    values["email"] = _check_email(values, errors, context, seen_emails)
+        # Keep the historic student-number based login for bulk imports. The
+        # optional username field on the admin forms uses email instead.
+        username = re.sub(
+            r"[^a-zA-Z0-9._-]", "", student_no
+        ) or f"student{len(seen_usernames) + 1}"
+    key = username.lower()
+    if key in seen_usernames:
+        errors.append(f"Username '{username}' is used twice in this file.")
+    elif context.taken_username(username):
+        errors.append(f"Username '{username}' is already taken.")
+    seen_usernames[key] = True
+    values["username"] = username
+
     if values.get("programme"):
         if context.programme(values["programme"]) is None:
             errors.append(f"Unknown programme '{values['programme']}'.")
@@ -497,7 +531,6 @@ def _check_students(values, errors, context, seen_numbers, seen_usernames, seen_
 
 
 def _check_staff(values, errors, context, seen_numbers, seen_usernames, seen_emails):
-    from accounts.models import User
     from core.models import StaffProfile
     from core.numbering import number_key
 
@@ -513,14 +546,19 @@ def _check_staff(values, errors, context, seen_numbers, seen_usernames, seen_ema
         if any(number_key(number) == key for number in existing):
             errors.append(
                 f"Employee number '{employee_no}' is already used by another staff member.")
-    username = values.get("username", "")
+
+    values["email"] = _check_email(values, errors, context, seen_emails, staff_only=True)
+
+    username = normalize_identifier(values.get("username", "")).lower()
     if username:
-        if username.lower() in seen_usernames:
+        key = username.lower()
+        if key in seen_usernames:
             errors.append(f"Username '{username}' is used twice in this file.")
-        elif User.objects.filter(username__iexact=username).exists():
+        elif context.taken_username(username):
             errors.append(f"Username '{username}' is already taken.")
-        seen_usernames[username.lower()] = True
-    values["email"] = _check_email(values, errors, context, seen_emails)
+        seen_usernames[key] = True
+        values["username"] = username
+
     if values.get("date_joined"):
         values["date_joined"] = parse_date(values["date_joined"], "Date joined", errors)
     if values.get("role"):
@@ -693,17 +731,21 @@ def _write_student(values, institution, user):
     from accounts.models import User
 
     context = Context(institution)
+    username = normalize_identifier(values.get("username", ""))
+    reserve_username(username)
+    email = normalize_email_value(values.get("email", ""))
     account = User.objects.create_user(
-        username=values["username"],
+        username=username,
         password=None,
         first_name=values.get("first_name", "")[:60],
         last_name=values.get("last_name", "")[:60],
-        email=values.get("email", ""),
+        email=email,
         role=User.Role.STUDENT,
         institution=institution,
     )
     account.set_unusable_password()
     account.save(update_fields=["password"])
+    reserve_username(account.username)
     programme = context.programme(values.get("programme", ""))
     school_class = context.school_class(values.get("school_class", "")) if values.get("school_class") else None
     stream = context.stream(school_class, values.get("stream", "")) if values.get("stream") else None
@@ -727,24 +769,34 @@ def _write_staff(values, institution, user):
     from accounts.models import User
     from core.models import StaffProfile
 
+    username = normalize_identifier(values.get("username", "")).lower()
+    reserve_username(username)
+    email = normalize_email_value(values.get("email", ""))
+    if email and User.objects.filter(
+        institution=institution, email__iexact=email, is_active=True
+    ).exclude(role__in=(User.Role.STUDENT, User.Role.PARENT)).exclude(username__iexact=username).exists():
+        raise ValueError(f"An account at this institution already uses the email '{email}'.")
+    role_value = values.get("role") or User.Role.LECTURER
     account = User.objects.create_user(
-        username=values["username"],
+        username=username,
         password=None,
         first_name=values.get("first_name", "")[:150],
         last_name=values.get("last_name", "")[:150],
-        email=values.get("email", ""),
+        email=email,
         phone=values.get("phone", "")[:30],
-        role=values.get("role") or User.Role.LECTURER,
+        role=role_value,
         institution=institution,
     )
     account.set_unusable_password()
     account.save(update_fields=["password"])
+    reserve_username(account.username)
     department = None
     if values.get("department"):
         from core.models import Department
 
-        department = Department.objects.filter(
-            name__iexact=values["department"]).first()
+        department = Department.all_objects.filter(
+            institution=institution, name__iexact=values["department"]
+        ).first()
     profile = StaffProfile(
         institution=institution,
         user=account,

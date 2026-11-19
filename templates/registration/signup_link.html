@@ -57,10 +57,19 @@
       <div class="alert alert-ok" role="status">
         Your account is ready{% if student.name %} — welcome, {{ student.name }}{% endif %}. You can sign in with the username and password you just chose.
       </div>
+      <p style="margin-top: 1rem;"><strong>Your username:</strong> {{ username|default:student.user.username }}</p>
+      <p><strong>Sign-in instructions:</strong>
+        {% if institution.slug %}
+          Sign in at <a href="{% url 'institution_login' institution.slug %}">{% url 'institution_login' institution.slug %}</a>
+        {% else %}
+          Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a>
+        {% endif %}
+        with your username <strong>{{ username|default:student.user.username }}</strong> or your email address.
+      </p>
       {% if verification_sent %}
         <p class="sub" style="margin-top: 1rem;">We sent a link to confirm your email address. You can still sign in while you look for it.</p>
       {% endif %}
-      <p style="margin-top: 1.2rem;"><a class="btn" href="{% url 'login' %}">Sign in</a></p>
+      <p style="margin-top: 1.2rem;"><a class="btn" href="{% if institution.slug %}{% url 'institution_login' institution.slug %}{% else %}{% url 'login' %}{% endif %}">Sign in</a></p>
     </div>
 
   {% elif existing_account %}
@@ -75,7 +84,18 @@
   {% elif staff_sent %}
     <div class="panel">
       <div class="alert alert-ok" role="status">{{ message }}</div>
-      <p style="margin-top: 1.1rem;"><a class="btn" href="{% url 'login' %}">Go to sign in</a></p>
+      {% if staff_username %}
+      <p style="margin-top: 1rem;"><strong>Your username:</strong> {{ staff_username }}</p>
+      <p><strong>Sign-in instructions:</strong>
+        {% if institution.slug %}
+          Sign in at <a href="{% url 'institution_login' institution.slug %}">{% url 'institution_login' institution.slug %}</a>
+        {% else %}
+          Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a>
+        {% endif %}
+        with your username <strong>{{ staff_username }}</strong> or your email address. You can sign in once your account is approved.
+      </p>
+      {% endif %}
+      <p style="margin-top: 1.1rem;"><a class="btn" href="{% if institution.slug %}{% url 'institution_login' institution.slug %}{% else %}{% url 'login' %}{% endif %}">Go to sign in</a></p>
     </div>
 
   {% elif path == "student" %}

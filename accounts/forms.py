@@ -3,11 +3,13 @@
 import re
 
 from django import forms
+from django.contrib.auth import authenticate
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 
 from core.models import Department, Institution
 
+from .models import User
 from .registration import (
     CONTACT_EMAIL,
     STAFF_POSITIONS,
@@ -15,9 +17,66 @@ from .registration import (
     position_options,
     public_institutions,
 )
+from .usernames import USERNAME_FORMAT_HINT, normalize_identifier, validate_username
 from .validators import add_password_errors
 
 PHONE_RE = re.compile(r"^\+?[0-9][0-9\s().-]{5,19}$")
+IDENTIFIER_INVALID_MESSAGE = "Wrong email, username or password. Try again."
+IDENTIFIER_AMBIGUOUS_MESSAGE = (
+    "This email address is used by more than one account. "
+    "Enter your username to sign in, or use your institution's sign-in page."
+)
+
+
+def _identifier_candidates(identifier):
+    value = normalize_identifier(identifier)
+    if not value:
+        return User.objects.none(), value
+    if "@" in value:
+        queryset = User.objects.filter(email__iexact=value)
+        # A username could in theory contain '@', so include an exact username match too.
+        queryset = queryset | User.objects.filter(username__iexact=value)
+        return queryset.distinct(), value
+    return User.objects.filter(username__iexact=value), value
+
+
+def _resolve_main_login_user(identifier):
+    candidates, value = _identifier_candidates(identifier)
+    users = list(candidates[:3])
+    if not users:
+        return None, value, "invalid"
+    if len(users) == 1:
+        return users[0], value, "ok"
+    # Multiple matches: allow if they all resolve to the same account (unlikely but safe),
+    # or if a username match is unambiguous.
+    username_matches = [u for u in users if normalize_identifier(u.username).lower() == value.lower()]
+    if len(username_matches) == 1:
+        return username_matches[0], value, "ok"
+    institutions = {u.institution_id for u in users}
+    if len(institutions) > 1:
+        return None, value, "ambiguous"
+    # Same institution, multiple accounts sharing an email: cannot safely disambiguate on main login.
+    return None, value, "ambiguous"
+
+
+def _resolve_institution_login_user(identifier, institution):
+    candidates, value = _identifier_candidates(identifier)
+    users = list(candidates)
+    if institution is None:
+        if len(users) == 1:
+            return users[0], value
+        return None, value
+    allowed = [u for u in users if u.institution_id == institution.pk or getattr(u, "is_superuser", False)]
+    if len(allowed) == 1:
+        return allowed[0], value
+    # If multiple, prefer a username match inside the institution.
+    username_matches = [
+        u for u in allowed
+        if normalize_identifier(u.username).lower() == value.lower()
+    ]
+    if len(username_matches) == 1:
+        return username_matches[0], value
+    return None, value
 
 
 def _institution_field():
@@ -50,17 +109,90 @@ def _clean_contact(contact):
     return contact
 
 
+class IdentifierAuthenticationForm(AuthenticationForm):
+    """Sign in with either a username or an email address."""
+
+    resolved_user = None
+    ambiguous_identifier = False
+
+    def __init__(self, request=None, *args, **kwargs):
+        super().__init__(request, *args, **kwargs)
+        self.fields["username"].label = "Email or username"
+        self.fields["username"].widget.attrs.setdefault("autocomplete", "username")
+        self.fields["username"].widget.attrs.setdefault(
+            "placeholder", "Email or username"
+        )
+
+    def clean(self):
+        identifier = self.cleaned_data.get("username")
+        password = self.cleaned_data.get("password")
+        if not identifier or not password:
+            return self.cleaned_data
+        user, _normalized, status = _resolve_main_login_user(identifier)
+        if status == "ambiguous":
+            self.resolved_user = None
+            self.ambiguous_identifier = True
+            raise ValidationError(IDENTIFIER_AMBIGUOUS_MESSAGE, code="ambiguous_identifier")
+        if status != "ok" or user is None:
+            self.resolved_user = None
+            raise self.get_invalid_login_error()
+        self.resolved_user = user
+        from .user_admin import is_locked
+
+        if is_locked(user):
+            raise self.get_invalid_login_error()
+        self.user_cache = authenticate(
+            self.request, username=user.username, password=password
+        )
+        if self.user_cache is None:
+            raise self.get_invalid_login_error()
+        self.confirm_login_allowed(self.user_cache)
+        return self.cleaned_data
+
+    def get_invalid_login_error(self):
+        return ValidationError(IDENTIFIER_INVALID_MESSAGE, code="invalid_login")
+
+
 class InstitutionAuthenticationForm(AuthenticationForm):
     """Sign-in that only accepts accounts belonging to one institution.
 
-    The institution page is branded for a single school, so a valid login for
-    a different school is refused with the same message as a wrong password.
+    The identifier may be a username or an email address. A valid account for a
+    different institution is refused with the same message as a wrong password.
     The page never reveals whether the account exists somewhere else.
     """
+
+    resolved_user = None
 
     def __init__(self, request=None, *args, institution=None, **kwargs):
         self.institution = institution
         super().__init__(request, *args, **kwargs)
+        self.fields["username"].label = "Email or username"
+        self.fields["username"].widget.attrs.setdefault("autocomplete", "username")
+        self.fields["username"].widget.attrs.setdefault(
+            "placeholder", "Email or username"
+        )
+
+    def clean(self):
+        identifier = self.cleaned_data.get("username")
+        password = self.cleaned_data.get("password")
+        if not identifier or not password:
+            return self.cleaned_data
+        user, _normalized = _resolve_institution_login_user(identifier, self.institution)
+        if user is None:
+            self.resolved_user = None
+            raise self.get_invalid_login_error()
+        self.resolved_user = user
+        from .user_admin import is_locked
+
+        if is_locked(user):
+            raise self.get_invalid_login_error()
+        self.user_cache = authenticate(
+            self.request, username=user.username, password=password
+        )
+        if self.user_cache is None:
+            raise self.get_invalid_login_error()
+        self.confirm_login_allowed(self.user_cache)
+        return self.cleaned_data
 
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)
@@ -68,11 +200,10 @@ class InstitutionAuthenticationForm(AuthenticationForm):
             return
         institution = self.institution
         if institution is not None and user.institution_id != institution.pk:
-            raise ValidationError(
-                self.error_messages["invalid_login"],
-                code="invalid_login",
-                params={"username": self.username_field.verbose_name},
-            )
+            raise self.get_invalid_login_error()
+
+    def get_invalid_login_error(self):
+        return ValidationError(IDENTIFIER_INVALID_MESSAGE, code="invalid_login")
 
 
 class StudentRegistrationForm(forms.Form):
@@ -95,7 +226,7 @@ class StudentRegistrationForm(forms.Form):
     username = forms.CharField(
         label="Choose a username",
         max_length=60,
-        help_text="You will use this to sign in.",
+        help_text=f"You will use this to sign in. {USERNAME_FORMAT_HINT}",
     )
     password = forms.CharField(
         label="Choose a password",
@@ -125,12 +256,10 @@ class StudentRegistrationForm(forms.Form):
         return _clean_contact(self.cleaned_data.get("contact"))
 
     def clean_username(self):
-        username = " ".join(self.cleaned_data["username"].split())
-        if not re.match(r"^[A-Za-z0-9._-]{3,60}$", username):
-            raise ValidationError(
-                "Use 3 to 60 letters, numbers, dots, underscores or hyphens."
-            )
-        return username
+        try:
+            return validate_username(self.cleaned_data.get("username"))
+        except ValidationError as exc:
+            raise ValidationError(exc.messages) from exc
 
     def clean(self):
         cleaned = super().clean()
@@ -170,7 +299,7 @@ class StaffRegistrationForm(forms.Form):
     username = forms.CharField(
         label="Choose a username",
         max_length=60,
-        help_text="You will use this to sign in after approval.",
+        help_text=f"You will use this to sign in after approval. {USERNAME_FORMAT_HINT}",
     )
     password = forms.CharField(
         label="Choose a password",
@@ -252,12 +381,10 @@ class StaffRegistrationForm(forms.Form):
         return phone
 
     def clean_username(self):
-        username = " ".join(self.cleaned_data["username"].split())
-        if not re.match(r"^[A-Za-z0-9._-]{3,60}$", username):
-            raise ValidationError(
-                "Use 3 to 60 letters, numbers, dots, underscores or hyphens."
-            )
-        return username
+        try:
+            return validate_username(self.cleaned_data.get("username"))
+        except ValidationError as exc:
+            raise ValidationError(exc.messages) from exc
 
     def clean(self):
         cleaned = super().clean()

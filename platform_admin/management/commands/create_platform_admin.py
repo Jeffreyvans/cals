@@ -9,6 +9,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from accounts.usernames import generate_unique_username, normalize_email, reserve_username
 from core.models import Institution
 from platform_admin.models import PlatformRole, PlatformStaff
 from platform_admin.services import ensure_platform_roles
@@ -46,7 +47,7 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        email = (options["email"] or "").strip().lower()
+        email = normalize_email(options["email"] or "")
         if "@" not in email:
             raise CommandError("Give a valid email address.")
         roles = ensure_platform_roles()
@@ -68,12 +69,7 @@ class Command(BaseCommand):
 
         user = User.objects.filter(email__iexact=email).first()
         if user is None:
-            username_seed = email.split("@")[0][:40] or "platform"
-            username = username_seed
-            counter = 1
-            while User.objects.filter(username__iexact=username).exists():
-                counter += 1
-                username = f"{username_seed[:34]}{counter}"
+            username = generate_unique_username(email=email, fallback="platform")
             user = User(
                 username=username,
                 email=email,
@@ -86,7 +82,9 @@ class Command(BaseCommand):
             )
             user.set_unusable_password()
             user.save()
+            reserve_username(user.username)
         else:
+            reserve_username(user.username)
             changed = False
             if options["first_name"] and user.first_name != options["first_name"]:
                 user.first_name = options["first_name"][:150]

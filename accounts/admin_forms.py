@@ -7,13 +7,18 @@ from django.contrib.auth.forms import (
     SetPasswordForm,
     UserCreationForm,
 )
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import validate_email
+from django.urls import reverse
 
 from academics.models import Programme, SchoolClass, Stream
 from core.models import Department
 from finance.models import FeeStructure
 
 from .models import User
-from .user_admin import assignable_roles
+from .user_admin import assignable_roles, validate_user_email
+from .username_fields import USERNAME_FORMAT_HINT, UsernameField
+from .usernames import normalize_email
 from .validators import add_password_errors
 
 ACCESS_CHOICES = (
@@ -34,26 +39,30 @@ class InstitutionFormMixin:
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             _style(field)
+        username_field = self.fields.get("username")
+        if username_field is not None:
+            username_field.widget.attrs["data-username-check-url"] = reverse(
+                "username_availability"
+            )
+            instance = getattr(self, "instance", None)
+            if instance is not None and instance.pk:
+                username_field.widget.attrs["data-username-exclude"] = str(instance.pk)
+                username_field.exclude_user = instance
 
     def clean_email(self):
-        email = (self.cleaned_data.get("email") or "").strip().lower()
+        email = normalize_email(self.cleaned_data.get("email") or "")
         if not email:
             return ""
-        queryset = User.objects.filter(
-            institution=self.institution, email__iexact=email, is_active=True
-        )
-        instance = getattr(self, "instance", None)
-        if instance is not None and instance.pk:
-            queryset = queryset.exclude(pk=instance.pk)
-        if queryset.exists():
-            raise forms.ValidationError(
-                "An account at this institution already uses that email address."
-            )
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            raise forms.ValidationError("Enter a valid email address.") from None
         return email
 
 
 class StaffAccountForm(InstitutionFormMixin, forms.Form):
     full_name = forms.CharField(max_length=150, label="Full name")
+    username = UsernameField()
     email = forms.EmailField(label="Email")
     phone = forms.CharField(max_length=30, required=False)
     role = forms.ModelChoiceField(queryset=None, label="Role")
@@ -79,15 +88,24 @@ class StaffAccountForm(InstitutionFormMixin, forms.Form):
             institution=self.institution
         ).order_by("name")
 
+    def clean_email(self):
+        email = normalize_email(self.cleaned_data.get("email") or "")
+        if not email:
+            return ""
+        try:
+            return validate_user_email(
+                email, institution=self.institution, staff_or_admin=True
+            )
+        except DjangoValidationError as exc:
+            raise forms.ValidationError(exc.messages) from exc
+
 
 class StudentAccountForm(InstitutionFormMixin, forms.Form):
     first_name = forms.CharField(max_length=150, label="First name")
     last_name = forms.CharField(max_length=150, label="Last name")
     email = forms.EmailField(required=False, help_text="Leave empty to use a temporary password.")
     phone = forms.CharField(max_length=30, required=False)
-    username = forms.CharField(
-        required=False, help_text="Leave empty and one is made from the name."
-    )
+    username = UsernameField()
     programme = forms.ModelChoiceField(queryset=None, label="Programme or class")
     school_class = forms.ModelChoiceField(
         queryset=None, required=False, label="Class (for a school)"
@@ -125,8 +143,49 @@ class StudentAccountForm(InstitutionFormMixin, forms.Form):
             institution=self.institution, is_active=True
         ).order_by("name")
 
+    def clean_email(self):
+        email = normalize_email(self.cleaned_data.get("email") or "")
+        if not email:
+            return ""
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            raise forms.ValidationError("Enter a valid email address.") from None
+        return email
+
+
+class RegistrationApprovalForm(InstitutionFormMixin, forms.Form):
+    """The fields an administrator chooses when approving a staff request."""
+
+    position = forms.ChoiceField(label="Position")
+    department = forms.ModelChoiceField(
+        queryset=Department.objects.none(), required=False, label="Department (optional)"
+    )
+    username = UsernameField()
+
+    def __init__(self, *args, institution=None, registrant=None, **kwargs):
+        super().__init__(*args, institution=institution, **kwargs)
+        from .registration import STAFF_POSITIONS, allowed_staff_positions
+
+        codes = allowed_staff_positions(institution)
+        self.fields["position"].choices = [
+            (code, STAFF_POSITIONS[code].label) for code in codes
+        ]
+        self.fields["department"].queryset = Department.all_objects.filter(
+            institution=institution
+        ).order_by("name")
+        self.fields["username"].widget.attrs["data-username-check-url"] = reverse(
+            "username_availability"
+        )
+        if registrant is not None and registrant.pk:
+            self.fields["username"].exclude_user = registrant
+            self.fields["username"].widget.attrs["data-username-exclude"] = str(
+                registrant.pk
+            )
+
 
 class EditUserForm(InstitutionFormMixin, forms.ModelForm):
+    username = UsernameField(required=True, help_text=USERNAME_FORMAT_HINT)
     role = forms.ModelChoiceField(queryset=None, required=False)
     departments = forms.ModelMultipleChoiceField(
         queryset=None, required=False, label="Departments"
@@ -134,7 +193,7 @@ class EditUserForm(InstitutionFormMixin, forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email", "phone"]
+        fields = ["username", "first_name", "last_name", "email", "phone"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -148,6 +207,29 @@ class EditUserForm(InstitutionFormMixin, forms.ModelForm):
             self.fields["departments"].initial = profile.departments.values_list(
                 "pk", flat=True
             )
+        if self.instance and self.instance.pk:
+            self.fields["username"].initial = self.instance.username
+        from .user_admin import is_institution_admin
+
+        if not is_institution_admin(self.actor):
+            self.fields["username"].disabled = True
+            self.fields["username"].required = False
+            self.fields["username"].help_text = "Only an institution administrator can change usernames."
+
+    def clean_email(self):
+        email = normalize_email(self.cleaned_data.get("email") or "")
+        if not email:
+            return ""
+        staff_or_admin = getattr(self.instance, "role", "") not in (User.Role.STUDENT, User.Role.PARENT)
+        try:
+            return validate_user_email(
+                email,
+                institution=self.institution,
+                exclude_user=self.instance,
+                staff_or_admin=staff_or_admin,
+            )
+        except DjangoValidationError as exc:
+            raise forms.ValidationError(exc.messages) from exc
 
     def clean_role(self):
         role = self.cleaned_data.get("role")
@@ -165,6 +247,13 @@ class EditUserForm(InstitutionFormMixin, forms.ModelForm):
                 "You cannot remove your own administrator role."
             )
         return role
+
+    def clean_username(self):
+        from .user_admin import is_institution_admin
+
+        if not is_institution_admin(self.actor):
+            return self.instance.username
+        return self.cleaned_data.get("username", "")
 
 
 class LinkParentForm(InstitutionFormMixin, forms.Form):

@@ -8,7 +8,6 @@ never given a role above the role of the person doing the adding.
 
 from __future__ import annotations
 
-import re
 import secrets
 import string
 from dataclasses import dataclass
@@ -16,19 +15,11 @@ from datetime import timedelta
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import transaction
 from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
-
-from .usernames import (
-    ensure_username_available,
-    generate_unique_username,
-    normalize_email as normalize_email_value,
-    normalize_identifier,
-    reserve_username,
-    sanitize_username_base,
-)
 
 from core.audit import log_action
 from core.email_types import (
@@ -47,6 +38,18 @@ from core.roles import LEGACY_ROLE_MAP
 from core.tenancy import use_institution
 
 from .models import User, UserInvitation
+from .usernames import (
+    base_from_email,
+    generate_unique_username,
+    generate_username_for_email,
+    normalize_identifier,
+    reserve_username,
+    sanitize_username_base,
+    validate_username,
+)
+from .usernames import (
+    normalize_email as normalize_email_value,
+)
 from .validators import validate_strong_password
 
 ACTION_RATE_LIMIT = 30
@@ -174,19 +177,53 @@ def check_role_allowed(actor, role):
 
 
 def normalize_username(value):
-    """Lowercase, readable username text from user input."""
-    base = sanitize_username_base(value)
-    return (base or "")[:30]
+    """Normalise a username to the platform's lowercase key form."""
+    return normalize_identifier(value).lower()[:150]
 
 
 def unique_username(base, email=""):
     """Return a unique, reserved username following the platform rules."""
-    seed = sanitize_username_base(base) or sanitize_username_base(email.split("@", 1)[0] if email else "")
+    seed = sanitize_username_base(base) or base_from_email(email)
     return generate_unique_username(email=email, base=seed, fallback="user")
 
 
 def normalized_email(value):
     return normalize_email_value(value)
+
+
+def _is_staff_or_admin_user(user=None, role=None):
+    if role is not None:
+        return legacy_role_for(role) != User.Role.STUDENT and getattr(role, "code", "") != "parent"
+    if user is None:
+        return False
+    if getattr(user, "role", "") in (User.Role.STUDENT, User.Role.PARENT):
+        return False
+    if getattr(user, "primary_role_id", None):
+        return legacy_role_for(user.primary_role) != User.Role.STUDENT and getattr(user.primary_role, "code", "") != "parent"
+    return user.role != User.Role.STUDENT
+
+
+def validate_user_email(email, institution=None, exclude_user=None, staff_or_admin=False):
+    """Normalise, validate format and enforce per-institution staff/admin uniqueness."""
+    email = normalize_email_value(email)
+    if not email:
+        return ""
+    try:
+        validate_email(email)
+    except ValidationError:
+        raise ValidationError("Enter a valid email address.") from None
+    if staff_or_admin and institution is not None:
+        from accounts.models import User
+
+        staff_queryset = (
+            User.objects.filter(institution=institution, email__iexact=email, is_active=True)
+            .exclude(role__in=(User.Role.STUDENT, User.Role.PARENT))
+        )
+        if exclude_user is not None:
+            staff_queryset = staff_queryset.exclude(pk=exclude_user.pk)
+        if staff_queryset.exists():
+            raise ValidationError("An account at this institution already uses that email address.")
+    return email
 
 
 def generate_temporary_password(length=14):
@@ -254,7 +291,22 @@ def _login_link(user):
 
 def _sign_in_instruction(user):
     return (
-        f"Sign in at {_login_link(user)} with your email or username {user.username}."
+        f"Sign in at {_login_link(user)} with your username {user.username} or your email address."
+    )
+
+
+def send_username_changed_notice(user, old_username, new_username):
+    """Tell a person their login name changed. Never contains a password."""
+    return _send_email(
+        user,
+        "Your EduSphere username has changed",
+        (
+            f"Hello {user.get_full_name() or user.username},\n\n"
+            f"Your username has changed from {old_username} to {new_username}.\n"
+            f"{_sign_in_instruction(user)}\n\n"
+            "If you did not expect this change, contact your institution.\n"
+        ),
+        email_type=GENERAL,
     )
 
 
@@ -345,8 +397,9 @@ def send_password_reset_notice(user):
         f"Your {user.institution.name} password was reset",
         (
             f"Hello {user.get_full_name() or user.username},\n\n"
-            "An administrator reset your password. Sign in with the temporary "
-            "password you were given and choose a new one.\n\n"
+            "An administrator reset your password.\n"
+            f"{_sign_in_instruction(user)}\n\n"
+            "Sign in with the temporary password you were given and choose a new one.\n"
             "If you did not expect this, contact the institution.\n"
         ),
         email_type=FORCED_PASSWORD_CHANGE_NOTICE,
@@ -386,18 +439,19 @@ def provision_user(
     An invitation to a person without an email falls back to a temporary
     password, because there is nowhere to send the link.
     """
-    email = normalized_email(email)
+    if role is None:
+        role = Role.all_objects.filter(institution=institution, code="lecturer").first()
+    staff_or_admin = _is_staff_or_admin_user(role=role)
+    email = validate_user_email(
+        email, institution=institution, staff_or_admin=staff_or_admin
+    )
+
     explicit_username = normalize_identifier(username)
     if explicit_username:
-        username = ensure_username_available(explicit_username)
+        username = validate_username(explicit_username)
         reserve_username(username)
     else:
-        seed = base_from_email(email) or sanitize_username_base(first_name) or "user"
-        username = generate_unique_username(email=email, base=seed, fallback="user")
-
-    role = role or Role.all_objects.filter(
-        institution=institution, code="lecturer"
-    ).first()
+        username = generate_username_for_email(email, f"{first_name} {last_name}")
 
     access_mode = _normalize_access_mode(access_mode)
     if access_mode not in ("invitation", "temporary_password"):
@@ -405,11 +459,10 @@ def provision_user(
     if access_mode == "invitation" and not email:
         access_mode = "temporary_password"
 
-    if email and User.objects.filter(
-        institution=institution, email__iexact=email, is_active=True
-    ).exists():
-        raise ValidationError(
-            "An account at this institution already uses that email address."
+    # Enforce per-institution staff/admin email uniqueness for staff/admin accounts.
+    if email and staff_or_admin:
+        validate_user_email(
+            email, institution=institution, staff_or_admin=True
         )
 
     user = User(
@@ -434,6 +487,7 @@ def provision_user(
         user.set_unusable_password()
 
     user.save()
+    reserve_username(user.username)
 
     if access_mode == "invitation":
         invitation = create_invitation(user, actor=actor, request=request)
@@ -466,6 +520,7 @@ def add_staff_member(
     full_name,
     email,
     phone="",
+    username="",
     role,
     departments=(),
     job_title="",
@@ -483,19 +538,9 @@ def add_staff_member(
     full_name = " ".join(str(full_name or "").split())
     if not full_name:
         raise ValidationError("Enter the person's full name.")
-    email = normalized_email(email)
-    if not email:
+    email = validate_user_email(email, institution=institution, staff_or_admin=True)
+    if access_mode == "invitation" and not email:
         raise ValidationError("Enter an email address, or use a temporary password.")
-    if role is not None and role.code in ("institution_admin", "admin", "principal") or legacy_role_for(role) == User.Role.ADMIN:
-        # Administrator-like staff must not share an email within the institution.
-        pass
-    if email and User.objects.filter(
-        institution=institution, email__iexact=email, is_active=True
-    ).filter(Q(role__in=(User.Role.ADMIN, User.Role.REGISTRAR, User.Role.BURSAR, User.Role.HOD, User.Role.DEAN, User.Role.ACCOUNTANT, User.Role.STAFF, User.Role.LECTURER, User.Role.TEACHER)) | Q(primary_role__isnull=False)).exclude(role=User.Role.STUDENT).exclude(role=User.Role.PARENT).exists():
-        # Staff/admin email uniqueness is enforced per institution.
-        raise ValidationError(
-            "An account at this institution already uses that email address."
-        )
 
     department_ids = [d.pk for d in departments if d is not None]
     for department in Department.all_objects.filter(pk__in=department_ids):
@@ -515,6 +560,7 @@ def add_staff_member(
             last_name=last_name or first_name,
             email=email,
             phone=phone,
+            username=username,
             role=role,
             access_mode=access_mode,
             actor=actor,
@@ -581,28 +627,66 @@ def ensure_not_last_administrator(user):
 
 
 @transaction.atomic
-def update_user(user, *, first_name, last_name, email, phone, actor=None, request=None):
+def update_user(user, *, first_name, last_name, email, phone, username=None, actor=None, request=None):
     if user.institution_id != getattr(actor, "institution_id", None):
         raise ValidationError("That account belongs to another institution.")
-    email = normalized_email(email)
-    if email and User.objects.filter(
-        institution=user.institution, email__iexact=email, is_active=True
-    ).exclude(pk=user.pk).exists():
-        raise ValidationError("Another account already uses that email address.")
+
+    # A bound ModelForm may already have copied submitted values onto the
+    # instance. Read the stored row so "before" and the change comparison are
+    # based on what is actually in the database.
+    current = User.objects.get(pk=user.pk)
+
+    staff_or_admin = _is_staff_or_admin_user(user=user)
+    email = validate_user_email(
+        email, institution=user.institution, exclude_user=user, staff_or_admin=staff_or_admin
+    )
+
     before = {
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "email": user.email,
-        "phone": user.phone,
+        "first_name": current.first_name,
+        "last_name": current.last_name,
+        "email": current.email,
+        "phone": current.phone,
+        "username": current.username,
     }
+
+    update_fields = ["first_name", "last_name", "email", "phone"]
+    username_changed = False
+    if username is not None:
+        explicit_username = normalize_identifier(username)
+        if not explicit_username:
+            raise ValidationError("Choose a username.")
+        # Only an institution administrator may change a username.
+        if not is_institution_admin(actor):
+            raise ValidationError("Only an institution administrator can change usernames.")
+        new_username = validate_username(explicit_username, exclude_user=current)
+        reserve_username(new_username)
+        if new_username != current.username:
+            reserve_username(current.username)
+            user.username = new_username
+            username_changed = True
+            update_fields.append("username")
+
     user.first_name = str(first_name or "").strip()[:150]
     user.last_name = str(last_name or "").strip()[:150]
     user.email = email
     user.phone = str(phone or "").strip()[:30]
-    user.save(update_fields=["first_name", "last_name", "email", "phone"])
-    log_action(actor, "user.updated", instance=user, before=before, request=request,
-               after={"first_name": user.first_name, "last_name": user.last_name,
-                      "email": user.email, "phone": user.phone})
+    user.save(update_fields=list(dict.fromkeys(update_fields)))
+    log_action(
+        actor,
+        "user.updated",
+        instance=user,
+        before=before,
+        request=request,
+        after={
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "phone": user.phone,
+            "username": user.username,
+        },
+    )
+    if username_changed:
+        send_username_changed_notice(user, before["username"], user.username)
     return user
 
 
@@ -634,6 +718,14 @@ def change_user_role(user, role, actor=None, request=None):
     will_be_admin = role.code == "institution_admin"
     if was_admin and not will_be_admin:
         ensure_not_last_administrator(user)
+    will_be_staff_or_admin = legacy_role_for(role) != User.Role.STUDENT and getattr(role, "code", "") != "parent"
+    if will_be_staff_or_admin and getattr(user, "email", ""):
+        validate_user_email(
+            user.email,
+            institution=user.institution,
+            exclude_user=user,
+            staff_or_admin=True,
+        )
     before = {"role": getattr(user.primary_role, "code", "") or user.role}
     user.primary_role = role
     user.role = legacy_role_for(role)

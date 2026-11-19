@@ -26,6 +26,7 @@
       </fieldset>
     {% else %}
       {{ field.as_field_group }}
+      {% if field.name == "username" %}<span class="username-status" data-username-status aria-live="polite"></span>{% endif %}
     {% endif %}
   {% endfor %}
   <div class="row">

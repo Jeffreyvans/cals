@@ -82,12 +82,12 @@
 
     <aside class="panel" id="signin" aria-labelledby="signin-title">
       <h2 id="signin-title">Sign in</h2>
-      <p class="sub">Use the username and password you were given. Only accounts belonging to {{ institution.name }} can sign in here.</p>
+      <p class="sub">Use your email address or username and your password. Only accounts belonging to {{ institution.name }} can sign in here.</p>
       <form method="post" action="{% url 'institution_login' institution.slug %}" class="form-stack">
         {% csrf_token %}
         <div class="field">
-          <label for="id_username">Username</label>
-          <input id="id_username" name="username" type="text" autocomplete="username" required placeholder="e.g. admin">
+          <label for="id_username">Email or username</label>
+          <input id="id_username" name="username" type="text" autocomplete="username" required placeholder="Email or username">
         </div>
         <div class="field">
           <label for="id_password">Password</label>

@@ -250,20 +250,40 @@ def import_credentials(request, pk):
     batch = _batch(request, pk=pk)
     _may_import(request, batch.kind)
     credentials = batch.credentials or []
+    from django.urls import reverse
+
+    from core.notifications import absolute_url
+
+    institution = batch.institution
+    login_link = (
+        absolute_url(reverse("institution_login", args=[institution.slug]))
+        if getattr(institution, "slug", "")
+        else absolute_url(reverse("login"))
+    )
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = (
         f'attachment; filename="import-credentials-{batch.pk}.csv"')
     response.write("\ufeff")
     writer = csv.writer(response)
-    writer.writerow(["Name", "Username", "Email", "Access", "One-time password", "Student number"])
+    writer.writerow([
+        "Name", "Username", "Email", "Access", "One-time password",
+        "Student number", "Sign-in link", "Sign-in instructions",
+    ])
     for row in credentials:
+        username = row.get("username", "")
+        instructions = (
+            f"Sign in at {login_link} with your username {username} or your email address."
+            if username else f"Sign in at {login_link}."
+        )
         writer.writerow([
             row.get("name", ""),
-            row.get("username", ""),
+            username,
             row.get("email", ""),
             row.get("access_mode", ""),
             row.get("password", ""),
             row.get("student_no", ""),
+            login_link,
+            instructions,
         ])
     batch.credentials = []
     batch.credentials_downloaded = True

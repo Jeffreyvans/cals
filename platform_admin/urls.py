@@ -39,6 +39,8 @@ urlpatterns = [
          name="onboarding_admin_create"),
     path("platform/institutions/<int:pk>/admins/<int:user_pk>/credentials/",
          views.onboarding_credential, name="onboarding_credential"),
+    path("platform/institutions/<int:pk>/admins/<int:user_pk>/username/",
+         views.onboarding_admin_username, name="onboarding_admin_username"),
     path("platform/institutions/<int:pk>/login-qr/", views.institution_login_qr,
          name="institution_login_qr"),
     path("platform/institutions/<int:pk>/signup-link/", views.institution_signup_link,

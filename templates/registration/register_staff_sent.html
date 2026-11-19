@@ -8,6 +8,16 @@
   </div>
   <div class="panel">
     <h2>While you wait</h2>
+    {% if username %}
+      <p><strong>Sign-in instructions:</strong>
+        {% if institution_slug %}
+          Sign in at <a href="{% url 'institution_login' institution_slug %}">{% url 'institution_login' institution_slug %}</a>
+        {% else %}
+          Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a>
+        {% endif %}
+        with your username <strong>{{ username }}</strong> or your email address.
+      </p>
+    {% endif %}
     <p class="sub">You cannot sign in until an administrator approves the request. If your institution needs more information, they will use the email or phone number you gave.</p>
     <p style="margin-top: 1.2rem;">
       <a class="btn btn-ghost" href="{% url 'login' %}">Back to sign in</a>

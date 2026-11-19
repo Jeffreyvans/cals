@@ -28,7 +28,13 @@ from core.email_types import (
 )
 from core.models import Institution, InstitutionModule
 from core.modules import ALL_MODULES
-from core.notifications import notify, queue_message, render_email_html, send_message
+from core.notifications import (
+    absolute_url,
+    notify,
+    queue_message,
+    render_email_html,
+    send_message,
+)
 from core.roles import ensure_roles
 from core.tenancy import use_institution
 from core.tenant_defaults import DEFAULT_MODULES
@@ -617,15 +623,10 @@ def _unique_slug(name):
     return unique_slug(name)
 
 
-def _unique_username(email, first_name):
-    seed = (email.split("@")[0] if email else first_name) or "admin"
-    seed = "".join(ch for ch in seed.lower() if ch.isalnum() or ch in "._-")[:40] or "admin"
-    candidate = seed
-    counter = 1
-    while User.objects.filter(username__iexact=candidate).exists():
-        counter += 1
-        candidate = f"{seed[:35]}{counter}"
-    return candidate
+def _unique_username(email, full_name=""):
+    from accounts.usernames import generate_username_for_email
+
+    return generate_username_for_email(email, full_name)
 
 
 def _split_name(full_name):
@@ -742,12 +743,23 @@ def approve_application(application, actor, plan=None, request=None):
             )
 
             first_name, last_name = _split_name(locked.contact_person)
+            from accounts.user_admin import create_invitation, validate_user_email
+            from accounts.usernames import generate_unique_username, normalize_email
+
+            admin_email = validate_user_email(
+                normalize_email(locked.email),
+                institution=institution,
+                staff_or_admin=True,
+            )
+            admin_username = generate_unique_username(
+                email=admin_email, base=first_name, fallback="admin"
+            )
             admin_user = User(
-                username=_unique_username(locked.email, first_name),
-                email=locked.email,
+                username=admin_username,
+                email=admin_email,
                 first_name=first_name,
                 last_name=last_name,
-                phone=locked.phone,
+                phone=(locked.phone or "")[:30],
                 role=User.Role.ADMIN,
                 is_staff=True,
                 is_active=True,
@@ -756,8 +768,6 @@ def approve_application(application, actor, plan=None, request=None):
             )
             admin_user.set_unusable_password()
             admin_user.save()
-
-            from accounts.user_admin import create_invitation
 
             create_invitation(admin_user, actor=actor, request=request)
 
@@ -793,6 +803,11 @@ def approve_application(application, actor, plan=None, request=None):
         # Imported here because onboarding.py already imports this module.
         from .onboarding import SUPPORT_EMAIL, SUPPORT_PHONE
 
+        login_link = (
+            absolute_url(reverse("institution_login", args=[institution.slug]))
+            if getattr(institution, "slug", "")
+            else absolute_url(reverse("login"))
+        )
         _application_email(
             locked,
             f"Welcome to EduSphere ({locked.reference})",
@@ -800,8 +815,10 @@ def approve_application(application, actor, plan=None, request=None):
             (
                 f"Hello {locked.contact_person},\n\n"
                 f"Your application for {locked.institution_name} has been approved.\n\n"
-                "Check your inbox for the invitation to choose the administrator "
-                "password, then follow the setup steps in the welcome email.\n\n"
+                f"Sign in at {login_link} with your username {admin_user.username} or your email address.\n"
+                "Check your inbox for the invitation to choose your password, then "
+                "follow the setup steps in the welcome email. No password is included "
+                "in this message.\n\n"
                 f"Reference: {locked.reference}\n"
                 f"Need help? Call/WhatsApp {SUPPORT_PHONE} or email {SUPPORT_EMAIL}.\n"
             ),
@@ -811,6 +828,14 @@ def approve_application(application, actor, plan=None, request=None):
                 "plan": chosen_plan,
                 "support_phone": SUPPORT_PHONE,
                 "support_email": SUPPORT_EMAIL,
+                "login_url": login_link,
+                "invitation_link": "",
+                "getting_started": [
+                    "Upload your logo.",
+                    "Set the academic year and term.",
+                    "Add your staff and students.",
+                    "Create sign-up links for them.",
+                ],
             },
             email_type=INSTITUTION_APPLICATION_APPROVED,
         )

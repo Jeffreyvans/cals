@@ -6,12 +6,22 @@
     <p class="msg success">Your place is confirmed and your student account is ready.</p>
     <table class="tbl">
       <tr><th>Student number</th><td>{{ student.student_no }}</td></tr>
-      <tr><th>Username</th><td>{{ student.temporary_username }}</td></tr>
-      <tr><th>Temporary password</th><td><b>{{ student.temporary_password }}</b></td></tr>
+      <tr><th>Username</th><td>{{ student.temporary_username|default:student.user.username }}</td></tr>
+      {% if student.temporary_password %}<tr><th>Temporary password</th><td><b>{{ student.temporary_password }}</b></td></tr>{% endif %}
       <tr><th>Programme</th><td>{{ student.programme.name }}</td></tr>
     </table>
-    <p><a class="btn" href="{% url 'login' %}">Sign in</a></p>
-    <p class="muted">Change the temporary password after signing in. The same details were emailed to {{ application.email }}.</p>
+    <p><strong>Sign-in instructions:</strong>
+      {% if student.temporary_login_link %}
+        Sign in at <a href="{{ student.temporary_login_link }}">{{ student.temporary_login_link }}</a>
+      {% elif application.institution.slug %}
+        Sign in at <a href="{% url 'institution_login' application.institution.slug %}">{% url 'institution_login' application.institution.slug %}</a>
+      {% else %}
+        Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a>
+      {% endif %}
+      with your username <strong>{{ student.temporary_username|default:student.user.username }}</strong> or your email address.
+    </p>
+    <p><a class="btn" href="{% if application.institution.slug %}{% url 'institution_login' application.institution.slug %}{% else %}{% url 'login' %}{% endif %}">Sign in</a></p>
+    <p class="muted">{% if student.temporary_password %}Change the temporary password after signing in. {% endif %}Sign-in instructions were emailed to {{ application.email }}. No password was emailed.</p>
   </div>
   {% else %}
   <div class="card">

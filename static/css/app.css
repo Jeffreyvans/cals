@@ -2223,3 +2223,11 @@ label.check input,
   background: #991b1b;
   border-color: #991b1b;
 }
+
+.username-status {
+  display: block;
+  min-height: 1.25rem;
+  font-size: 0.875rem;
+}
+.username-status.ok { color: var(--ok, #16794c); }
+.username-status.error { color: var(--bad, #b91c1c); }

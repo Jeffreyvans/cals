@@ -11,13 +11,13 @@ from django.urls import reverse
 from django.utils.html import escape
 
 from academics.models import Programme, Student
-from accounts.models import StaffRegistrationRequest
+from accounts.models import ReservedUsername, StaffRegistrationRequest
 from accounts.registration import (
     STAFF_GENERIC_PENDING,
     STUDENT_GENERIC_ERROR,
     register_staff,
 )
-from core.models import Institution
+from core.models import Institution, OutboundMessage
 from core.tenancy import use_institution
 
 User = get_user_model()
@@ -142,7 +142,7 @@ class LandingPageTests(RegistrationBase):
             {"username": "admin", "password": "wrong"},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Wrong username or password. Try again.")
+        self.assertContains(response, "Wrong email, username or password. Try again.")
 
     def test_contact_form_sends_an_email(self):
         response = self.client.post(
@@ -452,3 +452,75 @@ class InstitutionRegistrationSettingsTests(RegistrationBase):
         self.assertEqual(
             self.institution.staff_positions, ["teacher", "librarian"]
         )
+
+
+class UsernameApprovalTests(RegistrationBase):
+    """The optional username field on registration-request approval."""
+
+    def pending_request(self):
+        self.client.post(reverse("register_staff"), self.staff_payload())
+        return StaffRegistrationRequest.objects.get(email="farai@example.test")
+
+    def approve(self, reg_request, **overrides):
+        self.client.force_login(self.admin)
+        data = {"action": "approve", "position": "teacher", "department": ""}
+        data.update(overrides)
+        return self.client.post(
+            reverse("registration_request_detail", args=[reg_request.pk]), data
+        )
+
+    def test_approval_form_has_optional_username_with_live_check(self):
+        reg_request = self.pending_request()
+        self.client.force_login(self.admin)
+        page = self.client.get(
+            reverse("registration_request_detail", args=[reg_request.pk])
+        )
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'name="username"')
+        self.assertContains(page, "data-username-check-url")
+        self.assertContains(
+            page, "Leave blank and we will create one from the email address."
+        )
+
+    def test_blank_username_keeps_the_registration_username(self):
+        reg_request = self.pending_request()
+        response = self.approve(reg_request, username="")
+        self.assertEqual(response.status_code, 302)
+        user = reg_request.user
+        user.refresh_from_db()
+        self.assertEqual(user.username, "farai")
+        self.assertTrue(self.client.login(username="farai", password=STRONG))
+
+    def test_explicit_unchanged_username_is_accepted(self):
+        reg_request = self.pending_request()
+        response = self.approve(reg_request, username="FARAI")
+        self.assertEqual(response.status_code, 302)
+        user = reg_request.user
+        user.refresh_from_db()
+        self.assertEqual(user.username, "farai")
+
+    def test_provided_username_is_lowercased_and_old_name_reserved(self):
+        reg_request = self.pending_request()
+        response = self.approve(reg_request, username="FARAI.NEW_2026")
+        self.assertEqual(response.status_code, 302)
+        user = reg_request.user
+        user.refresh_from_db()
+        self.assertEqual(user.username, "farai.new_2026")
+        self.assertTrue(ReservedUsername.objects.filter(username="farai").exists())
+        decision = OutboundMessage.objects.get(
+            recipient=reg_request.email, subject__icontains="approved"
+        )
+        self.assertIn(
+            "with your username farai.new_2026 or your email address", decision.body
+        )
+
+    def test_invalid_username_is_a_field_error(self):
+        reg_request = self.pending_request()
+        response = self.approve(reg_request, username="ADMIN")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["approval_form"].errors["username"])
+        self.assertIn(
+            "reserved", " ".join(response.context["approval_form"].errors["username"])
+        )
+        reg_request.refresh_from_db()
+        self.assertEqual(reg_request.status, StaffRegistrationRequest.Status.PENDING)

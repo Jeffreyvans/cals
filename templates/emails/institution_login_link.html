@@ -2,8 +2,10 @@
 {% block title %}Sign in to {{ institution.name }}{% endblock %}
 {% block preheader %}Your branded EduSphere sign-in link.{% endblock %}
 {% block content %}
-<p style="margin:0 0 18px;">Hello,</p>
-<p style="margin:0 0 18px;">Here is the permanent sign-in link for <strong>{{ institution.name }}</strong>:</p>
+<p style="margin:0 0 18px;">Hello{% if admin %} {{ admin.get_full_name|default:admin.username }}{% endif %},</p>
+<p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e;">
+  Sign in at <a href="{{ login_url }}" style="color:#5d4037;">{{ login_url }}</a> with your username{% if admin %} <strong style="color:#2b1a12;">{{ admin.username }}</strong>{% endif %} or your email address.
+</p>
 <p style="margin:0 0 18px;"><a href="{{ login_url }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">Sign in to {{ institution.name }}</a></p>
 <p style="margin:0 0 18px; color:#6f4a36; font-size:14px;">If the button does not work, copy this address into your browser:<br>
   <span style="color:#4e342e; word-break:break-all;">{{ login_url }}</span></p>

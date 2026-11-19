@@ -1,0 +1,16 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Edit username &middot; {{ admin_user.username }}{% endblock %}
+{% block platform_heading %}Edit username &middot; {{ institution.name }}{% endblock %}
+{% block platform_content %}
+<p class="muted">Changing this login name does not change the person's password or role. They receive an email with the new username and sign-in instructions.</p>
+<form method="post" class="inline wide">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+  <p><label>{{ form.username.label }} {{ form.username }}</label>
+    {% if form.username.help_text %}<span class="muted">{{ form.username.help_text }}</span>{% endif %}
+    <span class="username-status" data-username-status aria-live="polite"></span>
+    {% for error in form.username.errors %}<span class="error">{{ error }}</span>{% endfor %}</p>
+  <p><button class="btn" type="submit">Save username</button>
+    <a class="btn ghost" href="{% url 'platform_admin:institution_admins' institution.pk %}">Cancel</a></p>
+</form>
+{% endblock %}

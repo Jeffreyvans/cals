@@ -13,6 +13,13 @@ from .models import AccountResetRequest
 from .services import complete_account_reset, reject_account_reset
 
 
+def _login_link_for(user):
+    institution = getattr(user, "institution", None)
+    if institution is not None and getattr(institution, "slug", ""):
+        return reverse("institution_login", args=[institution.slug])
+    return reverse("login")
+
+
 def _guard(request):
     if not is_enabled("ict_helpdesk", request.institution):
         raise Http404("This module is not switched on for your institution.")
@@ -58,6 +65,7 @@ def reset_manage(request, pk):
         {
             "reset": reset,
             "temporary_password": temporary_password,
+            "login_link": _login_link_for(reset.user),
             "list_url": reverse("ict_helpdesk:list", args=["account-resets"]),
             "manage_url": reverse("ict_helpdesk:reset_manage", args=[reset.pk]),
         },

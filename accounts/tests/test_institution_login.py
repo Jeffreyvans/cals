@@ -102,7 +102,7 @@ class InstitutionLoginFormTests(InstitutionLoginBase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn("_auth_user_id", self.client.session)
-        self.assertContains(resp, "Wrong username or password")
+        self.assertContains(resp, "Wrong email, username or password")
 
     def test_a_superuser_can_sign_in_on_any_institution_page(self):
         resp = self.client.post(

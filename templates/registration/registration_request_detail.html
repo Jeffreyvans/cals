@@ -35,21 +35,10 @@
         <input type="hidden" name="action" value="approve">
         <h3>Approve</h3>
         <p class="muted">The account is activated, the role and staff profile are attached, and the person is emailed. You may approve a different position from the one they asked for.</p>
-        <label>Position
-          <select name="position">
-            {% for position in positions %}
-              <option value="{{ position.code }}" {% if position.code == reg_request.position %}selected{% endif %}>{{ position.label }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label>Department (optional)
-          <select name="department">
-            <option value="">No department</option>
-            {% for department in departments %}
-              <option value="{{ department.pk }}" {% if department.pk == reg_request.department_id %}selected{% endif %}>{{ department.name }}</option>
-            {% endfor %}
-          </select>
-        </label>
+        {{ approval_form.position.as_field_group }}
+        {{ approval_form.department.as_field_group }}
+        {{ approval_form.username.as_field_group }}
+        <span class="username-status" data-username-status aria-live="polite"></span>
         <button class="btn">Approve this request</button>
       </form>
 
