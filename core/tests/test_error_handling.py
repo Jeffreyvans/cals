@@ -347,7 +347,7 @@ class IdempotencyTests(TestCase):
         self.assertEqual(token, token2)
         self.assertEqual(previous2["redirect_url"], "https://example.test/pay")
 
-    @patch("finance.views.start_online_payment")
+    @patch("finance.gateways.start_online_payment")
     def test_retried_payment_does_not_start_twice(self, start_payment):
         from finance.factories import InvoiceFactory
 

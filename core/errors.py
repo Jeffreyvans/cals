@@ -29,13 +29,17 @@ from core.error_catalogue import CATEGORY_LABELS, code_for_status, get_spec
 logger = logging.getLogger("edusphere.errors")
 
 _SAFE_HEADER = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-_SUPPORT_PHONE = "+263774573765"
-_SUPPORT_EMAIL = "vanhuvaonejeffrey@gmail.com"
 
 
 def support_contacts():
-    """The two support contacts shown on every error surface."""
-    return {"phone": _SUPPORT_PHONE, "email": _SUPPORT_EMAIL}
+    """The two support contacts shown on every error surface.
+
+    Values come from ``SUPPORT_PHONE`` and ``SUPPORT_EMAIL`` so a pilot can use
+    its own help desk without a code change.
+    """
+    from config.brand import SUPPORT_EMAIL, SUPPORT_PHONE
+
+    return {"phone": SUPPORT_PHONE, "email": SUPPORT_EMAIL}
 
 
 def support_context(request):

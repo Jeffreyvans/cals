@@ -7,6 +7,7 @@ same check for templates and services.
 
 from functools import wraps
 
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import models
 from django.http import Http404
@@ -111,10 +112,9 @@ def permission_required_code(*codes):
 
     def deco(view):
         @wraps(view)
+        @login_required
         def wrapper(request, *args, **kwargs):
-            user = getattr(request, "user", None)
-            if not getattr(user, "is_authenticated", False):
-                return view(request, *args, **kwargs)
+            user = request.user
             if user_has_any_code(user, codes):
                 return view(request, *args, **kwargs)
             from core.audit import log_permission_denied

@@ -69,6 +69,27 @@ class AnonymousAccessTests(BaseAccountsData):
                 self.assertIn(reverse("login"), resp["Location"])
 
 
+class AnonymousFinanceAccessTests(BaseAccountsData):
+    """A permission code is never a substitute for being signed in."""
+
+    def test_permission_decorated_finance_pages_require_login(self):
+        urls = [
+            reverse("collection_targets"),
+            reverse("report_debtors"),
+            reverse("export_debtors"),
+            reverse("accounts"),
+            reverse("journal_list"),
+            reverse("financial_years"),
+            reverse("vat_summary"),
+            reverse("fee_structures"),
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 302)
+                self.assertIn(reverse("login"), response["Location"])
+
+
 class StudentPermissionTests(BaseAccountsData):
     """A student must never see another student's data."""
 

@@ -6,16 +6,21 @@ standard library, so no extra dependency is needed.
 """
 
 import hashlib
+import hmac
 import json
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
+from django.db import transaction as db_transaction
 from django.utils import timezone
 
-from .models import GatewayTransaction
+from core.tenancy import use_institution
+
+from .models import GatewayTransaction, Invoice
 from .services import receive_payment
 
 
@@ -129,44 +134,64 @@ class PaynowGateway(PaymentGateway):
             except ValueError:
                 return False
         values = [str(value) for key, value in payload.items() if key != "hash"]
-        return self._hash(values) == str(signature or payload.get("hash", "")).upper()
+        expected = self._hash(values)
+        # Constant-time comparison: a webhook signature is a shared secret.
+        return hmac.compare_digest(expected, str(signature or payload.get("hash", "")).upper())
 
     def handle_webhook(self, payload, signature=""):
         if not self.verify_signature(payload, signature):
             raise GatewayError("The webhook signature is not valid.")
         reference = payload.get("reference") or payload.get("referenceid")
-        transaction = GatewayTransaction.objects.filter(reference=reference).first()
-        if transaction is None:
-            raise GatewayError("No transaction matches this reference.")
-        if transaction.status == GatewayTransaction.Status.PAID:
-            return transaction
-        status = (payload.get("status") or "").lower()
-        if status in ("paid", "awaiting delivery", "delivered"):
-            self._complete(transaction, payload)
-        elif status in ("cancelled", "failed", "error"):
-            transaction.status = (GatewayTransaction.Status.CANCELLED
-                                  if status == "cancelled"
-                                  else GatewayTransaction.Status.FAILED)
-            transaction.save(update_fields=["status", "updated"])
-        return transaction
+        # A webhook is unauthenticated as a Django user, so it is scoped to the
+        # default tenant. References are global, and are unique, so look up the
+        # transaction across tenants and lock it while deciding the outcome.
+        with db_transaction.atomic():
+            row = GatewayTransaction.all_objects.select_for_update().filter(
+                reference=reference).first()
+            if row is None:
+                raise GatewayError("No transaction matches this reference.")
+            if row.status == GatewayTransaction.Status.PAID:
+                return row
+            status = (payload.get("status") or "").lower()
+            if status in ("paid", "awaiting delivery", "delivered"):
+                return self._complete(row, payload)
+            if status in ("cancelled", "failed", "error"):
+                row.status = (GatewayTransaction.Status.CANCELLED
+                              if status == "cancelled"
+                              else GatewayTransaction.Status.FAILED)
+                row.save(update_fields=["status", "updated"])
+            return row
 
     def _complete(self, transaction, payload):
-        if transaction.status == GatewayTransaction.Status.PAID:
-            return transaction
-        if transaction.invoice_id:
-            payment, _credit = receive_payment(
-                transaction.invoice.student, transaction.invoice,
-                Decimal(transaction.amount), method="mobile",
-                reference=transaction.reference,
-                payer_name="Online payment",
-                received_by=None,
-                currency=transaction.currency,
-                exchange_rate=Decimal("1"))
-            transaction.payment = payment
-        transaction.status = GatewayTransaction.Status.PAID
-        transaction.payload = payload
-        transaction.save(update_fields=["status", "payload", "payment", "updated"])
-        return transaction
+        """Post a payment exactly once, even under concurrent webhooks/polls."""
+        with db_transaction.atomic():
+            row = GatewayTransaction.all_objects.select_for_update().get(
+                pk=transaction.pk)
+            if row.status == GatewayTransaction.Status.PAID:
+                return row
+            if row.invoice_id:
+                invoice = Invoice.all_objects.select_for_update().get(pk=row.invoice_id)
+                if (invoice.currency and row.currency
+                        and invoice.currency != row.currency):
+                    raise GatewayError("The payment currency does not match the invoice.")
+                if invoice.balance <= 0:
+                    # Never create an unexplained credit from a duplicate or
+                    # late callback for an already-settled invoice.
+                    raise GatewayError("This invoice has already been settled.")
+                with use_institution(invoice.institution):
+                    payment, _credit = receive_payment(
+                        invoice.student, invoice,
+                        Decimal(row.amount), method="mobile",
+                        reference=row.reference,
+                        payer_name="Online payment",
+                        received_by=None,
+                        currency=row.currency,
+                        exchange_rate=Decimal("1"))
+                row.payment = payment
+            row.status = GatewayTransaction.Status.PAID
+            row.payload = payload
+            row.save(update_fields=["status", "payload", "payment", "updated"])
+            return row
 
 
 def get_gateway(code="paynow"):
@@ -184,7 +209,9 @@ def start_online_payment(invoice, amount, idempotency_key, gateway_code="paynow"
         idempotency_key=idempotency_key,
         defaults={
             "provider": gateway_code,
-            "reference": f"ON{timezone.now():%y%m%d%H%M%S}{invoice.pk}",
+            # Second-resolution timestamps collide when staff retry quickly;
+            # the random suffix plus a unique DB constraint makes retries safe.
+            "reference": f"ON{timezone.now():%y%m%d%H%M%S}{invoice.pk}{uuid.uuid4().hex[:8].upper()}",
             "amount": amount,
             "currency": invoice.student.institution.currency,
             "invoice": invoice,

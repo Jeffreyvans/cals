@@ -1,0 +1,20 @@
+<section class="section">
+  <div class="wrap narrow">
+    <div class="msg info error-card" data-status-overall="{{ overall }}">
+      <h1>System status</h1>
+      <p class="muted">Checked <time datetime="{{ checked_at|date:'c' }}">{{ checked_at|date:"j M Y H:i:s" }}</time>.</p>
+      <p class="status-overall" data-status-label="{{ overall }}"><strong>Overall: {{ overall_label }}</strong></p>
+      <table class="tbl">
+        <tr><th>Component</th><th>Status</th><th>Detail</th></tr>
+        {% for component in components %}
+        <tr data-component="{{ component.name|slugify }}">
+          <td>{{ component.name }}</td>
+          <td><span class="status-pill status-{{ component.status }}">{{ component.label }}</span></td>
+          <td>{{ component.note }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      <p class="muted">This page reflects the platform's own checks. An independent uptime monitor is still required so status is known when the platform itself is unreachable.</p>
+    </div>
+  </div>
+</section>

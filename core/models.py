@@ -1007,6 +1007,12 @@ class SensitiveViewLog(TenantModel):
 
     class Meta:
         ordering = ["-created", "-pk"]
+        indexes = [
+            models.Index(fields=["institution", "-created"],
+                         name="sensitive_inst_created_idx"),
+            models.Index(fields=["record_type", "-created"],
+                         name="sensitive_type_created_idx"),
+        ]
 
     def __str__(self):
         return f"{self.created:%Y-%m-%d %H:%M} viewed {self.record_type}"

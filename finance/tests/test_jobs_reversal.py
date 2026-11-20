@@ -62,12 +62,14 @@ class FinanceJobTests(TestCase):
             description__startswith="Late penalty").exists())
         self.assertEqual(Notification.objects.filter(
             user=self.student_user, category="finance").count(), 1)
-        messages = OutboundMessage.objects.all()
-        self.assertEqual(messages.count(), 2)
-        self.assertEqual({m.channel for m in messages},
-                         {"email", "sms"})
-        self.assertTrue(all(m.status == OutboundMessage.Status.SENT
-                            for m in messages))
+        messages = {m.channel: m for m in OutboundMessage.objects.all()}
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(set(messages), {"email", "sms"})
+        # Email is delivered through the configured provider. SMS is an honest
+        # stub in this deployment, so it is recorded as failed rather than
+        # pretending a guardian received a message.
+        self.assertEqual(messages["email"].status, OutboundMessage.Status.SENT)
+        self.assertEqual(messages["sms"].status, OutboundMessage.Status.FAILED)
 
     def test_second_run_on_the_same_day_does_not_duplicate(self):
         self.run_job()

@@ -57,6 +57,40 @@ def billing_contact(request):
     return render(request, "errors/billing_contact.html")
 
 
+def system_status(request):
+    """Public, read-only system status. Never exposes tenant data or secrets."""
+    from core.status import system_status_snapshot
+
+    response = render(request, "status.html", system_status_snapshot())
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@login_required
+def help_center(request):
+    """Role-aware help. Links are resolved safely so disabled modules cannot break it."""
+    from core.help import GUIDES, guide_for
+
+    key = guide_for(request.user)
+    guide = GUIDES[key]
+    tasks = []
+    for label, url_name in guide["tasks"]:
+        try:
+            url = reverse(url_name)
+        except Exception:
+            continue
+        tasks.append({"label": label, "url": url})
+    return render(
+        request,
+        "help.html",
+        {
+            "guide": guide,
+            "tasks": tasks,
+            "help_key": key,
+        },
+    )
+
+
 def _require(request, code):
     """Stop the request unless the user holds the permission code."""
     if not user_has_code(request.user, code):

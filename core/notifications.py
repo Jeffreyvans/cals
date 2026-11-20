@@ -114,8 +114,9 @@ class StubSmsProvider(BaseProvider):
 
     def send(self, channel, recipient, subject, body, html_body="",
              from_email=None, reply_to=None):
-        logger.info("[sms-stub] to=%s", recipient)
-        return {"ok": True, "detail": "stub provider accepted the message"}
+        logger.warning("[sms-stub] no SMS provider configured; message not delivered to=%s",
+                       recipient)
+        return {"ok": False, "detail": "SMS is not configured in this deployment"}
 
 
 class StubWhatsAppProvider(BaseProvider):
@@ -125,8 +126,11 @@ class StubWhatsAppProvider(BaseProvider):
 
     def send(self, channel, recipient, subject, body, html_body="",
              from_email=None, reply_to=None):
-        logger.info("[whatsapp-stub] to=%s", recipient)
-        return {"ok": True, "detail": "stub provider accepted the message"}
+        logger.warning(
+            "[whatsapp-stub] no WhatsApp provider configured; message not delivered to=%s",
+            recipient,
+        )
+        return {"ok": False, "detail": "WhatsApp is not configured in this deployment"}
 
 
 def _email_backend_name():

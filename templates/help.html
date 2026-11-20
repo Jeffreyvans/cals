@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% load branding %}
+{% block title %}Help for {{ guide.title }} — {% brand_name %}{% endblock %}
+{% block content %}{% include "help_detail.html" %}{% endblock %}
+{% block bare %}{% include "help_detail.html" %}{% endblock %}

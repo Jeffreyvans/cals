@@ -1,0 +1,31 @@
+<section class="section">
+  <div class="wrap narrow">
+    <div class="head">
+      <div>
+        <h1>Help for {{ guide.title }}</h1>
+        <p class="muted">A short guide to the screens you use most.</p>
+      </div>
+    </div>
+    <p>{{ guide.intro }}</p>
+
+    <h2>Common tasks</h2>
+    <table class="tbl">
+      <tr><th>Task</th><th>Where to go</th></tr>
+      {% for task in tasks %}
+      <tr><td>{{ task.label }}</td><td><a href="{{ task.url }}">Open</a></td></tr>
+      {% empty %}
+      <tr><td colspan="2" class="muted">No task links are available for this role yet.</td></tr>
+      {% endfor %}
+    </table>
+
+    <h2>Good to know</h2>
+    <ul>
+      {% for tip in guide.tips %}<li>{{ tip }}</li>{% endfor %}
+    </ul>
+
+    <p class="muted">
+      Need more detail? See the role guides in the operations documentation, or
+      <a href="{% url 'system_status' %}">check system status</a> if a screen is unavailable.
+    </p>
+  </div>
+</section>

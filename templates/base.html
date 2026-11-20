@@ -198,6 +198,9 @@
           {% if user.is_superuser %}<a href="{% url 'setup_wizard' %}"><svg class="ico"><use href="#i-plus"/></svg><span>Set up an institution</span></a>{% endif %}
         {% endif %}
       {% endif %}
+      <p class="nav-label">Support</p>
+      <a href="{% url 'help_center' %}"><svg class="ico"><use href="#i-book"/></svg><span>Help and guides</span></a>
+      <a href="{% url 'system_status' %}"><svg class="ico"><use href="#i-chart"/></svg><span>System status</span></a>
     </nav>
     <div class="who">
       <span class="avatar" aria-hidden="true">{{ user.get_full_name|default:user.username|slice:":1"|upper }}</span>

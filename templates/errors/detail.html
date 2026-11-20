@@ -20,7 +20,8 @@
         <button type="button" class="btn ghost btn-sm" data-copy-reference
                 data-copy-value="{{ error_reference }}">Copy</button></p>
       <p class="error-meta">Time: <time datetime="{{ error_time|date:'c' }}">{{ error_time|date:"j M Y H:i:s" }}</time>
-        &middot; Support: {{ support.phone }} &middot; <a href="mailto:{{ support.email }}">{{ support.email }}</a></p>
+        &middot; Support: {{ support.phone }} &middot; <a href="mailto:{{ support.email }}">{{ support.email }}</a>
+        &middot; <a href="{% url 'system_status' %}">System status</a></p>
       <details class="error-technical">
         <summary>Technical details</summary>
         <dl>

@@ -29,7 +29,6 @@ from accounts.usernames import (
 from accounts.usernames import (
     normalize_identifier,
     reserve_username,
-    username_taken,
 )
 
 MAX_ROWS = 5000
@@ -255,19 +254,31 @@ def read_rows(uploaded_file, filename):
         raise ImportError("Upload a CSV file or an Excel workbook (.xlsx).")
     if not raw:
         raise ImportError("The file is empty.")
-    headers = []
-    for cell in raw[0]:
+    # Keep each header attached to its original column. Dropping duplicate or
+    # blank cells and re-indexing from zero shifts values into the wrong fields
+    # in real-world spreadsheets (for example two "Name" columns).
+    columns = []
+    used = set()
+    for index, cell in enumerate(raw[0]):
         header = str(cell or "").strip()
-        if header and header not in headers:
-            headers.append(header)
-    if not headers:
+        if not header:
+            continue
+        if header in used:
+            suffix = 2
+            while f"{header} ({suffix})" in used:
+                suffix += 1
+            header = f"{header} ({suffix})"
+        used.add(header)
+        columns.append((index, header))
+    if not columns:
         raise ImportError("The first row of the file must hold the column names.")
+    headers = [header for _index, header in columns]
     rows = []
     for raw_row in raw[1:]:
         if not any(str(cell or "").strip() for cell in raw_row):
             continue
         row = {}
-        for index, header in enumerate(headers):
+        for index, header in columns:
             cell = raw_row[index] if index < len(raw_row) else ""
             row[header] = "" if cell is None else str(cell).strip()
         rows.append(row)
@@ -429,6 +440,10 @@ class Context:
         self.users = {}
         self.years = {}
         self.roles = {}
+        self._student_numbers = None
+        self._employee_numbers = None
+        self._usernames = None
+        self._staff_emails = None
         self._loaded = False
 
     def load(self):
@@ -449,6 +464,30 @@ class Context:
         for row in Role.all_objects.filter(institution=self.institution):
             self.roles[row.code.strip().lower()] = row
             self.roles[row.name.strip().lower()] = row
+        from accounts.models import ReservedUsername, User
+        from accounts.usernames import _username_key
+
+        # User.objects is intentionally unfiltered (tenant_objects is the
+        # filtered one), so it is the correct manager for cross-tenant checks.
+        self._usernames = {
+            _username_key(name)
+            for name in User.objects.filter(
+                institution=self.institution
+            ).values_list("username", flat=True)
+        }
+        self._usernames.update(
+            _username_key(name)
+            for name in ReservedUsername.objects.values_list("username", flat=True)
+        )
+        self._staff_emails = {
+            email.strip().lower()
+            for email in User.objects.filter(
+                institution=self.institution, is_active=True
+            )
+            .exclude(role__in=(User.Role.STUDENT, User.Role.PARENT))
+            .values_list("email", flat=True)
+            if email
+        }
         self._loaded = True
 
     def programme(self, name):
@@ -473,8 +512,37 @@ class Context:
         self.load()
         return self.roles.get((name or "").strip().lower())
 
+    def student_numbers(self):
+        from academics.models import Student
+        from core.numbering import number_key
+
+        if self._student_numbers is None:
+            self._student_numbers = {
+                number_key(number)
+                for number in Student.all_objects.filter(
+                    institution=self.institution
+                ).values_list("student_no", flat=True)
+            }
+        return self._student_numbers
+
+    def employee_numbers(self):
+        from core.models import StaffProfile
+        from core.numbering import number_key
+
+        if self._employee_numbers is None:
+            self._employee_numbers = {
+                number_key(number)
+                for number in StaffProfile.all_objects.filter(
+                    institution=self.institution
+                ).values_list("employee_no", flat=True)
+            }
+        return self._employee_numbers
+
     def taken_username(self, username):
-        return username_taken(username)
+        from accounts.usernames import _username_key
+
+        self.load()
+        return bool(username) and _username_key(username) in self._usernames
 
     def taken_email(self, email, exclude_pk=None):
         from accounts.models import User
@@ -489,16 +557,12 @@ class Context:
         return queryset.exists()
 
     def taken_staff_email(self, email, exclude_pk=None):
-        from accounts.models import User
-
         if not email:
             return False
-        queryset = User.objects.filter(
-            institution=self.institution, email__iexact=email, is_active=True
-        ).exclude(role__in=(User.Role.STUDENT, User.Role.PARENT))
-        if exclude_pk is not None:
-            queryset = queryset.exclude(pk=exclude_pk)
-        return queryset.exists()
+        # exclude_pk is not used by the import checkers, but keep the signature
+        # compatible with the other lookup helpers.
+        self.load()
+        return email.strip().lower() in self._staff_emails
 
 
 def validate(kind, rows, mapping, institution):
@@ -572,6 +636,7 @@ def _check_students(values, errors, context, seen_numbers, seen_usernames, seen_
     from academics.models import Student
     from core.numbering import number_key
 
+    existing_numbers = context.student_numbers()
     student_no = str(values.get("student_no", "") or "").strip().upper()
     values["student_no"] = student_no
     if student_no:
@@ -579,9 +644,7 @@ def _check_students(values, errors, context, seen_numbers, seen_usernames, seen_
         if key in seen_numbers:
             errors.append(f"Student number '{student_no}' is used twice in this file.")
         seen_numbers[key] = True
-        existing = Student.all_objects.filter(
-            institution=context.institution).values_list("student_no", flat=True)
-        if any(number_key(number) == key for number in existing):
+        if key in existing_numbers:
             errors.append(f"Student number '{student_no}' is already used by another student.")
 
     email = _check_email(values, errors, context, seen_emails, staff_only=False)
@@ -624,9 +687,9 @@ def _check_students(values, errors, context, seen_numbers, seen_usernames, seen_
 
 
 def _check_staff(values, errors, context, seen_numbers, seen_usernames, seen_emails):
-    from core.models import StaffProfile
     from core.numbering import number_key
 
+    existing_numbers = context.employee_numbers()
     employee_no = str(values.get("employee_no", "") or "").strip().upper()
     values["employee_no"] = employee_no
     if employee_no:
@@ -634,9 +697,7 @@ def _check_staff(values, errors, context, seen_numbers, seen_usernames, seen_ema
         if key in seen_numbers:
             errors.append(f"Employee number '{employee_no}' is used twice in this file.")
         seen_numbers[key] = True
-        existing = StaffProfile.all_objects.filter(
-            institution=context.institution).values_list("employee_no", flat=True)
-        if any(number_key(number) == key for number in existing):
+        if key in existing_numbers:
             errors.append(
                 f"Employee number '{employee_no}' is already used by another staff member.")
 

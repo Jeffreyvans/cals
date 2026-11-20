@@ -23,6 +23,7 @@ urlpatterns = [
     path("learn/<slug:slug>/", public_views.learn_alias, name="learn_alias"),
     path("i/<slug:slug>/", public_views.institution_page, name="institution_public"),
     path("services/", module_directory.module_directory, name="module_directory"),
+    path("help/", views.help_center, name="help_center"),
     path("setup/", wizard_views.setup_wizard, name="setup_wizard"),
     path("setup/done/", wizard_views.setup_done, name="setup_done"),
     path("setup/institution/", institution_setup.institution_setup,

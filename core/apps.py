@@ -10,6 +10,8 @@ class CoreConfig(AppConfig):
         from . import (
             cache_signals,
             checks,  # noqa: F401  (registers the system checks)
+            db_monitor,
         )
 
         cache_signals.connect()
+        db_monitor.connect()

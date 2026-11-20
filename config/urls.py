@@ -11,7 +11,7 @@ from core.error_views import (
     server_error,
 )
 from core.public_views import manifest
-from core.views import billing_contact, offline, service_worker
+from core.views import billing_contact, offline, service_worker, system_status
 from core.webhooks import mailjet_webhook, resend_webhook
 
 from .health import health_check
@@ -23,6 +23,7 @@ handler500 = server_error
 
 urlpatterns = [
     path("health/", health_check, name="health_check"),
+    path("status/", system_status, name="system_status"),
     path("errors/catalogue.js", error_catalogue_js, name="error_catalogue_js"),
     path("sw.js", service_worker, name="service_worker"),
     path("manifest.json", manifest, name="manifest"),

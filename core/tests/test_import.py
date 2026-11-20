@@ -76,6 +76,66 @@ class ReadingFileTests(TestCase):
         rows = importer.read_rows(csv_file(text), "students.csv")
         self.assertEqual(len(rows), 3)
 
+    def test_duplicate_and_blank_headers_keep_their_columns(self):
+        text = "First Name,First Name,,Last Name,Email\nTariro,T.,ignored,Dube,t@example.com\n"
+        rows = importer.read_rows(csv_file(text), "students.csv")
+        self.assertEqual(
+            list(rows[0].keys()),
+            ["First Name", "First Name (2)", "Last Name", "Email"],
+        )
+        self.assertEqual(rows[1]["First Name"], "Tariro")
+        self.assertEqual(rows[1]["First Name (2)"], "T.")
+        self.assertEqual(rows[1]["Last Name"], "Dube")
+        self.assertEqual(rows[1]["Email"], "t@example.com")
+
+    def test_messy_sample_file_is_read_without_shifting_values(self):
+        from pathlib import Path
+
+        sample = Path(__file__).resolve().parents[1] / "samples" / "messy_students.csv"
+        rows = importer.read_rows(io.BytesIO(sample.read_bytes()), sample.name)
+        self.assertEqual(rows[1]["First Name"], "Tariro")
+        self.assertEqual(rows[1]["Last Name"], "Dube")
+        self.assertEqual(rows[1]["Email"], "tariro@example.com")
+        self.assertEqual(rows[2]["Last Name"], "Sibanda")
+
+    def test_an_excel_file_with_a_duplicate_header_does_not_shift_values(self):
+        upload = xlsx_file([
+            ["First Name", "First Name", "Last Name"],
+            ["Tariro", "T.", "Dube"],
+        ])
+        rows = importer.read_rows(upload, "students.xlsx")
+        self.assertEqual(rows[1]["First Name (2)"], "T.")
+        self.assertEqual(rows[1]["Last Name"], "Dube")
+
+
+class ValidationPerformanceTests(TestCase):
+    def test_validation_query_count_does_not_grow_with_row_count(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        institution = Institution.objects.get(slug="default")
+
+        def rows(count):
+            result = []
+            for index in range(count):
+                result.append({
+                    "Student Number": f"V{index:04d}",
+                    "First Name": "Tariro",
+                    "Last Name": "Dube",
+                })
+            return result
+
+        mapping = {
+            "student_no": "Student Number",
+            "first_name": "First Name",
+            "last_name": "Last Name",
+        }
+        with CaptureQueriesContext(connection) as small:
+            importer.validate("students", rows(2), mapping, institution)
+        with CaptureQueriesContext(connection) as large:
+            importer.validate("students", rows(20), mapping, institution)
+        self.assertLessEqual(len(large.captured_queries) - len(small.captured_queries), 5)
+
 
 class MappingTests(TestCase):
     def test_the_columns_are_guessed_from_their_names(self):

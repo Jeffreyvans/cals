@@ -1174,22 +1174,30 @@ def invoice_detail(request, pk):
     )
     form = PlatformPaymentForm(request.POST or None, initial={"invoice": invoice})
     if request.method == "POST" and form.is_valid():
-        payment = form.save(commit=False)
-        payment.invoice = invoice
-        payment.recorded_by = request.user
-        payment.save()
-        if invoice.balance <= Decimal("0") and invoice.status != PlatformInvoice.Status.PAID:
-            invoice.status = PlatformInvoice.Status.PAID
-            invoice.paid_on = payment.paid_at.date()
-            invoice.save(update_fields=["status", "paid_on"])
-        services.log_platform_action(
-            request.user, "payment.recorded", institution=invoice.institution,
-            record_type="PlatformPayment", record_id=payment.pk,
-            after={"invoice": invoice.number, "amount": str(payment.amount)},
-            request=request,
-        )
-        messages.success(request, "Payment recorded.")
-        return redirect("platform_admin:invoice_detail", pk=invoice.pk)
+        amount = form.cleaned_data.get("amount") or Decimal("0")
+        if amount <= Decimal("0") or amount > invoice.balance:
+            form.add_error(
+                "amount",
+                f"Enter an amount above zero and no more than the "
+                f"{invoice.balance} outstanding on this invoice.",
+            )
+        else:
+            payment = form.save(commit=False)
+            payment.invoice = invoice
+            payment.recorded_by = request.user
+            payment.save()
+            if invoice.balance <= Decimal("0") and invoice.status != PlatformInvoice.Status.PAID:
+                invoice.status = PlatformInvoice.Status.PAID
+                invoice.paid_on = payment.paid_at.date()
+                invoice.save(update_fields=["status", "paid_on"])
+            services.log_platform_action(
+                request.user, "payment.recorded", institution=invoice.institution,
+                record_type="PlatformPayment", record_id=payment.pk,
+                after={"invoice": invoice.number, "amount": str(payment.amount)},
+                request=request,
+            )
+            messages.success(request, "Payment recorded.")
+            return redirect("platform_admin:invoice_detail", pk=invoice.pk)
     return render(
         request,
         "platform_admin/invoice_detail.html",

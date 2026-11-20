@@ -466,7 +466,18 @@ def apply_credit(credit, invoice, amount=None, created_by=None):
 
 @transaction.atomic
 def request_refund(payment, amount, reason, requested_by=None):
-    refund = Refund(payment=payment, amount=amount, reason=reason,
+    amount = Decimal(amount)
+    locked = Payment.objects.select_for_update().get(pk=payment.pk)
+    decided = locked.refunds.filter(
+        status__in=[Refund.Status.APPROVED, Refund.Status.PENDING]
+    ).aggregate(total=Sum("amount"))["total"] or ZERO
+    # net_amount only counts approved refunds, so include pending ones here.
+    available = locked.amount - decided
+    if amount <= ZERO or amount > available:
+        raise ValidationError(
+            f"Refund exceeds the payment balance of {available}."
+        )
+    refund = Refund(payment=locked, amount=amount, reason=reason,
                     requested_by=requested_by)
     refund.save()
     return refund
@@ -474,14 +485,27 @@ def request_refund(payment, amount, reason, requested_by=None):
 
 @transaction.atomic
 def approve_refund(refund, approved_by=None):
-    if refund.status != Refund.Status.PENDING:
+    # Lock the payment and re-check at approval time: two pending refunds must
+    # never both post against the same cash receipt.
+    locked_payment = Payment.objects.select_for_update().get(pk=refund.payment_id)
+    decided = locked_payment.refunds.exclude(pk=refund.pk).filter(
+        status=Refund.Status.APPROVED
+    ).aggregate(total=Sum("amount"))["total"] or ZERO
+    if refund.amount <= ZERO or decided + refund.amount > locked_payment.amount:
+        raise ValidationError("Refund exceeds the remaining payment balance.")
+    locked = Refund.objects.select_for_update().get(pk=refund.pk)
+    if locked.status != Refund.Status.PENDING:
         raise ValidationError("This refund has already been decided.")
-    refund.status = Refund.Status.APPROVED
-    refund.approved_by = approved_by
-    refund.approved_at = timezone.now()
-    refund.save(update_fields=["status", "approved_by", "approved_at"])
-    post_refund(refund)
-    return refund
+    updated = Refund.objects.filter(pk=locked.pk, status=Refund.Status.PENDING).update(
+        status=Refund.Status.APPROVED,
+        approved_by_id=getattr(approved_by, "pk", None),
+        approved_at=timezone.now(),
+    )
+    if not updated:
+        raise ValidationError("This refund has already been decided.")
+    locked.refresh_from_db()
+    post_refund(locked)
+    return locked
 
 
 @transaction.atomic

@@ -12,13 +12,14 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 
 from academics.models import Guardian, Student, balances_by_student
 from accounts.decorators import role_required
 from core.access import module_required, permission_required_code, user_has_code
 from core.email_types import FEE_RECEIPT
 
-from . import services
+from . import gateways, services
 from .forms import (
     AccountForm,
     BudgetForm,
@@ -43,7 +44,6 @@ from .forms import (
     TaxRateForm,
     WaiverForm,
 )
-from .gateways import GatewayError, get_gateway, start_online_payment
 from .models import (
     Account,
     BankStatementLine,
@@ -1383,11 +1383,11 @@ def pay_online(request, pk):
         if previous and previous.get("redirect_url"):
             return redirect(previous["redirect_url"])
         try:
-            _transaction, redirect_url = start_online_payment(
+            _transaction, redirect_url = gateways.start_online_payment(
                 invoice, Decimal(str(amount)), key,
                 return_url=request.build_absolute_uri("/finance/paynow/return/"),
                 result_url=request.build_absolute_uri("/finance/paynow/webhook/"))
-        except GatewayError:
+        except gateways.GatewayError:
             from core.errors import add_error_message
 
             add_error_message(request, "EXT-PAY")
@@ -1407,14 +1407,16 @@ def paynow_return(request):
 
     transaction = GatewayTransaction.objects.filter(reference=reference).first()
     if transaction is not None:
-        get_gateway("paynow").poll(transaction)
+        gateways.get_gateway("paynow").poll(transaction)
     messages.success(request, "Thank you. Your payment status is being checked.")
     if getattr(request.user, "role", "") == "parent":
         return redirect("parent_portal")
     return redirect("student_portal")
 
 
+@csrf_exempt
 def paynow_webhook(request):
+    """Provider callback: the Paynow signature is the authentication, not a CSRF token."""
     from django.http import JsonResponse
 
     from core.errors import error_json
@@ -1422,8 +1424,9 @@ def paynow_webhook(request):
     if request.method != "POST":
         return error_json(request, "INPUT-INVALID", 405)
     try:
-        get_gateway("paynow").handle_webhook(request.POST, request.POST.get("hash", ""))
-    except GatewayError:
+        gateways.get_gateway("paynow").handle_webhook(
+            request.POST, request.POST.get("hash", ""))
+    except gateways.GatewayError:
         # Never echo a provider message: it may contain keys or account data.
         return error_json(request, "EXT-PAY", 502)
     return JsonResponse({"status": "ok"})

@@ -24,7 +24,10 @@ from django.core.serializers import serialize
 from core.models import Institution
 from core.tenancy import use_institution
 
-# The models that make up the financial record.
+FORMAT_VERSION = 2
+
+# Explicit on purpose: adding a financial model must be a reviewed decision,
+# and the test suite asserts that this list covers every finance model.
 BACKUP_MODELS = [
     "finance.FeeStructure",
     "finance.FeeItem",
@@ -35,11 +38,27 @@ BACKUP_MODELS = [
     "finance.Payment",
     "finance.Waiver",
     "finance.DebitNote",
+    "finance.MoneyLog",
     "finance.Account",
+    "finance.FinancialYear",
     "finance.JournalEntry",
     "finance.JournalLine",
+    "finance.Sponsor",
+    "finance.Sponsorship",
+    "finance.Discount",
+    "finance.InstalmentPlan",
+    "finance.Instalment",
+    "finance.LatePenaltyRule",
+    "finance.LatePenalty",
+    "finance.StudentCredit",
+    "finance.CreditApplication",
+    "finance.Refund",
+    "finance.Supplier",
     "finance.Expense",
-    "finance.MoneyLog",
+    "finance.Budget",
+    "finance.CollectionTarget",
+    "finance.BankStatementLine",
+    "finance.GatewayTransaction",
     "fiscalisation.FiscalDevice",
     "fiscalisation.FiscalDay",
     "fiscalisation.FiscalSubmission",
@@ -66,14 +85,19 @@ class Command(BaseCommand):
                     f"No institution with slug '{options['institution']}'.")
 
         payload = {
+            "format_version": FORMAT_VERSION,
             "generated": date.today().isoformat(),
             "institutions": {},
         }
         for institution in institutions:
             with use_institution(institution):
-                payload["institutions"][institution.slug] = {
+                rows_by_model = {
                     label: json.loads(serialize("json", _rows(label)))
                     for label in BACKUP_MODELS
+                }
+                payload["institutions"][institution.slug] = {
+                    "counts": {label: len(rows) for label, rows in rows_by_model.items()},
+                    "models": rows_by_model,
                 }
 
         raw = json.dumps(payload).encode("utf-8")
@@ -97,6 +121,11 @@ class Command(BaseCommand):
             suffix = ".json" if plain else ".json.enc"
             path = Path(f"finance-backup-{date.today().isoformat()}{suffix}")
         path.write_bytes(raw)
+        if plain:
+            self.stderr.write(self.style.WARNING(
+                "WARNING: plain backups contain unencrypted financial and "
+                "personal data. Store the file in an access-controlled location "
+                "and delete it when the restore is finished."))
         self.stdout.write(self.style.SUCCESS(
             f"Backup written to {path} ({len(raw)} bytes)."))
 

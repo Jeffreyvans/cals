@@ -67,7 +67,7 @@ class NotificationTests(TestCase):
 
 
 class OutboundMessageTests(TestCase):
-    def test_a_queued_message_is_sent_by_the_pending_worker(self):
+    def test_an_unconfigured_sms_channel_does_not_claim_delivery(self):
         message = queue_message(
             "sms", "+263770000000", "Your receipt is ready.",
             subject="Platform update", institution=self._institution())
@@ -75,8 +75,18 @@ class OutboundMessageTests(TestCase):
         sent = send_pending()
         self.assertEqual(sent, 1)
         message.refresh_from_db()
-        self.assertEqual(message.status, OutboundMessage.Status.SENT)
-        self.assertIsNotNone(message.sent_at)
+        self.assertEqual(message.status, OutboundMessage.Status.FAILED)
+        self.assertIsNone(message.sent_at)
+        self.assertIn("not configured", message.provider_response)
+
+    def test_an_unconfigured_whatsapp_channel_does_not_claim_delivery(self):
+        message = queue_message(
+            "whatsapp", "+263770000000", "Your receipt is ready.",
+            institution=self._institution())
+        send_pending()
+        message.refresh_from_db()
+        self.assertEqual(message.status, OutboundMessage.Status.FAILED)
+        self.assertIn("not configured", message.provider_response)
 
     def _institution(self):
         from core.models import Institution

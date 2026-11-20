@@ -601,6 +601,10 @@ class MoneyLog(TenantModel):
 
     class Meta:
         ordering = ["-created", "-pk"]
+        indexes = [
+            models.Index(fields=["institution", "-created"],
+                         name="money_inst_created_idx"),
+        ]
 
     @property
     def actor_name(self):
@@ -1259,7 +1263,7 @@ class GatewayTransaction(TenantModel):
         CANCELLED = "cancelled", "Cancelled"
 
     provider = models.CharField(max_length=40, default="paynow")
-    reference = models.CharField(max_length=80)
+    reference = models.CharField(max_length=80, unique=True)
     idempotency_key = models.CharField(max_length=120, unique=True)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=10, blank=True)

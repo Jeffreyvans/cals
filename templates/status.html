@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% load branding %}
+{% block title %}System status — {% brand_name %}{% endblock %}
+{% block content %}{% include "status_detail.html" %}{% endblock %}
+{% block bare %}{% include "status_detail.html" %}{% endblock %}

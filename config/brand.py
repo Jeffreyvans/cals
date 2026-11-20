@@ -29,9 +29,9 @@ def _env(name: str, default: str = "") -> str:
 PRODUCT_NAME = _env("BRAND_NAME", "Vanpere")
 COMPANY_NAME = _env("BRAND_COMPANY", f"{PRODUCT_NAME} Digital Solutions")
 TAGLINE = "School management in one place"
-SUPPORT_PHONE = "+263774573765"
-SUPPORT_PHONE_DISPLAY = "+263 774 573 765"
-SUPPORT_EMAIL = "vanhuvaonejeffrey@gmail.com"
+SUPPORT_PHONE = _env("SUPPORT_PHONE", "+263774573765")
+SUPPORT_PHONE_DISPLAY = _env("SUPPORT_PHONE_DISPLAY", "+263 774 573 765")
+SUPPORT_EMAIL = _env("SUPPORT_EMAIL", "vanhuvaonejeffrey@gmail.com")
 # The website comes from SITE_URL (the older EDUSPHERE_* spelling is a fallback
 # environment variable name and stays for existing deployments).
 WEBSITE = _env("SITE_URL", _env("EDUSPHERE_SITE_URL", "http://localhost:8000")).rstrip("/")

@@ -426,6 +426,29 @@ class PlatformBillingTests(PlatformTestBase):
         response = self.client.get(reverse("platform_admin:payments"))
         self.assertContains(response, "490.00")
 
+    def test_billing_rejects_an_overpayment(self):
+        self.login(self.billing)
+        invoice = PlatformInvoice.objects.create(
+            institution=self.inst,
+            number="INV-2026-OVER",
+            amount=Decimal("100.00"),
+            currency="USD",
+            status=PlatformInvoice.Status.SENT,
+        )
+        response = self.client.post(
+            reverse("platform_admin:invoice_detail", args=[invoice.pk]),
+            {
+                "invoice": invoice.pk,
+                "amount": "150.00",
+                "method": PlatformPayment.Method.BANK,
+                "reference": "BANK-OVER",
+                "paid_at": "2026-01-20T10:30",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(invoice.payments.exists())
+        self.assertContains(response, "no more than")
+
     def test_billing_cannot_open_operational_health_pages(self):
         self.login(self.billing)
         for name in ("health", "usage", "errors"):

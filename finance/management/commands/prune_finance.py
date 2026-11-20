@@ -82,8 +82,21 @@ class Command(BaseCommand):
                     else:
                         self.stdout.write(
                             f"{institution.name}: would remove {count} {label}.")
-                if options["confirm"]:
-                    MoneyLog.all_objects.filter(created__lt=before).delete()
+                # Only touch this institution's audit rows. The old code
+                # deleted every institution's rows on the first pass.
+                logs = MoneyLog.all_objects.filter(
+                    institution=institution, created__lt=before)
+                log_count = logs.count()
+                if log_count:
+                    total += log_count
+                    if options["confirm"]:
+                        with transaction.atomic():
+                            logs.delete()
+                        verb = "removed"
+                    else:
+                        verb = "would remove"
+                    self.stdout.write(
+                        f"{institution.name}: {verb} {log_count} audit entries.")
         if not total:
             self.stdout.write("Nothing older than the cutoff was found.")
         elif not options["confirm"]:

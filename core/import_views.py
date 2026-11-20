@@ -101,10 +101,11 @@ def import_start(request):
         if upload is None:
             messages.error(request, "Choose a file to upload.")
             return redirect("import_start")
-        if upload.size > importer.MAX_BYTES:
+        max_bytes = importer.max_bytes()
+        if upload.size > max_bytes:
             messages.error(
                 request,
-                f"That file is too big. The limit is {importer.MAX_BYTES // (1024 * 1024)} MB.")
+                f"That file is too big. The limit is {max_bytes // (1024 * 1024)} MB.")
             return redirect("import_start")
         try:
             rows = importer.read_rows(upload, upload.name)
