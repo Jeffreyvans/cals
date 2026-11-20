@@ -120,8 +120,20 @@ def permission_required_code(*codes):
             from core.audit import log_permission_denied
 
             log_permission_denied(request, codes)
+            from core.roles import DEFAULT_ROLES
+
+            roles = [
+                role["name"]
+                for role in DEFAULT_ROLES
+                if set(codes) & set(role.get("permissions", []))
+            ]
+            if roles:
+                named = " or ".join(roles[:2])
+                hint = f"Ask your school administrator to give you the {named} role."
+            else:
+                hint = "Ask your school administrator for access."
             raise PermissionDenied(
-                "Your role does not allow this action. Ask an administrator for access."
+                "Access problem: you do not have permission (PERM-DENIED). " + hint
             )
 
         return wrapper

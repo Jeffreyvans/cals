@@ -135,15 +135,10 @@ STU-1001,Tariro,Dube,2008-03-04,Female,tariro.dube@example.com,0771234567,DIT,1,
 ,Chipo,Nyoni,2009-07-12,Female,chipo.nyoni@example.com,0772345678,DIT,1,Blue,2026,Mr Nyoni,0774444444,DIT101,Term 1,active,
 ```
 
-<<<<<<< HEAD
-1. **Upload and preview.** Open `/imports/students/new/`, choose the CSV (a
-   real `.xlsx` works too) and upload it. Check the column mapping, then open
-=======
 1. **Download the template and upload.** Open `/imports/students/new/` and
    download the Excel template. Confirm it has a `Students` sheet with a header
    row and example row, and an `Instructions` sheet. Then choose the CSV above
    (a real `.xlsx` works too) and upload it. Check the column mapping, then open
->>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
    the preview. Both rows should be **create**, with `STU-1001` kept and
    `(generated)` shown for Chipo, two enrolment additions each and no errors.
    Use the filters and download the preview report. Re-upload a `.txt` renamed

@@ -62,6 +62,7 @@ urlpatterns = [
     path("platform/health/", views.health, name="health"),
     path("platform/usage/", views.usage, name="usage"),
     path("platform/errors/", views.errors, name="errors"),
+    path("platform/jobs/", views.jobs, name="jobs"),
     path("platform/email-health/", views.email_health, name="email_health"),
     path("platform/email-health/<int:pk>/resend/", views.email_health,
          name="email_resend"),

@@ -2120,3 +2120,26 @@ a:hover {
     color: var(--brown-950);
   }
 }
+
+/* ---- Categorised errors: text + icon, never colour alone ---- */
+.error-banner { position: sticky; top: 0; z-index: 90; display: flex; align-items: center; gap: .6rem; padding: .7rem 1rem; background: var(--band-strong); color: var(--on-band); font-size: .9rem; box-shadow: var(--shadow-sm); }
+.error-banner[hidden] { display: none; }
+.error-banner[data-error-code] { border-left: 5px solid var(--accent); }
+.error-banner-icon { font-size: 1.1rem; }
+.error-banner-text { flex: 1; }
+.error-card { padding: 1.25rem; border: 1px solid var(--line); border-left: 6px solid var(--bad-line); border-radius: var(--radius-sm); }
+.error-card h1 { margin: .4rem 0 .8rem; font-size: 1.5rem; }
+.error-category { display: flex; align-items: center; gap: .5rem; margin: 0; text-transform: uppercase; letter-spacing: .04em; font-size: .8rem; }
+.error-icon { font-size: 1.2rem; }
+.error-code-pill, code[data-error-reference] { display: inline-block; padding: .1rem .45rem; border: 1px solid currentColor; border-radius: var(--radius-xs); font-family: ui-monospace, monospace; font-size: .85em; }
+.error-explanation, .error-action { margin: .5rem 0; }
+.error-steps { margin: .5rem 0 .5rem 1.3rem; }
+.error-steps li { margin: .25rem 0; }
+.error-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+.error-reference, .error-meta { font-size: .9rem; margin: .45rem 0; }
+.error-inline ol { margin: .4rem 0 .4rem 1.3rem; }
+.error-technical { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: .7rem; }
+.error-technical summary { cursor: pointer; font-weight: 600; }
+.error-technical dl { display: grid; grid-template-columns: max-content 1fr; gap: .25rem .8rem; margin: .7rem 0; font-size: .9rem; }
+.error-technical dt { font-weight: 600; }
+.error-technical dd { margin: 0; overflow-wrap: anywhere; }

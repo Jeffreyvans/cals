@@ -3,15 +3,29 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from core.views import offline, service_worker
+from core.error_views import (
+    bad_request,
+    error_catalogue_js,
+    not_found,
+    permission_denied,
+    server_error,
+)
+from core.views import billing_contact, offline, service_worker
 from core.webhooks import mailjet_webhook, resend_webhook
 
 from .health import health_check
 
+handler400 = bad_request
+handler403 = permission_denied
+handler404 = not_found
+handler500 = server_error
+
 urlpatterns = [
     path("health/", health_check, name="health_check"),
+    path("errors/catalogue.js", error_catalogue_js, name="error_catalogue_js"),
     path("sw.js", service_worker, name="service_worker"),
     path("offline/", offline, name="offline"),
+    path("billing/contact/", billing_contact, name="billing_contact"),
     path("webhooks/resend/", resend_webhook, name="resend_webhook"),
     path("webhooks/mailjet/", mailjet_webhook, name="mailjet_webhook"),
     path("admin/", admin.site.urls),

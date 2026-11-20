@@ -603,14 +603,9 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
   compared with a tolerant helper so a legitimate undo is not mistaken for a
   later edit.
 - [x] Fixed bugs found while making the new suite green: `Planner.load()` read
-<<<<<<< HEAD
-  `BulkUploadMatch` rows as dictionaries; user updates used a model class
-  instead of `User.objects` and rolled back; enrolment-only changes were not
-=======
   `BulkUploadMatch` rows as dictionaries; user updates and their undo used a
   model class instead of `User.objects` and rolled back; enrolment-only changes
   were not
->>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
   promoted to `update` because the writer inspected the stale local list;
   duplicate identity rows flagged only the later row; update rows with a blank
   surname were rejected before matching; `undo_log` contained raw dates.
@@ -618,15 +613,6 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
   SQLite lock. The 10-thread numbering test now passes repeatedly instead of
   occasionally exhausting its retries with "database is locked"; PostgreSQL
   still uses its row lock.
-<<<<<<< HEAD
-- [x] Added `core/tests/test_bulk_upload.py` (26 tests): new file, re-upload,
-  blank-cell preservation, all strong match paths, fuzzy review, duplicate and
-  bad rows, missing-object create/reject, enrolment add/remove, year gating,
-  registration rules, tenant isolation, permissions, credentials once,
-  secret-free audit, invitation chunking, undo safeguards and file/view flows.
-  Added a sample CSV and nine manual scenarios to `MANUAL_TESTING.md`.
-- [x] Verification: full suite **1,627 passed**, `ruff check .` clean,
-=======
 - [x] Added `core/tests/test_bulk_upload.py` (29 tests): new file, re-upload,
   blank-cell preservation, all strong match paths, fuzzy review, duplicate and
   bad rows, missing-object create/reject, enrolment add/remove, year gating,
@@ -636,6 +622,74 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
   bounded-query planning check. Added a sample CSV and nine manual scenarios
   to `MANUAL_TESTING.md`.
 - [x] Verification: full suite **1,630 passed**, `ruff check .` clean,
->>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
   `python manage.py makemigrations --check --dry-run` reports "No changes
   detected". `manage.py check` shows only the expected console-email warning.
+
+## Session 36 - Categorised errors, offline handling and safe retries (2026-11-20)
+
+The brief was that every error must say exactly what kind of problem happened,
+on the page, in an inline alert, in JSON and in the logs, without leaking
+secrets or breaking the existing app. The work started from the existing
+notification/email error wording and the service worker shell, then made one
+catalogue the source of truth for every surface.
+
+- [x] Built `core/error_catalogue.py` with 30 immutable `ErrorSpec` entries in
+  six categories. Every entry carries an icon, a title that names the category,
+  a plain-English explanation, an action, numbered steps, who can fix it and a
+  default HTTP status. The same list feeds pages, inline messages, JSON, logs,
+  the browser script and the platform Errors page.
+- [x] Built `core/errors.py` as the single classification/rendering/logging
+  path. `classify_exception()` maps database errors, permission denials,
+  validation/upload errors, provider failures, timeouts, CSRF, 404s and HTTP
+  statuses to a catalogue code. Suspended institutions override a generic
+  denial so the message points at billing. `safe_detail()` reuses the email
+  sanitizer before any extra text is shown or stored.
+- [x] Added `ErrorRecord` (`core/0023_errorrecord.py`) and
+  `ErrorContextMiddleware`. The middleware assigns a request ID, records and
+  logs exceptions and direct 4xx/5xx responses exactly once, and marks only
+  anonymous public GETs with `X-EduSphere-Offline-Public: 1`. The structured log
+  line contains category, code, reference, request ID, view, method, duration
+  and safe user/institution IDs; it never contains request data or a traceback.
+- [x] Wired global 400/403/404/500 handlers and the DRF exception handler.
+  JSON errors carry the same title, steps, category, code, reference, request
+  ID and support contacts as the page. Technical fields appear only when
+  `can_view_error_details()` is true; a normal user never sees exception
+  classes, view names, tokens or SQL.
+- [x] Added the error templates, styles and `core/templatetags/error_ui.py`.
+  Each page shows the icon and text category, code, explanation, numbered
+  steps, Try again, Go back, an `ERR-XXXXXX` reference with Copy, time, support
+  contacts and a collapsed Technical details panel. Added a dedicated
+  `/billing/contact/` page that stays reachable for a suspended school.
+- [x] Added `static/js/error-handling.js` and served the catalogue from
+  `/errors/catalogue.js` as an external script, so the CSP stays intact and
+  browser wording cannot drift. The script handles online/offline, a 5-second
+  slow warning, a 15-second timeout, header/status classification, safe retry
+  with idempotency keys and form restoration that deliberately skips passwords
+  and files.
+- [x] Hardened the service worker: it caches the shared shell plus only
+  explicitly marked public pages, never caches a signed-in HTML response, and
+  falls back to `/offline/` for an uncached navigation while offline.
+- [x] Replaced generic messages in login/lockout, registration, email failure,
+  uploads, permissions, suspension, payments and webhooks. Added idempotency to
+  payment start and public registration; a replayed registration key now reuses
+  the first result. Fixed a template regression found by that test: the replay
+  page eagerly evaluated `student.user.username` when the replay context had no
+  student, so it now uses a safe `if`/`elif` lookup.
+- [x] Upgraded Platform → Errors with filters, a seven-day trend, reference
+  lookup and links to Email health, Jobs and Audit. Added `platform/jobs/` and
+  `errors.view_details` for support/compliance staff. Technical record fields
+  are shown only to permitted staff.
+- [x] Added `core/tests/test_error_handling.py` (27 tests) for all categories,
+  the catalogue shape, classification, page/JSON parity, secret-free output,
+  permission gating, offline caching, suspension, browser script rules and
+  idempotent retries. `docs/ERROR_CODES.md` lists all 30 codes with the exact
+  message, who fixes each one and a manual trigger.
+- [x] Fixed two classification/rendering bugs found while making the suite
+  green: `ValidationError("Enter a number")` was matched as `FILE-REJECTED`
+  because "number" contains "mb" (now a word-boundary match), and the
+  registration replay page crashed on a missing `student` context variable.
+- [x] Verification: full suite **1,657 passed**, `ruff check .` clean,
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected", and `python manage.py check` shows only the expected
+  console-email warning. `docs/ERROR_CODES.md` was checked against the
+  catalogue: all 30 codes and their exact messages are present.

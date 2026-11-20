@@ -101,6 +101,13 @@ def _human_size(limit):
     return f"{limit // 1024} KB"
 
 
+def _readable_size(size):
+    """Show the actual size, for example 4.2 MB, in a rejected upload."""
+    if size >= 1024 * 1024:
+        return f"{size / (1024 * 1024):.1f} MB"
+    return f"{size / 1024:.0f} KB"
+
+
 def safe_stem(name, fallback="file"):
     """A short, filesystem-safe stem; never used as the full stored name."""
     stem = os.path.splitext(os.path.basename(str(name or "")))[0].lower()
@@ -121,10 +128,11 @@ def open_image(upload, *, max_bytes=IMAGE_MAX_BYTES, min_side=IMAGE_MIN_SIDE,
     upload = _as_stream(upload)
     size = _size(upload)
     if size <= 0:
-        raise ValidationError(f"Choose a {label} file first.")
+        raise ValidationError(f"Choose a {label} file first (FILE-REJECTED).")
     if size > max_bytes:
         raise ValidationError(
-            f"The {label} must be {_human_size(max_bytes)} or smaller."
+            f"Input problem: The {label} is {_readable_size(size)}. "
+            f"The limit is {_human_size(max_bytes)} (FILE-REJECTED)."
         )
     _rewind(upload)
     try:
@@ -138,7 +146,7 @@ def open_image(upload, *, max_bytes=IMAGE_MAX_BYTES, min_side=IMAGE_MIN_SIDE,
         if image_format not in allowed:
             raise ValidationError(
                 f"Use a {', '.join(sorted(allowed))} image. "
-                "SVG and other formats are not accepted."
+                "SVG and other formats are not accepted (FILE-REJECTED)."
             )
         if min_side and (width < min_side or height < min_side):
             raise ValidationError(
@@ -149,7 +157,8 @@ def open_image(upload, *, max_bytes=IMAGE_MAX_BYTES, min_side=IMAGE_MIN_SIDE,
         raise
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
         raise ValidationError(
-            f"That file is not a picture. Use a {', '.join(sorted(allowed))} image."
+            f"That file is not a picture. Use a {', '.join(sorted(allowed))} image "
+            "(FILE-REJECTED)."
         ) from None
     return ImageOps.exif_transpose(image).convert("RGBA" if image_format == "PNG" else "RGB")
 
@@ -248,23 +257,25 @@ def validate_document(upload, *, max_bytes=DOCUMENT_MAX_BYTES, label="document")
         return
     size = _size(upload)
     if size <= 0:
-        raise ValidationError(f"Choose a {label} file first.")
+        raise ValidationError(f"Choose a {label} file first (FILE-REJECTED).")
     if size > max_bytes:
         raise ValidationError(
-            f"The {label} must be {_human_size(max_bytes)} or smaller."
+            f"Input problem: The {label} is {_readable_size(size)}. "
+            f"The limit is {_human_size(max_bytes)} (FILE-REJECTED)."
         )
     extension = _extension(getattr(upload, "name", ""))
     if not extension:
         raise ValidationError(
-            f"Give the {label} a file extension, such as .pdf or .docx."
+            f"Give the {label} a file extension, such as .pdf or .docx (FILE-REJECTED)."
         )
     if extension in DANGEROUS_EXTENSIONS:
         raise ValidationError(
-            f".{extension} files are not accepted. Upload a PDF, image or office document."
+            f".{extension} files are not accepted. "
+            "Upload a PDF, image or office document (FILE-REJECTED)."
         )
     if extension not in DOCUMENT_EXTENSIONS:
         raise ValidationError(
-            "Upload a PDF, image, Word, Excel, PowerPoint, CSV or text file."
+            "Upload a PDF, image, Word, Excel, PowerPoint, CSV or text file (FILE-REJECTED)."
         )
 
     _rewind(upload)

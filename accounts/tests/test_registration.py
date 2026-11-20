@@ -142,7 +142,7 @@ class LandingPageTests(RegistrationBase):
             {"username": "admin", "password": "wrong"},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Wrong email, username or password. Try again.")
+        self.assertContains(response, "Wrong email, username or password (AUTH-FAILED)")
 
     def test_contact_form_sends_an_email(self):
         response = self.client.post(

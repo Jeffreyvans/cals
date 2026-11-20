@@ -30,7 +30,10 @@ logger = logging.getLogger(__name__)
 
 # The user-facing wording when delivery fails. A failed email must never break
 # the request that triggered it.
-EMAIL_FAILURE_MESSAGE = "We could not send the email. Try again in a few minutes"
+EMAIL_FAILURE_MESSAGE = (
+    "External service problem: The email service did not respond (EXT-EMAIL). "
+    "Try again in a few minutes."
+)
 
 _SECRET_PATTERNS = (
     (re.compile(r"(?i)bearer\s+[\w.\-]+"), "Bearer [redacted]"),

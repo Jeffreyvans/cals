@@ -1,0 +1,14 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Failed jobs{% endblock %}
+{% block platform_heading %}Failed jobs{% endblock %}
+{% block platform_content %}
+<p class="muted">Recent background jobs that failed. <a href="{% url 'platform_admin:errors' %}">Back to Errors</a></p>
+<table class="tbl">
+  <tr><th>When</th><th>Kind</th><th>Institution</th><th>Status</th><th>Error</th></tr>
+  {% for job in jobs %}
+    <tr><td>{{ job.created|date:"j M Y H:i" }}</td><td>{{ job.kind }}</td><td>{{ job.institution.name }}</td><td>{{ job.status }}</td><td>{{ job.error|truncatechars:160 }}</td></tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No failed jobs.</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

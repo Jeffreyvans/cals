@@ -1415,18 +1415,84 @@ def usage(request):
 
 @platform_required("platform.view_health")
 def errors(request):
-    from core.models import OutboundMessage
+    from collections import Counter
+    from datetime import timedelta
+
+    from core.error_catalogue import CATEGORIES, ERROR_CATALOGUE
+    from core.errors import can_view_error_details
+    from core.models import BackgroundJob, ErrorRecord, OutboundMessage
 
     failed = OutboundMessage.objects.filter(
         status=OutboundMessage.Status.FAILED
     ).order_by("-created")[:100]
     denials = PlatformAuditLog.objects.filter(
         action__in=["platform.access_denied", "permission.denied"]
-    )[:100]
+    ).order_by("-created")[:100]
+    jobs = BackgroundJob.all_objects.filter(status="failed").order_by("-created")[:20]
+
+    reference = (request.GET.get("reference") or "").strip().upper()
+    category = (request.GET.get("category") or "").strip().upper()
+    code = (request.GET.get("code") or "").strip().upper()
+    queryset = ErrorRecord.objects.all()
+    if reference:
+        queryset = queryset.filter(reference__icontains=reference)
+    if category:
+        queryset = queryset.filter(category=category)
+    if code:
+        queryset = queryset.filter(code=code)
+    records = list(queryset.order_by("-created")[:200])
+    lookup = None
+    if reference:
+        lookup = ErrorRecord.objects.filter(reference__iexact=reference).first()
+
+    since = timezone.now().date() - timedelta(days=6)
+    weekly = ErrorRecord.objects.filter(created__date__gte=since)
+    from django.db.models import Count
+
+    category_counts = dict(
+        weekly.values_list("category").annotate(total=Count("pk")).values_list("category", "total")
+    )
+    code_counts = dict(
+        weekly.values_list("code").annotate(total=Count("pk")).values_list("code", "total")
+    )
+    trend = Counter()
+    for day, total in weekly.values_list("created__date").annotate(total=Count("pk")):
+        trend[day.isoformat()] = total
+    days = [(since + timedelta(days=i)).isoformat() for i in range(7)]
+
     return render(
         request,
         "platform_admin/errors.html",
-        {"failed": failed, "denials": denials, "staff": request.platform_staff},
+        {
+            "failed": failed,
+            "denials": denials,
+            "jobs": jobs,
+            "records": records,
+            "lookup": lookup,
+            "reference": reference,
+            "category": category,
+            "code": code,
+            "categories": CATEGORIES,
+            "codes": [spec.code for spec in ERROR_CATALOGUE],
+            "category_counts": category_counts,
+            "code_counts": code_counts,
+            "trend": [{"day": day, "total": trend.get(day, 0)} for day in days],
+            "show_details": can_view_error_details(request.user),
+            "staff": request.platform_staff,
+        },
+    )
+
+
+@platform_required("platform.view_health")
+def jobs(request):
+    """Recent failed background jobs, linked from the Errors page."""
+    from core.models import BackgroundJob
+
+    rows = BackgroundJob.all_objects.filter(status="failed").order_by("-created")[:100]
+    return render(
+        request,
+        "platform_admin/jobs.html",
+        {"jobs": rows, "staff": request.platform_staff},
     )
 
 

@@ -1,4 +1,4 @@
-{% load static %}{% load perms %}{% load branding %}<!doctype html>
+{% load static %}{% load perms %}{% load branding %}{% load error_ui %}<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="{% if INSTITUTION_OBJECT.primary_color %}{{ INSTITUTION_OBJECT.primary_color }}{% else %}#1E3A8A{% endif %}">
 <title>{% block title %}{{ INSTITUTION }}{% endblock %}</title>
@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="{% static 'css/app.css' %}">
 <style>:root{ {% for name, value in BRAND.items %}{{ name }}:{{ value }};{% endfor %}}</style></head>
 <body>
+{% include "errors/banner.html" %}
 <svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0">
   <symbol id="i-logo" viewBox="0 0 24 24"><path d="M2.5 9 12 4.5 21.5 9 12 13.5Z"/><path d="M6 11.2V16c0 1.6 2.7 3 6 3s6-1.4 6-3v-4.8"/><path d="M21.5 9v5"/></symbol>
 </svg>
@@ -214,13 +215,15 @@
       </div>
     </header>
     <div class="page">
-      {% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}
+      {% for m in messages %}{% include "errors/inline.html" with message=m %}{% endfor %}
       {% if user.role == 'registrar' or user.role == 'admin' %}{% if not CURRENT_YEAR %}<div class="msg">No academic year yet. <a href="{% url 'academic_years' %}">Add the current year and term</a> so timetables and results know which period they belong to.</div>{% endif %}{% endif %}
       {% block content %}{% endblock %}
     </div>
   </main>
 </div>
 {% else %}{% block bare %}{% endblock %}{% endif %}
+<script src="{% url 'error_catalogue_js' %}" defer></script>
+<script src="{% static 'js/error-handling.js' %}" defer></script>
 <script src="{% static 'js/app.js' %}"></script>
 <script src="{% static 'js/credentials.js' %}"></script>
 <script src="{% static 'js/username-check.js' %}"></script>

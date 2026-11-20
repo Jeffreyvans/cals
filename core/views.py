@@ -52,6 +52,11 @@ def offline(request):
     return response
 
 
+def billing_contact(request):
+    """Billing contact details, reachable even when an institution is suspended."""
+    return render(request, "errors/billing_contact.html")
+
+
 def _require(request, code):
     """Stop the request unless the user holds the permission code."""
     if not user_has_code(request.user, code):

@@ -141,6 +141,9 @@ MIDDLEWARE = [
     "accounts.middleware.ForcePasswordChangeMiddleware",
     "core.middleware.FirstSignInSetupMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    # Classify, record and log every failure before views run, so failures in
+    # later middleware are captured too.
+    "core.error_middleware.ErrorContextMiddleware",
     "core.middleware.LowDataMiddleware",
     "core.middleware.InstitutionMiddleware",
     "platform_admin.middleware.PlatformDataAccessMiddleware",
@@ -157,6 +160,7 @@ TEMPLATES = [{
         "django.contrib.messages.context_processors.messages",
         "academics.context.institution",
         "platform_admin.context.platform_context",
+        "core.errors.support_context",
     ]},
 }]
 # --- database --------------------------------------------------------------
@@ -397,6 +401,9 @@ LOGGING = {
         "django.security": {
             "handlers": ["console"], "level": "WARNING", "propagate": False,
         },
+        "edusphere.errors": {
+            "handlers": ["console"], "level": "INFO", "propagate": False,
+        },
         "edusphere.slow": {
             "handlers": ["console"], "level": "INFO", "propagate": False,
         },
@@ -565,6 +572,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {"api": "120/min", "api-write": "30/min"},
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "core.errors.api_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {

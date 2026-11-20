@@ -88,6 +88,7 @@ PERMISSIONS = [
     ("reports.view_dashboards", "View role dashboards", "reports"),
     ("reports.view_at_risk", "View at-risk students", "reports"),
     ("messages.send", "Send messages", "messages"),
+    ("errors.view_details", "See technical details on error pages", "admin"),
 ]
 
 PERMISSION_CODES = [code for code, _desc, _cat in PERMISSIONS]

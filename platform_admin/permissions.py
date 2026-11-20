@@ -23,6 +23,7 @@ PLATFORM_PERMISSIONS = [
     ("platform.manage_settings", "Change platform settings and legal pages", "settings"),
     ("platform.send_announcements", "Send platform announcements", "settings"),
     ("platform.view_health", "See platform health, usage and error summaries", "operations"),
+    ("errors.view_details", "See technical details on error pages and error records", "operations"),
     ("platform.manage_backups", "Manage backups", "operations"),
     ("platform.request_access", "Ask an institution for consent to see protected data", "access"),
     ("platform.emergency_access", "Ask for emergency break-glass access", "access"),
@@ -41,6 +42,7 @@ SUPPORT_PERMISSIONS = [
     "platform.manage_applications",
     "platform.view_inbox",
     "platform.view_health",
+    "errors.view_details",
     "platform.request_access",
     "platform.emergency_access",
 ]
@@ -58,6 +60,7 @@ COMPLIANCE_PERMISSIONS = [
     "platform.view_applications",
     "platform.view_inbox",
     "platform.view_audit",
+    "errors.view_details",
     "platform.request_access",
     "platform.emergency_access",
     "platform.approve_emergency",

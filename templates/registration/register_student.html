@@ -25,7 +25,7 @@
         {% else %}
           Sign in at <a href="{% url 'login' %}">{% url 'login' %}</a>
         {% endif %}
-        with your email or username <strong>{{ username|default:student.user.username }}</strong>.
+        with your email or username <strong>{% if username %}{{ username }}{% elif student.user.username %}{{ student.user.username }}{% endif %}</strong>.
       </p>
       {% if verification_sent %}
         <p class="sub" style="margin-top: 1rem;">We sent a link to confirm your email address. You can still sign in while you look for it.</p>
@@ -59,8 +59,9 @@
       {% if not has_institutions and not institution %}
         <div class="alert" role="status" style="margin-top: 1rem;">No institution is open for public registration yet. Contact your registrar to ask when it will open.</div>
       {% else %}
-        <form method="post" class="form-stack" novalidate>
+        <form method="post" class="form-stack" novalidate data-idempotent>
           {% csrf_token %}
+          <input type="hidden" name="idempotency_key" value="{{ idempotency_key|default:'' }}">
           {% include "registration/_field.html" with field=form.institution %}
           {% include "registration/_field.html" with field=form.registration_number %}
           {% include "registration/_field.html" with field=form.surname %}

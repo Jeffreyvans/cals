@@ -1,0 +1,41 @@
+<section class="section error-surface">
+  <div class="wrap narrow">
+    <div class="msg error error-card" role="alert" data-error-code="{{ error_code }}">
+      <p class="error-category"><span class="error-icon" aria-hidden="true">{{ error_icon }}</span>
+        <strong>{{ error_category_label }}</strong> <span class="error-code-pill">{{ error_code }}</span></p>
+      <h1>{{ error_title }}</h1>
+      <p class="error-explanation">{{ error_explanation }}</p>
+      {% if error_detail %}<p class="error-detail">{{ error_detail }}</p>{% endif %}
+      <p class="error-action"><strong>What to do:</strong> {{ error_action }}</p>
+      <ol class="error-steps">
+        {% for step in error_steps %}<li>{{ step }}</li>{% endfor %}
+      </ol>
+      <div class="error-actions">
+        <button type="button" class="btn btn-deep" data-retry data-retry-url="{{ error_retry_url }}"
+                data-request-id="{{ error_request_id }}">Try again</button>
+        <noscript><a class="btn btn-deep" href="{{ error_retry_url }}">Try again</a></noscript>
+        <a class="btn ghost" href="/" data-go-back>Go back</a>
+      </div>
+      <p class="error-reference">Reference: <code data-error-reference>{{ error_reference }}</code>
+        <button type="button" class="btn ghost btn-sm" data-copy-reference
+                data-copy-value="{{ error_reference }}">Copy</button></p>
+      <p class="error-meta">Time: <time datetime="{{ error_time|date:'c' }}">{{ error_time|date:"j M Y H:i:s" }}</time>
+        &middot; Support: {{ support.phone }} &middot; <a href="mailto:{{ support.email }}">{{ support.email }}</a></p>
+      <details class="error-technical">
+        <summary>Technical details</summary>
+        <dl>
+          <dt>Code</dt><dd>{{ error_code }}</dd>
+          <dt>HTTP status</dt><dd>{{ error_status }}</dd>
+          <dt>Request id</dt><dd><code>{{ error_request_id }}</code></dd>
+          <dt>Time</dt><dd>{{ error_time|date:"c" }}</dd>
+          {% if show_error_details %}
+          <dt>Exception class</dt><dd>{{ error_exception_class|default:"—" }}</dd>
+          <dt>View name</dt><dd>{{ error_view_name|default:"—" }}</dd>
+          <dt>Failing service</dt><dd>{{ error_service|default:"—" }}</dd>
+          {% endif %}
+        </dl>
+        <p class="muted">No stack traces, secrets or other people's data are ever shown here.</p>
+      </details>
+    </div>
+  </div>
+</section>

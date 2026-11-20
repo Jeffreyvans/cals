@@ -14,6 +14,8 @@ from django.utils.safestring import mark_safe
 from core.access import permission_required_code
 from core.audit import log_action
 from core.email_types import CONTACT_FORM
+from core.errors import add_error_message
+from core.idempotency import begin, finish, new_key
 from core.models import Department, Institution
 from core.notifications import EMAIL_FAILURE_MESSAGE, send_platform_email
 
@@ -105,7 +107,7 @@ class LoginLockoutMixin:
         return super().form_valid(form)
 
     def form_invalid(self, form):
-        from .user_admin import is_locked, note_failed_login
+        from .user_admin import LOGIN_FAILURE_LIMIT, is_locked, note_failed_login
 
         # Cross-institution email ambiguity is guidance, not a failed password attempt.
         if getattr(form, "ambiguous_identifier", False):
@@ -114,14 +116,37 @@ class LoginLockoutMixin:
         account = self._identifier_target_account(form)
         if account is not None and account.is_active:
             if is_locked(account):
-                messages.error(
+                add_error_message(
                     self.request,
-                    "This account is temporarily locked after too many attempts. "
-                    "Try again in a few minutes or ask an administrator to unlock it.",
+                    "AUTH-LOCKED",
+                    extra=self._unlock_hint(account),
                 )
             else:
                 note_failed_login(account, request=self.request)
+                if is_locked(account):
+                    add_error_message(
+                        self.request, "AUTH-LOCKED", extra=self._unlock_hint(account)
+                    )
+                else:
+                    left = max(1, LOGIN_FAILURE_LIMIT - (account.failed_login_count or 0))
+                    add_error_message(
+                        self.request,
+                        "AUTH-FAILED",
+                        extra=f"{left} attempt{'s' if left != 1 else ''} left.",
+                    )
         return super().form_invalid(form)
+
+    @staticmethod
+    def _unlock_hint(account):
+        remaining = getattr(account, "locked_until", None)
+        if remaining is None:
+            return "Ask your school administrator to unlock it."
+        seconds = max(0, int((remaining - timezone.now()).total_seconds()))
+        minutes = max(1, (seconds + 59) // 60)
+        return (
+            f"It unlocks in about {minutes} minute{'s' if minutes != 1 else ''}. "
+            "Ask your school administrator to unlock it early."
+        )
 
 
 class EduSphereLoginView(LoginLockoutMixin, LoginView):
@@ -267,6 +292,10 @@ def _public_page(request, template, context=None, status=200):
     context.setdefault("contact_email", CONTACT_EMAIL)
     context.setdefault("contact_phone", CONTACT_PHONE)
     context.setdefault("contact_whatsapp", CONTACT_WHATSAPP)
+    context.setdefault(
+        "idempotency_key",
+        (getattr(request, "POST", None) or {}).get("idempotency_key") or new_key(),
+    )
     return render(request, template, context, status=status)
 
 
@@ -312,6 +341,32 @@ def register_student_view(request):
         if form.is_valid():
             data = form.cleaned_data
             institution = data["institution"]
+            idem_token, previous = begin(request, f"registration.student:{institution.pk}")
+            if previous and previous.get("outcome") == "activated":
+                return _public_page(
+                    request,
+                    "registration/register_student.html",
+                    {
+                        "form": StudentRegistrationForm(
+                            initial={"institution": institution.pk}
+                        ),
+                        "activated": True,
+                        "username": request.POST.get("username", ""),
+                        "institution": institution,
+                    },
+                )
+            if previous and previous.get("outcome") == "existing":
+                return _public_page(
+                    request,
+                    "registration/register_student.html",
+                    {
+                        "form": StudentRegistrationForm(
+                            initial={"institution": institution.pk}
+                        ),
+                        "existing_account": True,
+                        "institution": institution,
+                    },
+                )
             result = register_student(
                 institution,
                 data["registration_number"],
@@ -322,7 +377,14 @@ def register_student_view(request):
                 data["password"],
                 request=request,
             )
+            finish(idem_token, {"outcome": result["outcome"]})
             if result["outcome"] == "activated":
+                if not result.get("verification_sent"):
+                    add_error_message(
+                        request,
+                        "EXT-EMAIL",
+                        extra="Your account was created. Use Show one-time link instead.",
+                    )
                 return _public_page(
                     request,
                     "registration/register_student.html",
@@ -408,6 +470,9 @@ def register_staff_view(request):
         form = StaffRegistrationForm(request.POST)
         if form.is_valid():
             data = form.cleaned_data
+            idem_token, previous = begin(request, f"registration.staff:{data['institution'].pk}")
+            if previous and previous.get("done"):
+                return redirect("register_staff_sent")
             try:
                 reg_request = register_staff(
                     data["institution"],
@@ -425,6 +490,7 @@ def register_staff_view(request):
             except ValidationError as exc:
                 form.add_error(None, " ".join(exc.messages))
             else:
+                finish(idem_token, {"done": True})
                 record_form_attempt(
                     request, f"register.staff.{data['institution'].pk}"
                 )

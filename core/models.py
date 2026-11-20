@@ -1003,3 +1003,41 @@ class SensitiveViewLog(TenantModel):
 
     def __str__(self):
         return f"{self.created:%Y-%m-%d %H:%M} viewed {self.record_type}"
+
+
+class ErrorRecord(models.Model):
+    """One classified failure, searchable by reference from the Errors page.
+
+    This is deliberately NOT tenant-scoped: platform staff must be able to find
+    any reference a user quotes. It stores metadata only - never a request
+    body, password, token, stack trace, SQL or another person's data.
+    """
+
+    reference = models.CharField(max_length=12, unique=True, db_index=True)
+    category = models.CharField(max_length=20, db_index=True)
+    code = models.CharField(max_length=20, db_index=True)
+    status = models.PositiveSmallIntegerField(default=500)
+    request_id = models.CharField(max_length=64, blank=True, db_index=True)
+    view_name = models.CharField(max_length=200, blank=True)
+    method = models.CharField(max_length=10, blank=True)
+    path = models.CharField(max_length=500, blank=True)
+    duration = models.FloatField(default=0.0)
+    exception_class = models.CharField(max_length=255, blank=True)
+    service = models.CharField(max_length=60, blank=True)
+    user_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    institution_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    title = models.CharField(max_length=255, blank=True)
+    explanation = models.TextField(blank=True)
+    next_steps = models.JSONField(default=list, blank=True)
+    detail = models.TextField(blank=True)
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+        indexes = [
+            models.Index(fields=["category", "-created"]),
+            models.Index(fields=["code", "-created"]),
+        ]
+
+    def __str__(self):
+        return f"{self.reference} {self.code}"

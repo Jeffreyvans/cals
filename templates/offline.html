@@ -1,13 +1,47 @@
 {% extends "public_base.html" %}
-{% block title %}Offline — EduSphere{% endblock %}
+{% block title %}Network problem: you are offline — EduSphere{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
-<section class="section">
+<section class="section error-surface">
   <div class="wrap narrow">
-    <h1>You are offline</h1>
-    <p>EduSphere could not reach the internet. The page will work again as soon as
-      your connection returns.</p>
-    <p><a class="btn btn-deep" href="/">Try again</a></p>
+    <div class="msg error error-card" role="alert" data-error-code="NET-OFFLINE">
+      <p class="error-category"><span class="error-icon" aria-hidden="true">●</span>
+        <strong>Network problem</strong> <span class="error-code-pill">NET-OFFLINE</span></p>
+      <h1>Network problem: your device looks offline</h1>
+      <p class="error-explanation">This is a network problem, not a problem with your account or our servers.
+        Nothing you were doing was sent to EduSphere.</p>
+      <p class="error-action"><strong>What to do:</strong> Reconnect and try again. Unsaved form answers are
+        kept on this device, except passwords.</p>
+      <ol class="error-steps">
+        <li>Check your internet or mobile data connection.</li>
+        <li>Wait for the connection indicator to return.</li>
+        <li>Use Try again below.</li>
+      </ol>
+      <h2>What still works offline</h2>
+      <ul class="error-steps">
+        <li>This offline help page.</li>
+        <li>The public home page and sign-in page, if you visited them while online.</li>
+        <li>Pages already open in another browser tab.</li>
+      </ul>
+      <p><strong>Not available offline:</strong> signed-in pages, records, payments and registrations.
+        We never store another person's data or a signed-in page in the offline cache.</p>
+      <div class="error-actions">
+        <button type="button" class="btn btn-deep" data-retry data-retry-url="/">Try again</button>
+        <noscript><a class="btn btn-deep" href="/">Try again</a></noscript>
+        <a class="btn ghost" href="/" data-go-back>Go back</a>
+      </div>
+      <p class="error-meta">Support: +263774573765 &middot;
+        <a href="mailto:vanhuvaonejeffrey@gmail.com">vanhuvaonejeffrey@gmail.com</a></p>
+      <details class="error-technical">
+        <summary>Technical details</summary>
+        <dl>
+          <dt>Code</dt><dd>NET-OFFLINE</dd>
+          <dt>HTTP status</dt><dd>503</dd>
+          <dt>Request id</dt><dd><code>offline</code></dd>
+          <dt>Time</dt><dd>Detected in your browser</dd>
+        </dl>
+      </details>
+    </div>
   </div>
 </section>
 {% endblock %}

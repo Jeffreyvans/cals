@@ -1372,22 +1372,33 @@ def _can_pay_invoice(user, invoice):
 @module_required("finance")
 @login_required
 def pay_online(request, pk):
+    from core.idempotency import begin, finish, new_key
+
     invoice = get_object_or_404(Invoice, pk=pk)
     if not _can_pay_invoice(request.user, invoice):
         raise PermissionDenied("You cannot pay this invoice.")
     if request.method == "POST":
         amount = request.POST.get("amount") or invoice.balance
-        key = request.POST.get("idempotency_key") or f"{invoice.pk}-{timezone.now():%s}"
+        key, previous = begin(request, f"payment:{invoice.pk}")
+        if previous and previous.get("redirect_url"):
+            return redirect(previous["redirect_url"])
         try:
             _transaction, redirect_url = start_online_payment(
                 invoice, Decimal(str(amount)), key,
                 return_url=request.build_absolute_uri("/finance/paynow/return/"),
                 result_url=request.build_absolute_uri("/finance/paynow/webhook/"))
-        except GatewayError as exc:
-            messages.error(request, str(exc))
+        except GatewayError:
+            from core.errors import add_error_message
+
+            add_error_message(request, "EXT-PAY")
         else:
+            finish(key, {"redirect_url": redirect_url})
             return redirect(redirect_url)
-    return render(request, "finance/pay_online.html", {"invoice": invoice})
+    key = request.POST.get("idempotency_key") or new_key()
+    return render(
+        request, "finance/pay_online.html",
+        {"invoice": invoice, "idempotency_key": key},
+    )
 
 
 def paynow_return(request):
@@ -1406,10 +1417,13 @@ def paynow_return(request):
 def paynow_webhook(request):
     from django.http import JsonResponse
 
+    from core.errors import error_json
+
     if request.method != "POST":
-        return HttpResponse(status=405)
+        return error_json(request, "INPUT-INVALID", 405)
     try:
         get_gateway("paynow").handle_webhook(request.POST, request.POST.get("hash", ""))
-    except GatewayError as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+    except GatewayError:
+        # Never echo a provider message: it may contain keys or account data.
+        return error_json(request, "EXT-PAY", 502)
     return JsonResponse({"status": "ok"})

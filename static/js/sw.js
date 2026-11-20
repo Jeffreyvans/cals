@@ -4,12 +4,14 @@
  * device so a repeat visit on a metered connection starts instantly. It never
  * caches HTML pages that belong to a signed-in person and never touches a POST.
  */
-const CACHE = "edusphere-shell-v1";
+const CACHE = "edusphere-shell-v2";
 const SHELL = [
   "/static/css/app.css",
   "/static/css/public.css",
   "/static/js/app.js",
   "/static/js/landing.js",
+  "/static/js/error-handling.js",
+  "/errors/catalogue.js",
   "/offline/"
 ];
 
@@ -33,7 +35,16 @@ self.addEventListener("activate", (event) => {
 });
 
 function isStatic(url) {
-  return url.pathname.startsWith("/static/") || url.pathname === "/sw.js";
+  return url.pathname.startsWith("/static/") || url.pathname === "/sw.js" ||
+    url.pathname === "/errors/catalogue.js";
+}
+
+function mayCachePage(response) {
+  /* The server sets this header only for anonymous public pages. */
+  return response.ok &&
+    response.headers.get("X-EduSphere-Offline-Public") === "1" &&
+    !response.headers.has("Set-Cookie") &&
+    !/no-store|private/.test(response.headers.get("Cache-Control") || "");
 }
 
 self.addEventListener("fetch", (event) => {
@@ -58,9 +69,17 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    // Network-first for pages; fall back to the tiny offline page.
+    // Network-first for pages. Only explicitly public anonymous pages may be
+    // stored; signed-in HTML is never cached or replayed.
     event.respondWith(
-      fetch(request).catch(() => caches.match("/offline/"))
+      fetch(request).then((response) => {
+        if (mayCachePage(response)) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      }).catch(() => caches.match(request)
+        .then((hit) => hit || caches.match("/offline/")))
     );
   }
 });

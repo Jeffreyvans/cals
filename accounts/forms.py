@@ -21,7 +21,10 @@ from .usernames import USERNAME_FORMAT_HINT, normalize_identifier, validate_user
 from .validators import add_password_errors
 
 PHONE_RE = re.compile(r"^\+?[0-9][0-9\s().-]{5,19}$")
-IDENTIFIER_INVALID_MESSAGE = "Wrong email, username or password. Try again."
+IDENTIFIER_INVALID_MESSAGE = (
+    "Access problem: Wrong email, username or password (AUTH-FAILED). "
+    "Check your details and try again."
+)
 IDENTIFIER_AMBIGUOUS_MESSAGE = (
     "This email address is used by more than one account. "
     "Enter your username to sign in, or use your institution's sign-in page."

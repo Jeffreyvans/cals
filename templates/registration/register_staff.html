@@ -26,8 +26,9 @@
         <div class="alert" role="status" style="margin-top: 1rem;">No institution is open for public registration yet. Ask your administrator when staff requests will open.</div>
       {% else %}
         {{ position_map|json_script:"position-map" }}
-        <form method="post" class="form-stack" novalidate data-position-form>
+        <form method="post" class="form-stack" novalidate data-position-form data-idempotent>
           {% csrf_token %}
+          <input type="hidden" name="idempotency_key" value="{{ idempotency_key|default:'' }}">
           <div class="form-grid">
             <div class="full">{% include "registration/_field.html" with field=form.institution %}</div>
             {% include "registration/_field.html" with field=form.full_name %}

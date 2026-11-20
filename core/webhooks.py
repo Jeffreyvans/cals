@@ -18,6 +18,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from core.errors import error_json
 from core.models import EmailEvent, EmailSuppression, OutboundMessage
 
 logger = logging.getLogger(__name__)
@@ -88,11 +89,11 @@ def _recipient(data):
 def resend_webhook(request):
     body = request.body
     if not _verify_signature(body, request):
-        return JsonResponse({"detail": "invalid signature"}, status=400)
+        return error_json(request, "CSRF", 400, detail="Invalid webhook signature.")
     try:
         payload = json.loads(body.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
-        return JsonResponse({"detail": "invalid payload"}, status=400)
+        return error_json(request, "INPUT-INVALID", 400, detail="Invalid webhook payload.")
 
     kind = _event_type(payload)
     if not kind:
@@ -206,11 +207,11 @@ def _mailjet_message(data, recipient):
 def mailjet_webhook(request):
     """Record Mailjet delivery events and suppress dead/hostile addresses."""
     if not _verify_mailjet_auth(request):
-        return JsonResponse({"detail": "invalid credentials"}, status=403)
+        return error_json(request, "AUTH-FAILED", 403, detail="Invalid webhook credentials.")
     try:
         payload = json.loads(request.body.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
-        return JsonResponse({"detail": "invalid payload"}, status=400)
+        return error_json(request, "INPUT-INVALID", 400, detail="Invalid webhook payload.")
     events = payload if isinstance(payload, list) else [payload]
 
     recorded = 0

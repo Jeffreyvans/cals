@@ -1,0 +1,17 @@
+{% load error_ui %}
+{% with spec=message|error_spec %}
+{% if spec %}
+<div class="msg error error-inline" role="alert" data-error-code="{{ spec.code }}">
+  <p><span class="error-icon" aria-hidden="true">{{ spec.icon }}</span>
+    <strong>{{ spec.category_label }} ({{ spec.code }}):</strong> {{ message }}</p>
+  <ol class="error-steps">
+    {% for step in spec.steps %}<li>{{ step }}</li>{% endfor %}
+  </ol>
+  <p><a href="{{ request.path }}" data-retry data-retry-url="{{ request.path }}">Try again</a>
+    &middot; <a href="/" data-go-back>Go back</a>
+    &middot; Support: {{ support.phone }} / {{ support.email }}</p>
+</div>
+{% else %}
+<div class="msg {{ message.tags }}">{{ message }}</div>
+{% endif %}
+{% endwith %}

@@ -391,16 +391,31 @@ unchanged.
   with invoices, payments, marks or attendance.
 - [x] Hardened the shared concurrent document-number allocator with a
   process-wide SQLite lock so ten simultaneous allocations stay gap-free.
-<<<<<<< HEAD
-- [x] Added `core/tests/test_bulk_upload.py` (26 tests) covering the full
-  matrix; `MANUAL_TESTING.md` has a ready-to-paste sample file and click-by-click
-  scenarios.
-- [x] Verification: 1,627 tests pass, `ruff check .` is clean and
-=======
 - [x] Added `core/tests/test_bulk_upload.py` (29 tests) covering the full
   matrix, including undo of updates, the Excel template and bounded queries for
   5,000 rows; `MANUAL_TESTING.md` has a ready-to-paste sample file and
   click-by-click scenarios.
 - [x] Verification: 1,630 tests pass, `ruff check .` is clean and
->>>>>>> 886b3ed (Add bulk student upload with preview and safe updates)
   `python manage.py makemigrations --check --dry-run` reports no changes.
+
+## PHASE 14 - Categorised errors, offline handling and safe retries (session 36, 2026-11-20)
+Status: complete.
+
+Every failure now names its category and code on every surface, so users and
+support can tell a connection problem from an account, input, database, server
+or provider problem.
+
+- [x] Added `core/error_catalogue.py`: one shared list of 30 codes in six categories (NETWORK, SERVER, DATABASE, ACCESS, INPUT, EXTERNAL), each with icon, title, explanation, action, numbered steps, who can fix it, default status and optional service.
+- [x] Added `core/errors.py` with `classify_exception()`, `record_error()`, `log_error()`, `render_error()`, `error_json()`, `api_exception_handler()` and `add_error_message()`; every page, inline alert, API error and log line uses the same catalogue entry.
+- [x] Added `ErrorRecord` (migration `core/0023_errorrecord.py`) storing metadata only: category, code, reference, request ID, view, method, path, duration, exception class, service, safe user/institution IDs and the catalogue wording. No body, header, token, password, SQL or stack trace is stored.
+- [x] Added `ErrorContextMiddleware` and global 400/403/404/500 handlers. Every request gets a request ID; exceptions and direct error statuses are classified, recorded and logged once with a structured `edusphere.errors` line, and responses carry `X-Request-ID` and `X-EduSphere-Error-Code`.
+- [x] Error pages, inline messages and `/errors/catalogue.js` show icon + text label, category/code, explanation, numbered steps, Try again, Go back, an `ERR-XXXXXX` reference with Copy, time and support contacts. Technical details are visible only to platform admins or holders of `errors.view_details`; no stack trace is ever shown.
+- [x] Added CSP-safe `static/js/error-handling.js`: online/offline banner, 5-second slow warning, 15-second timeout, request classification, safe retry with idempotency keys, and non-password form data kept in `sessionStorage` until retry succeeds.
+- [x] Hardened `static/js/sw.js`: only explicitly marked anonymous public pages are cached; signed-in HTML is never cached and an uncached offline navigation falls back to `/offline/`.
+- [x] Replaced generic login, lockout, email, upload, permission, suspension, webhook and payment messages with categorised wording. Suspended institutions now get `ORG-SUSPENDED` and a reachable `/billing/contact/` page.
+- [x] Added cache-backed idempotency (`core/idempotency.py`) to online payments and public student/staff registration, so a retry after a timeout cannot charge twice or create a duplicate account. Fixed the replay page so it no longer crashes when the original registration context is reused.
+- [x] Upgraded Platform → Errors with category/code filters, a seven-day trend, reference lookup and links to Email health, Jobs and Audit; added a dedicated Jobs page. Added `errors.view_details` to platform permissions and the support/compliance presets.
+- [x] Added `core/tests/test_error_handling.py` (27 tests) covering all categories, classification mappings, page/JSON/inline parity, secret-free output, permissions, browser behaviour, offline caching, suspension and idempotency. Documented every code and its manual trigger in `docs/ERROR_CODES.md`.
+- [x] Verification: 1,657 tests pass, `ruff check .` is clean,
+  `python manage.py makemigrations --check --dry-run` reports no changes and
+  `python manage.py check` shows only the expected console-email warning.

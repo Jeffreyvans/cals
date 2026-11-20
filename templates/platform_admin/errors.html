@@ -2,6 +2,87 @@
 {% block platform_title %}Errors{% endblock %}
 {% block platform_heading %}Errors and refusals{% endblock %}
 {% block platform_content %}
+<p class="muted">Every failure is classified once, with the same category and code shown to
+  the user, written to the log and stored here. <a href="{% url 'platform_admin:email_health' %}">Email health</a>
+  &middot; <a href="{% url 'platform_admin:jobs' %}">Jobs</a>
+  &middot; <a href="{% url 'platform_admin:audit_log' %}">Audit</a></p>
+
+<h2>Look up a reference</h2>
+<form method="get" class="form-inline" style="display:flex; gap:.6rem; flex-wrap:wrap;">
+  <label for="reference">Reference (ERR-XXXXXX)</label>
+  <input id="reference" name="reference" value="{{ reference }}" placeholder="ERR-A1B2C3" maxlength="12">
+  <button class="btn btn-sm" type="submit">Look up</button>
+  <a class="btn ghost btn-sm" href="{% url 'platform_admin:errors' %}">Clear</a>
+</form>
+{% if reference and not lookup %}
+<div class="msg warning">No error record matches <strong>{{ reference }}</strong>.</div>
+{% endif %}
+{% if lookup %}
+<h3>{{ lookup.reference }} — {{ lookup.category }} / {{ lookup.code }}</h3>
+<table class="tbl">
+  <tr><th>Field</th><th>Value</th></tr>
+  <tr><td>Category and code</td><td>{{ lookup.category }} / {{ lookup.code }}</td></tr>
+  <tr><td>Title</td><td>{{ lookup.title }}</td></tr>
+  <tr><td>Explanation</td><td>{{ lookup.explanation }}</td></tr>
+  <tr><td>Next steps</td><td>{% for step in lookup.next_steps %}{{ forloop.counter }}. {{ step }} {% endfor %}</td></tr>
+  <tr><td>HTTP status</td><td>{{ lookup.status }}</td></tr>
+  <tr><td>Request id</td><td><code>{{ lookup.request_id }}</code></td></tr>
+  <tr><td>Time</td><td>{{ lookup.created|date:"j M Y H:i:s" }}</td></tr>
+  <tr><td>User id / Institution id</td><td>{{ lookup.user_id|default:"—" }} / {{ lookup.institution_id|default:"—" }}</td></tr>
+  <tr><td>Duration</td><td>{{ lookup.duration|floatformat:3 }}s</td></tr>
+  <tr><td>Reference</td><td><code data-error-reference>{{ lookup.reference }}</code>
+    <button type="button" class="btn ghost btn-sm" data-copy-reference data-copy-value="{{ lookup.reference }}">Copy</button></td></tr>
+  {% if show_details %}
+  <tr><td>Exception class</td><td>{{ lookup.exception_class|default:"—" }}</td></tr>
+  <tr><td>View name</td><td>{{ lookup.view_name|default:"—" }}</td></tr>
+  <tr><td>Failing service</td><td>{{ lookup.service|default:"—" }}</td></tr>
+  <tr><td>Path</td><td>{{ lookup.path|default:"—" }}</td></tr>
+  {% endif %}
+</table>
+<p class="muted">Stack traces, request bodies, secrets and other people's data are never stored or shown.</p>
+{% endif %}
+
+<h2>Last seven days</h2>
+<table class="tbl">
+  <tr><th>Day</th><th>Errors</th></tr>
+  {% for point in trend %}<tr><td>{{ point.day }}</td><td>{{ point.total }}</td></tr>{% endfor %}
+</table>
+<p>
+  {% for cat, total in category_counts.items %}<span class="badge">{{ cat }}: {{ total }}</span> {% empty %}
+  <span class="muted">No classified errors this week.</span>{% endfor %}
+</p>
+<p>
+  {% for error_code, total in code_counts.items %}<span class="badge">{{ error_code }}: {{ total }}</span>{% endfor %}
+</p>
+
+<h2>Filter records</h2>
+<form method="get" class="form-inline" style="display:flex; gap:.6rem; flex-wrap:wrap;">
+  <label for="category">Category</label>
+  <select id="category" name="category">
+    <option value="">All categories</option>
+    {% for item in categories %}<option value="{{ item }}" {% if category == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+  </select>
+  <label for="code">Code</label>
+  <select id="code" name="code">
+    <option value="">All codes</option>
+    {% for item in codes %}<option value="{{ item }}" {% if code == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+  </select>
+  <button class="btn btn-sm" type="submit">Filter</button>
+</form>
+<table class="tbl">
+  <tr><th>Reference</th><th>When</th><th>Category</th><th>Code</th><th>Status</th><th>View</th><th>Request id</th></tr>
+  {% for record in records %}
+    <tr>
+      <td><a href="{% url 'platform_admin:errors' %}?reference={{ record.reference }}">{{ record.reference }}</a></td>
+      <td>{{ record.created|date:"j M Y H:i:s" }}</td>
+      <td>{{ record.category }}</td><td>{{ record.code }}</td><td>{{ record.status }}</td>
+      <td>{{ record.view_name|default:"—" }}</td><td><code>{{ record.request_id }}</code></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No error records match these filters.</td></tr>
+  {% endfor %}
+</table>
+
 <h2>Failed outbound messages</h2>
 <table class="tbl">
   <tr><th>When</th><th>Channel</th><th>Institution</th><th>Status</th><th>Detail</th></tr>
@@ -11,6 +92,17 @@
     <tr><td colspan="5" class="muted">No failed messages.</td></tr>
   {% endfor %}
 </table>
+
+<h2>Failed jobs</h2>
+<table class="tbl">
+  <tr><th>When</th><th>Kind</th><th>Institution</th><th>Error</th></tr>
+  {% for job in jobs %}
+    <tr><td>{{ job.created|date:"j M Y H:i" }}</td><td>{{ job.kind }}</td><td>{{ job.institution.name }}</td><td>{{ job.error|truncatechars:120 }}</td></tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">No failed jobs.</td></tr>
+  {% endfor %}
+</table>
+
 <h2>Refused platform access</h2>
 <table class="tbl">
   <tr><th>When</th><th>Who</th><th>Action</th><th>Institution</th><th>Detail</th></tr>
