@@ -1,16 +1,18 @@
-{% load static %}{% load error_ui %}<!doctype html>
+{% load branding %}{% load static %}{% load error_ui %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="{% block description %}EduSphere runs admissions, student records, fees, results, attendance, timetables and parent communication for schools and colleges in one place.{% endblock %}">
+  <meta name="description" content="{% block description %}{% brand_name %} runs admissions, student records, fees, results, attendance, timetables and parent communication for schools and colleges in one place.{% endblock %}">
   <meta name="theme-color" content="#3e2723">
+  <link rel="manifest" href="{% url 'manifest' %}">
+  <link rel="icon" href="{% brand_favicon_url %}" type="image/svg+xml">
   <meta name="robots" content="{% block robots %}index,follow{% endblock %}">
   <link rel="canonical" href="{% block canonical %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}">
-  <title>{% block title %}EduSphere — School management in one place{% endblock %}</title>
+  <title>{% block title %}{% brand_name %} — School management in one place{% endblock %}</title>
   <meta property="og:type" content="{% block og_type %}website{% endblock %}">
-  <meta property="og:site_name" content="EduSphere">
-  <meta property="og:title" content="{% block og_title %}EduSphere — School management in one place{% endblock %}">
+  <meta property="og:site_name" content="{% brand_name %}">
+  <meta property="og:title" content="{% block og_title %}{% brand_name %} — School management in one place{% endblock %}">
   <meta property="og:description" content="{% block og_description %}Admissions, student records, fees, results, attendance, timetables and parent communication in one calm system.{% endblock %}">
   <meta property="og:url" content="{% block og_url %}{{ request.scheme }}://{{ request.get_host }}{{ request.path }}{% endblock %}">
   <meta property="og:image" content="{% block og_image %}{{ request.scheme }}://{{ request.get_host }}{% static 'img/landing/hero-classroom-1040.jpg' %}{% endblock %}">
@@ -62,9 +64,9 @@
 
 <header class="site-head public-head" data-site-head>
   <div class="wrap">
-    <a class="wordmark" href="{% url 'login' %}" aria-label="EduSphere home">
+    <a class="wordmark" href="{% url 'login' %}" aria-label="{% brand_name %} home">
       <span class="wordmark-mark" aria-hidden="true"><svg><use href="#i-logo"/></svg></span>
-      <span>EduSphere<small>School management</small></span>
+      <span>{% brand_name %}<small>School management</small></span>
     </a>
     <button class="nav-toggle" type="button" data-nav-toggle aria-controls="siteNav" aria-expanded="false" aria-label="Open menu">
       <svg aria-hidden="true"><use href="#i-menu"/></svg>
@@ -83,6 +85,7 @@
           <a href="{% url 'learn_security_and_privacy' %}">Security and privacy</a>
           <a href="{% url 'learn_pricing_and_contact' %}">Pricing and contact</a>
           <a href="{% url 'learn_faq' %}">FAQ</a>
+          <a href="{% url 'about' %}">About {% brand_name %}</a>
         </div>
       </details>
     </nav>
@@ -93,7 +96,7 @@
       </button>
       <a class="btn btn-ghost btn-sm" href="{% url 'login' %}">Sign in</a>
       {% if not hide_register %}<a class="btn btn-ghost btn-sm" href="{% if register_url %}{{ register_url }}{% else %}{% url 'register_choice' %}{% endif %}">Register</a>{% endif %}
-      <a class="btn btn-deep btn-sm" href="{% url 'platform_admin:apply' %}">Apply to use EduSphere</a>
+      <a class="btn btn-deep btn-sm" href="{% url 'platform_admin:apply' %}">Apply to use {% brand_name %}</a>
     </div>
   </div>
 </header>
@@ -108,7 +111,7 @@
       <div>
         <a class="wordmark" href="{% url 'login' %}">
           <span class="wordmark-mark" aria-hidden="true"><svg><use href="#i-logo"/></svg></span>
-          <span>EduSphere</span>
+          <span>{% brand_name %}</span>
         </a>
         <p>One place to run admissions, academics, attendance, fees and communication for your institution.</p>
       </div>
@@ -127,7 +130,8 @@
         <ul class="foot-links" style="margin-top: 0.7rem;">
           <li><a href="{% url 'learn_pricing_and_contact' %}">Pricing and contact</a></li>
           <li><a href="{% url 'learn_faq' %}">FAQ</a></li>
-          <li><a href="{% url 'platform_admin:apply' %}">Apply to use EduSphere</a></li>
+          <li><a href="{% url 'about' %}">About {% brand_name %}</a></li>
+          <li><a href="{% url 'platform_admin:apply' %}">Apply to use {% brand_name %}</a></li>
           <li><a href="{% url 'privacy_notice' %}">Privacy notice</a></li>
           <li><a href="{% url 'platform_admin:privacy' %}">Platform privacy</a></li>
           <li><a href="{% url 'platform_admin:data_processing' %}">Data processing statement</a></li>
@@ -137,8 +141,8 @@
       </div>
     </div>
     <div class="foot-bottom">
-      <span>&copy; {% now "Y" %} EduSphere. All rights reserved.</span>
-      <span><a href="tel:+263774573765">+263 774 573 765</a> &middot; <a href="mailto:sphereeedu@gmail.com">sphereeedu@gmail.com</a></span>
+      <span>{% brand_copyright %}</span>
+      <span><a href="tel:{% brand_support_phone %}">{% brand_support_phone_display %}</a> &middot; <a href="mailto:{% brand_support_email %}">{% brand_support_email %}</a></span>
     </div>
   </div>
 </footer>

@@ -4,7 +4,6 @@ Public pages use the brown marketing theme. Platform screens use the ordinary
 administration shell. Institution consent screens are only for an institution
 administrator, never for platform staff.
 """
-
 from __future__ import annotations
 
 import csv
@@ -21,6 +20,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from config.brand import PRODUCT_NAME
 from core.audit import log_action
 from core.models import (
     AuditEntry,
@@ -139,7 +139,7 @@ def _next_or_default(request, fallback):
 
 
 def apply(request):
-    """The public "Apply to use EduSphere" form."""
+    """The public platform application form."""
     form = InstitutionApplicationForm(request.POST or None, request.FILES or None)
     if request.method == "POST":
         # A real person never fills the hidden field. Pretend the application
@@ -204,7 +204,7 @@ def apply_reply(request, token):
     application = get_object_or_404(InstitutionApplication, applicant_token=token)
     try:
         services.applicant_reply(application, request.POST.get("message", ""), request)
-        messages.success(request, "Your reply was sent to EduSphere.")
+        messages.success(request, f"Your reply was sent to {PRODUCT_NAME}.")
     except ValidationError as exc:
         messages.error(request, "; ".join(exc.messages))
     return redirect("platform_admin:apply_status", token=token)
@@ -629,6 +629,7 @@ def institution_detail(request, pk):
                 "slug": institution.slug,
                 "type": institution.type,
                 "access_grant_max_hours": institution.access_grant_max_hours,
+                "show_platform_branding": institution.show_platform_branding,
             }
             form = InstitutionEditForm(request.POST, instance=institution)
             if form.is_valid():
@@ -647,6 +648,7 @@ def institution_detail(request, pk):
                         "slug": institution.slug,
                         "type": institution.type,
                         "access_grant_max_hours": institution.access_grant_max_hours,
+                        "show_platform_branding": institution.show_platform_branding,
                     },
                     request=request,
                 )
@@ -1675,22 +1677,50 @@ def announcements(request):
 
 @platform_required("platform.manage_settings", main_admin=True)
 def settings_view(request):
+    from config.brand import clear_logo_cache
+    from core.platform_logo import process_platform_logo, remove_platform_logo
+    from core.uploads import media_url
+
     keys = ["email", "branding", "legal", "support"]
+    logo_keys = ["logo_public", "logo_app", "favicon"]
     if request.method == "POST":
         for key in keys:
             PlatformSetting.set(key, {"value": request.POST.get(key, "")}, actor=request.user)
+        for key in logo_keys:
+            upload = request.FILES.get(key)
+            if not upload:
+                continue
+            try:
+                paths = process_platform_logo(upload)
+            except ValidationError as exc:
+                messages.error(request, " ".join(exc.messages))
+                continue
+            previous = (PlatformSetting.get(f"brand_{key}", {}) or {}).get("paths", {})
+            remove_platform_logo(previous)
+            PlatformSetting.set(
+                f"brand_{key}",
+                {"value": paths["512"], "paths": paths},
+                actor=request.user,
+                description=f"Uploaded {key} for the platform brand",
+            )
+        clear_logo_cache()
         services.log_platform_action(
             request.user, "platform_settings.saved", record_type="PlatformSetting",
-            detail={"keys": keys}, request=request,
+            detail={"keys": keys + logo_keys}, request=request,
         )
         messages.success(request, "Platform settings saved.")
         return redirect("platform_admin:settings")
     current = {key: (PlatformSetting.get(key, {}) or {}).get("value", "") for key in keys}
+    logos = {}
+    for key in logo_keys:
+        row = (PlatformSetting.get(f"brand_{key}", {}) or {})
+        logos[key] = media_url(row.get("value", ""))
     return render(
         request,
         "platform_admin/settings.html",
         {
             "current": current,
+            "logos": logos,
             "statement": DATA_PROCESSING_STATEMENT,
             "version": DATA_PROCESSING_VERSION,
             "privacy": PLATFORM_PRIVACY_NOTICE,
@@ -2025,7 +2055,7 @@ def institution_access_decide(request, pk):
             request,
             "Access approved for the time you chose."
             if approve
-            else "Access denied. EduSphere staff were told the reason.",
+            else f"Access denied. {PRODUCT_NAME} staff were told the reason.",
         )
     return redirect("platform_admin:institution_access_request_detail", pk=pk)
 

@@ -590,7 +590,7 @@ class PlatformOperationsTests(PlatformTestBase):
             reverse("platform_admin:announcements"),
             {
                 "title": "Scheduled maintenance on Sunday",
-                "body": "EduSphere will be read-only between 02:00 and 04:00.",
+                "body": "The platform will be read-only between 02:00 and 04:00.",
                 "audience": PlatformAnnouncement.Audience.INSTITUTIONS,
                 "is_active": "on",
             },
@@ -620,8 +620,8 @@ class PlatformOperationsTests(PlatformTestBase):
         response = self.client.post(
             reverse("platform_admin:settings"),
             {
-                "email": "From: EduSphere <hello@edusphere.example>",
-                "branding": "EduSphere",
+                "email": "From: Example Sender <hello@edusphere.example>",
+                "branding": "Example Brand",
                 "legal": "Terms v2, privacy v2",
                 "support": "support@edusphere.example",
             },
@@ -629,7 +629,7 @@ class PlatformOperationsTests(PlatformTestBase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             PlatformSetting.get("email")["value"],
-            "From: EduSphere <hello@edusphere.example>",
+            "From: Example Sender <hello@edusphere.example>",
         )
         self.assertTrue(PlatformAuditLog.objects.filter(action="platform_settings.saved").exists())
 

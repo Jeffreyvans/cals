@@ -6,7 +6,6 @@ on the key's institution as a belt-and-braces check. Row-level rules (a student
 may read only their own record, a parent only their linked children) are
 applied in ``get_queryset`` as well.
 """
-
 import csv
 
 from django.db import transaction
@@ -32,6 +31,7 @@ from academics.models import (
 )
 from accounts.models import User
 from admissions.models import Application
+from config.brand import PRODUCT_NAME
 from core.access import user_has_any_code, user_has_code
 from core.numbering import number_key
 from finance.models import Invoice, Payment
@@ -477,7 +477,7 @@ class WebhookPingView(APIView):
             raise ValidationError("This institution has no active webhook endpoint.")
         deliveries = dispatch_event(
             "webhook.ping",
-            {"message": "EduSphere webhook test", "requested_by": request.user.username},
+            {"message": f"{PRODUCT_NAME} webhook test", "requested_by": request.user.username},
             institution=request.institution,
         )
         return Response({"queued": len(deliveries)})

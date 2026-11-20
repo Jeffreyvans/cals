@@ -1,4 +1,4 @@
-{% extends "base.html" %}
-{% block title %}{{ error_title }} — EduSphere{% endblock %}
+{% extends "base.html" %}{% load branding %}
+{% block title %}{{ error_title }} — {% brand_name %}{% endblock %}
 {% block content %}{% include "errors/detail.html" %}{% endblock %}
 {% block bare %}{% include "errors/detail.html" %}{% endblock %}

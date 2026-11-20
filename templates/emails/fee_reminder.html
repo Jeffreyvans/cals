@@ -1,4 +1,4 @@
-{% extends "emails/base_email.html" %}
+{% extends "emails/base_email.html" %}{% load branding %}{% brand_via_for institution as via_text %}
 {% block title %}Overdue fees at {{ institution.name }}{% endblock %}
 {% block preheader %}{{ currency }}{{ balance }} is overdue on your account.{% endblock %}
 {% block content %}
@@ -12,4 +12,5 @@
 <p style="margin:0 0 8px;">Your student number is <strong>{{ student.student_no }}</strong>. Quote it when you pay, or sign in to your portal to see the full statement.</p>
 <p style="margin:0; color:#6f4a36; font-size:14px;">If you have already paid, please ignore this reminder.</p>
 {% endblock %}
-{% block footer %}{{ institution.name }}{% if header.lines %} · {{ header.lines|join:" · " }}{% endif %}{% endblock %}
+{% block footer %}{{ institution.name }}{% if header.lines %} · {{ header.lines|join:" · " }}{% endif %}{% if via_text %} via {{ via_text }}{% endif %}
+{% include "includes/email_brand_footer.html" %}{% endblock %}

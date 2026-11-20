@@ -1,4 +1,4 @@
-# Load testing EduSphere
+# Load testing Vanpere
 
 The goal is not a vanity request-per-second number. It is to answer three
 questions before a term starts:
@@ -45,7 +45,7 @@ Save this as `loadtest/locustfile.py` (the repository keeps the example; the
 virtual environment and reports are ignored):
 
 ```python
-"""Read-only EduSphere load test: login, dashboard, search, payment page."""
+"""Read-only Vanpere load test: login, dashboard, search, payment page."""
 
 import os
 import re

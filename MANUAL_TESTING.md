@@ -19,7 +19,7 @@ institution created in scenario 1.
 5. Check the inbox. The welcome email must contain the sign-in link
    `/i/<slug>/login/`, the one-time set-password link, the getting-started
    steps and both support contacts: `+263774573765` and
-   `sphereeedu@gmail.com`. No password is emailed.
+   `vanhuvaonejeffrey@gmail.com`. No password is emailed.
 6. Open the set-password link, choose a strong password, then sign in at the
    branded `/i/<slug>/login/` page. The checklist now shows the administrator
    as signed in.
@@ -68,7 +68,7 @@ institution created in scenario 1.
    Save it. The domain is still **Not configured or not verified yet** and the
    standard `/i/<slug>/login/` link still works.
 2. Follow the on-screen verification steps: add the displayed TXT record at
-   `_edusphere.learn.example.org`, point the hostname at EduSphere, and add
+   `_edusphere.learn.example.org`, point the hostname at Vanpere, and add
    `ALLOWED_HOSTS=learn.example.org` and
    `CSRF_TRUSTED_ORIGINS=https://learn.example.org` to the deployment
    environment, then redeploy.

@@ -18,7 +18,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from core.branding import primary_colour
-from core.document_header import build_header
+from core.document_header import build_header, platform_attribution
 
 INK = colors.HexColor("#0f172a")
 MUTED = colors.HexColor("#64748b")
@@ -130,6 +130,9 @@ def build_invoice_pdf(invoice, request=None, fiscal=None):
         "This invoice is due on the date shown. Please quote the invoice number "
         "when paying. Credit or debit notes are the only permitted corrections "
         "after issue.", styles["InvoiceSmall"]))
+    credit = platform_attribution(institution)
+    if credit:
+        story += [Spacer(1, 0.25 * cm), Paragraph(credit, styles["InvoiceSmall"])]
 
     doc.build(story)
     return buffer.getvalue()

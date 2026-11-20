@@ -1,4 +1,4 @@
-"""Gunicorn settings for EduSphere.
+"""Gunicorn settings for the platform.
 
 Render starts the web process with::
 

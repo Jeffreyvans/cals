@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
+from config.brand import PRODUCT_NAME
 from core.models import Institution, OutboundMessage
 from platform_admin.legal import DATA_PROCESSING_VERSION
 from platform_admin.models import (
@@ -28,7 +29,7 @@ class ApplyPageTests(PlatformTestBase):
     def test_the_apply_form_is_public_and_linked_from_the_landing_page(self):
         response = self.client.get(reverse("platform_admin:apply"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Apply to use EduSphere")
+        self.assertContains(response, f"Apply to use {PRODUCT_NAME}")
         self.assertContains(response, "does not tell you whether an institution already has an account")
         self.assertContains(response, DATA_PROCESSING_VERSION)
 

@@ -302,7 +302,7 @@ class DuplicateForm(InstitutionFormMixin, forms.Form):
 
 
 class StrongPasswordValidationMixin:
-    """EduSphere's strength rules, applied in Django 5.1's clean() hook.
+    """Password strength rules, applied in Django 5.1's clean() hook.
 
     Password validation moved from ``clean_new_password2()`` into
     ``SetPasswordForm.clean()``. Overriding the old hook raises an

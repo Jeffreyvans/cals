@@ -61,7 +61,7 @@ def _mirror_to_platform(entry, action, institution_id, model_name, object_id,
     """Copy a platform-staff change into the tamper-evident platform log.
 
     Institution screen changes write the ordinary institution audit row above.
-    When the person making the change is EduSphere platform staff, the same
+    When the person making the change is platform staff, the same
     change is also written to :class:`platform_admin.models.PlatformAuditLog`
     with its before and after values and the consent grant in force. Importing
     at call time keeps the module import order simple and avoids a cycle.

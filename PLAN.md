@@ -1,4 +1,4 @@
-# EduSphere - build plan
+# Vanpere - build plan
 
 Status legend: `[ ]` not started, `[~]` in progress, `[x]` done, `[!]` deliberately deferred.
 
@@ -188,10 +188,10 @@ resets. The suite is now 814 tests passing.
 
 ## Part 3C - Green public platform, learn pages and institution profiles
 - [x] One deep-green and marigold public identity (`#12403c` / `#e8a317`) on Figtree replaces the earlier brown palette for every signed-out page. `static/css/public.css` holds the tokens, the responsive mobile-first layout, the dark variant (system setting plus a remembered toggle) and the learn/institution styles.
-- [x] `/` is a platform login-and-marketing page: hero, sign-in card, an African classroom photo (WebP with a JPEG fallback and lazy loading below the fold), features, audience cards, how-it-works, role blocks, security band, contact section (phone `+263 774 573 765` and `sphereeedu@gmail.com`) and a footer. It carries no institution-specific content.
+- [x] `/` is a platform login-and-marketing page: hero, sign-in card, an African classroom photo (WebP with a JPEG fallback and lazy loading below the fold), features, audience cards, how-it-works, role blocks, security band, contact section (phone `+263 774 573 765` and `vanhuvaonejeffrey@gmail.com`) and a footer. It carries no institution-specific content.
 - [x] Seven plain-English learn pages linked from the header and footer: `/features/`, `/for-schools/`, `/for-colleges/`, `/for-parents-and-students/`, `/security-and-privacy/`, `/pricing-and-contact/` and `/faq/`, plus a `/learn/` hub. Content lives in `core/learn.py`; there are no invented statistics, client names, awards, testimonials or prices. The header uses a `<details class="nav-more">` menu so every page is reachable without JavaScript.
 - [x] `/pricing-and-contact/` carries a "Request a demo" form (`DemoRequestForm`) with a honeypot and the shared contact rate limit; it emails the platform contact address and never publishes a price.
-- [x] Branded institution page at `/i/<slug>/`: logo, validated primary/accent colours with computed readable text colours, name, tagline, About, contact details, sign-in card and a "Powered by EduSphere" footer linking to `/`. An institution can switch the page off and choose whether to show a Register button; the button only appears when public registration is on or an open sign-up link exists.
+- [x] Branded institution page at `/i/<slug>/`: logo, validated primary/accent colours with computed readable text colours, name, tagline, About, contact details, sign-in card and a "Powered by Vanpere" footer linking to `/`. An institution can switch the page off and choose whether to show a Register button; the button only appears when public registration is on or an open sign-up link exists.
 - [x] Institution-scoped sign-in from the institution page refuses another institution's account with the standard "wrong username or password" message. Institution colours apply only on `/i/<slug>/`, never on `/i/<slug>/login/`.
 - [x] SEO: page titles, meta descriptions, Open Graph/Twitter tags, canonical URLs and clean routes; a public-only sitemap (`/sitemap.xml`); and `/robots.txt` that disallows the private app while allowing the public check pages. Private and institution login pages are `noindex`, and no personal data appears on a public page.
 - [x] Tests: `core/tests/test_public_pages.py` (learn pages, demo form, public page/Register toggles, sitemap, robots, noindex) and a rewritten `core/tests/test_public_theme.py` (green palette scan, AA contrast in both themes, render sweep, branding and green emails).
@@ -338,7 +338,7 @@ the existing invitation, branding, audit, notification and central email code.
 ### Part 2 - Web address, sign-in link and first-sign-in handoff
 - [x] Added `core/slugs.py` as the one place for institution slug rules: plain lower-case slugs, a reserved-word list for top-level routes, uniqueness against institutions and live redirects, and a `unique_slug()` helper for safe suggestions. Domain parsing/verification-token helpers live there too.
 - [x] Added `InstitutionSlugRedirect` (migration `core/0020`) and `resolve_institution_slug`/`record_slug_change`. Changing an institution slug keeps the old `/i/<slug>/` and `/i/<slug>/login/` addresses alive for 90 days, including the query string; expired redirects stop working and stop reserving the word. Inactive institutions never resolve.
-- [x] The platform institution detail screen now shows a branded sign-in-link panel with the copyable URL, a QR PNG endpoint (reusing installed `qrcode[pil]`), a WhatsApp share link, an enabled/disabled status and an audited "email sign-in link" action. The email is sent through `queue_message` with the support contacts `+263774573765` / `sphereeedu@gmail.com`; a non-`sent` `OutboundMessage.status` surfaces an error.
+- [x] The platform institution detail screen now shows a branded sign-in-link panel with the copyable URL, a QR PNG endpoint (reusing installed `qrcode[pil]`), a WhatsApp share link, an enabled/disabled status and an audited "email sign-in link" action. The email is sent through `queue_message` with the support contacts `+263774573765` / `vanhuvaonejeffrey@gmail.com`; a non-`sent` `OutboundMessage.status` surfaces an error.
 - [x] Platform admins can create a sign-up link for the institution from the detail screen (`SignupLink.created_by_platform_admin`, migration `accounts/0011`). The marker is informational: the link obeys the same kind, expiry, max-use and tenant rules as institution-created links. The result is shown once with a copyable `SITE_URL` link.
 - [x] Custom domains are off by default. Saving a domain generates a verification token and prints the DNS TXT record plus the required `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS` entries; an explicit confirmation marks it verified and enables host-based institution mapping through `core.middleware` (cached). Disabling keeps the record but stops the mapping. No live DNS lookup.
 - [x] The first administrator's real form login queues a one-shot session flag from `LoginLockoutMixin.form_valid` (not the auth signal, so `force_login` cannot trigger it), then `FirstSignInSetupMiddleware` opens a five-step, institution-scoped guided setup in `core/institution_setup.py` reusing `templates/core/setup_wizard.html`. It never grants the platform-only `admin.create_institutions` permission; the last step creates a sign-up link, shows it once and requires a final "Finish setup" post.
@@ -419,3 +419,51 @@ or provider problem.
 - [x] Verification: 1,657 tests pass, `ruff check .` is clean,
   `python manage.py makemigrations --check --dry-run` reports no changes and
   `python manage.py check` shows only the expected console-email warning.
+
+## PHASE 15 - Vanpere rebrand (session 37, 2026-11-20)
+Status: complete.
+
+The visible identity is now Vanpere, published by Vanpere Digital Solutions,
+without changing any internal identifier that a live deployment depends on.
+
+- [x] Added `config/brand.py` as the one source of truth: `PRODUCT_NAME`,
+  `COMPANY_NAME`, `TAGLINE`, support contacts, website from `SITE_URL`,
+  current-year copyright, logo/favicon paths, theme colours and
+  `BRAND_NAME`/`BRAND_COMPANY` overrides. Registered `PLATFORM_BRAND` via a
+  context processor and added `{% brand_* %}` tags in `core/templatetags/branding.py`
+  so HTML emails rendered without a request read the same values.
+- [x] Replaced visible old names across templates, Python messages, PDFs,
+  receipts, statements, invoices, report cards, transcripts, ID cards,
+  certificates, error pages, login/registration, platform admin, API/Swagger,
+  management commands, docs, legal pages and fixtures. Internal names
+  (`EDUSPHERE_*` variables, cache keys, loggers, headers, URL names, class
+  names, migrations and DNS labels) are deliberately unchanged and allow-listed.
+- [x] Added a small “Powered by Vanpere” attribution with a link to the site on
+  institution pages, receipts, documents and emails. `Institution.show_platform_branding`
+  (migration `core/0024`) lets platform staff switch it off per institution for
+  white-label plans; institution names, logos and colours are never touched.
+- [x] Added placeholder Vanpere wordmarks and icons for the brown public,
+  green app and marigold themes; platform admins can upload replacement PNG,
+  JPG or WebP artwork from Platform settings through the existing safe upload
+  pipeline. PWA manifest, tab titles, meta/OG tags, robots, sitemap and error
+  pages now read the central brand values; the manifest is served dynamically
+  at `/manifest.json`.
+- [x] Added `/about/` with a factual description of the product, its publisher
+  and contact details. No invented statistics, clients, awards or testimonials.
+- [x] Updated email identity: default sender display name “Vanpere”, subjects,
+  headers and HTML/text footers use brand values; institution mail keeps the
+  institution display name with a switchable “via Vanpere” footer and platform
+  copyright. The send address is unchanged unless `DEFAULT_FROM_EMAIL` is set.
+- [x] Updated `render.yaml`, `.env.example`, `DEPLOY.md`, `README.md` and the
+  other deployment docs with the brand variables, Render service/repository
+  rename steps, custom domain, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`,
+  `SITE_URL` and permanent `OLD_SITE_URL` redirects.
+- [x] Updated privacy notice, terms and data processing statement to name
+  Vanpere Digital Solutions as processor with the support contact details.
+- [x] Added `config/tests/test_brand.py` (12 tests): an allow-listed scan for
+  old spellings plus surface tests for pages, email, manifest, errors, PDF
+  attribution, the white-label switch and tenant branding preservation.
+- [x] Verification: full suite **1,669 passed**, `ruff check .` clean, 299
+  templates compile, `python manage.py makemigrations --check --dry-run`
+  reports no changes and `python manage.py check` shows only the expected
+  console-email warning.

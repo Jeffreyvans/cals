@@ -1,10 +1,10 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load branding %}
 {% block title %}Data consent log{% endblock %}
 {% block content %}
 <div class="head">
   <div>
     <h1>Data processing consent</h1>
-    <p class="muted">{{ institution.name }} is the data controller; EduSphere is the processor. This record supports your duties under the Zimbabwe Cyber and Data Protection Act.</p>
+    <p class="muted">{{ institution.name }} is the data controller; {% brand_name %} is the processor. This record supports your duties under the Zimbabwe Cyber and Data Protection Act.</p>
   </div>
   <div>
     <a class="btn ghost" href="?export=csv">Download the consent log</a>

@@ -11,7 +11,6 @@ recorded in :class:`~core.models.OutboundMessage`.
 an OutboundMessage (type, recipient, institution, HTML and text parts) and
 hands it to ``send_message``, which retries failures and never raises.
 """
-
 import hashlib
 import logging
 import re
@@ -23,6 +22,7 @@ from django.core.cache import cache
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils import timezone
 
+from config.brand import PRODUCT_NAME
 from core.email_types import ADMIN_ERROR, EMAIL_TYPE_CODES, GENERAL
 from core.models import EmailSuppression, Notification, OutboundMessage
 
@@ -155,11 +155,11 @@ def _from_email(institution=None):
     The address always comes from DEFAULT_FROM_EMAIL; only the human-readable
     display name changes, so a tenant can never send from an unverified domain.
     """
-    default = getattr(settings, "DEFAULT_FROM_EMAIL", "") or "EduSphere <no-reply@edusphere.local>"
+    default = getattr(settings, "DEFAULT_FROM_EMAIL", "") or f"{PRODUCT_NAME} <no-reply@edusphere.local>"
     _name, address = parseaddr(default)
     if not address:
         address = getattr(settings, "SERVER_EMAIL", "") or "no-reply@edusphere.local"
-    display = getattr(institution, "name", "") or "EduSphere"
+    display = getattr(institution, "name", "") or PRODUCT_NAME
     return formataddr((display, address))
 
 
@@ -184,7 +184,7 @@ def _generic_html(message):
     from core.notifications_html import render_generic_email_html
 
     return render_generic_email_html(
-        message.subject or "EduSphere", message.body, message.institution
+        message.subject or PRODUCT_NAME, message.body, message.institution
     )
 
 

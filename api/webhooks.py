@@ -5,7 +5,6 @@ never holds up the request that caused the event. The ``deliver_webhooks``
 management command sends due deliveries; a failed delivery is retried with a
 growing delay and is abandoned after ``MAX_ATTEMPTS``.
 """
-
 import json
 import logging
 import urllib.error
@@ -15,6 +14,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
+from config.brand import WEBHOOK_USER_AGENT
 from core.tenancy import current_institution_id
 
 from .models import WebhookDelivery, WebhookEndpoint, sign_webhook
@@ -65,7 +65,7 @@ def deliver(delivery, timeout=TIMEOUT_SECONDS):
         method="POST",
         headers={
             "Content-Type": "application/json",
-            "User-Agent": "EduSphere-Webhooks/1.0",
+            "User-Agent": WEBHOOK_USER_AGENT,
             "X-EduSphere-Event": delivery.event,
             "X-EduSphere-Delivery": str(delivery.pk),
             "X-EduSphere-Signature": signature,

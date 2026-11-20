@@ -29,7 +29,7 @@ User = get_user_model()
 
 
 class InstitutionApplicationForm(forms.Form):
-    """The public "Apply to use EduSphere" form.
+    """The public platform application form.
 
     The form deliberately does not say whether an institution already exists.
     A school with an existing site can still apply; staff will merge the two.
@@ -176,6 +176,7 @@ class InstitutionEditForm(forms.ModelForm):
         fields = [
             "name", "slug", "type", "address", "contact_email", "contact_phone",
             "website", "public_page_enabled", "access_grant_max_hours",
+            "show_platform_branding",
         ]
 
     def clean_slug(self):

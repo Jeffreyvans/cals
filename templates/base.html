@@ -1,6 +1,7 @@
 {% load static %}{% load perms %}{% load branding %}{% load error_ui %}<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="{% if INSTITUTION_OBJECT.primary_color %}{{ INSTITUTION_OBJECT.primary_color }}{% else %}#1E3A8A{% endif %}">
+<link rel="manifest" href="{% url 'manifest' %}"><link rel="icon" href="{% brand_favicon_url %}" type="image/svg+xml">
 <title>{% block title %}{{ INSTITUTION }}{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -68,12 +69,12 @@
       {% else %}
         <span class="brand-mark" aria-hidden="true"><svg class="ico"><use href="#i-logo"/></svg></span>
       {% endif %}
-      <span class="brand-text"><span class="brand-name" title="{{ INSTITUTION }}">{{ INSTITUTION }}</span><span class="brand-sub">EduSphere</span></span>
+      <span class="brand-text"><span class="brand-name" title="{{ INSTITUTION }}">{{ INSTITUTION }}</span><span class="brand-sub">{% brand_name %}</span></span>
     </div>
     <nav>
       {% modules request as on %}
       {% if PLATFORM_STAFF %}
-        <p class="nav-label">EduSphere platform</p>
+        <p class="nav-label">{% brand_name %} platform</p>
         <a href="{% url 'platform_admin:dashboard' %}"><svg class="ico"><use href="#i-grid"/></svg><span>Platform dashboard</span></a>
         <a href="{% url 'platform_admin:inbox' %}"><svg class="ico"><use href="#i-clipboard"/></svg><span>Inbox</span></a>
         <a href="{% url 'platform_admin:applications' %}"><svg class="ico"><use href="#i-file"/></svg><span>Applications</span></a>
@@ -203,6 +204,7 @@
       <div class="who-meta"><span class="who-name">{{ user.get_full_name|default:user.username }}</span><small>{{ user.get_role_display }}</small></div>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="link" title="Sign out" aria-label="Sign out"><svg class="ico"><use href="#i-logout"/></svg></button></form>
     </div>
+    {% include "includes/powered_by.html" %}
   </aside>
   <main>
     <header class="topbar">
@@ -220,6 +222,7 @@
       {% block content %}{% endblock %}
     </div>
   </main>
+  <footer class="platform-footer" style="padding:0 1.25rem 1.25rem;text-align:center;font-size:0.75rem;opacity:0.7;">{% brand_copyright %}</footer>
 </div>
 {% else %}{% block bare %}{% endblock %}{% endif %}
 <script src="{% url 'error_catalogue_js' %}" defer></script>

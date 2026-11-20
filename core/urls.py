@@ -18,6 +18,7 @@ from .sitemaps import SITEMAPS
 urlpatterns = [
     path("sitemap.xml", sitemap, {"sitemaps": SITEMAPS}, name="sitemap"),
     path("robots.txt", public_views.robots_txt, name="robots_txt"),
+    path("about/", public_views.about, name="about"),
     path("learn/", public_views.learn_index, name="learn_index"),
     path("learn/<slug:slug>/", public_views.learn_alias, name="learn_alias"),
     path("i/<slug:slug>/", public_views.institution_page, name="institution_public"),

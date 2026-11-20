@@ -3,13 +3,13 @@
 Both are administrator tools: they sit behind ``admin.manage_settings`` and
 belong to the signed-in user's institution.
 """
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from config.brand import PRODUCT_NAME
 from core.access import user_has_code
 from core.audit import log_action
 from core.models import Institution
@@ -159,7 +159,7 @@ def webhook_detail(request, pk):
         if action == "test":
             deliveries = dispatch_event(
                 "webhook.ping",
-                {"message": "EduSphere webhook test", "requested_by": request.user.username},
+                {"message": f"{PRODUCT_NAME} webhook test", "requested_by": request.user.username},
                 institution=institution,
                 endpoint_ids=[endpoint.pk],
             )

@@ -1,5 +1,5 @@
-{% extends "emails/base_email.html" %}
-{% block title %}Decision on your EduSphere access request{% endblock %}
+{% extends "emails/base_email.html" %}{% load branding %}
+{% block title %}Decision on your {% brand_name %} access request{% endblock %}
 {% block preheader %}{{ institution.name }} has answered your access request.{% endblock %}
 {% block content %}
 <p style="margin:0 0 14px;">Hello,</p>
@@ -17,5 +17,5 @@
 </p>
 <p style="margin:0 0 18px; color:#6f4a36; font-size:14px;">If the button does not work, copy this address into your browser:<br>
   <span style="color:#4e342e; word-break:break-all;">{{ link }}</span></p>
-<p style="margin:0; color:#6f4a36; font-size:14px;">This message was sent because an EduSphere platform staff member asked an institution for consent.</p>
+<p style="margin:0; color:#6f4a36; font-size:14px;">This message was sent because an {% brand_name %} platform staff member asked an institution for consent.</p>
 {% endblock %}

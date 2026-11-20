@@ -2,12 +2,19 @@
 {% block platform_title %}Platform settings{% endblock %}
 {% block platform_heading %}Platform settings{% endblock %}
 {% block platform_content %}
-<form method="post" class="inline wide">
+<form method="post" enctype="multipart/form-data" class="inline wide">
   {% csrf_token %}
   <p class="full"><label>Email settings<textarea name="email" rows="3" placeholder="From name, reply-to, Resend key reference">{{ current.email }}</textarea></label></p>
   <p class="full"><label>Branding<textarea name="branding" rows="3" placeholder="Platform name, support contact">{{ current.branding }}</textarea></label></p>
   <p class="full"><label>Legal pages<textarea name="legal" rows="3" placeholder="Terms, privacy notice, data processing statement version">{{ current.legal }}</textarea></label></p>
   <p class="full"><label>Support<textarea name="support" rows="3">{{ current.support }}</textarea></label></p>
+  <fieldset class="full">
+    <legend>Platform logo files</legend>
+    <p class="muted">Optional. Upload PNG, JPG or WebP (at least 200 px, 2 MB max). SVG is refused for upload; replace the checked-in placeholder files in <code>static/img/brand/</code> for the final vector artwork.</p>
+    <p><label>Public wordmark{% if logos.logo_public %}<br><img src="{{ logos.logo_public }}" alt="Current public wordmark" height="28">{% endif %}<input type="file" name="logo_public" accept="image/png,image/jpeg,image/webp"></label></p>
+    <p><label>App wordmark{% if logos.logo_app %}<br><img src="{{ logos.logo_app }}" alt="Current app wordmark" height="28">{% endif %}<input type="file" name="logo_app" accept="image/png,image/jpeg,image/webp"></label></p>
+    <p><label>Favicon{% if logos.favicon %}<br><img src="{{ logos.favicon }}" alt="Current favicon" height="28">{% endif %}<input type="file" name="favicon" accept="image/png,image/jpeg,image/webp"></label></p>
+  </fieldset>
   <p><button class="btn" type="submit">Save settings</button></p>
 </form>
 

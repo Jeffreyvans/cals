@@ -1,9 +1,9 @@
 {% extends "public_base.html" %}
 {% load static %}
 {% load branding %}
-{% block title %}{{ institution.name }} — EduSphere{% endblock %}
+{% block title %}{{ institution.name }} — {% brand_name %}{% endblock %}
 {% block description %}{{ institution.tagline|default:institution.name }}{% endblock %}
-{% block og_title %}{{ institution.name }} — EduSphere{% endblock %}
+{% block og_title %}{{ institution.name }} — {% brand_name %}{% endblock %}
 {% block og_description %}{{ institution.tagline|default:institution.name }}{% endblock %}
 {% block og_image %}{% if og_image %}{{ og_image }}{% else %}{{ request.scheme }}://{{ request.get_host }}{% static 'img/landing/hero-classroom-1040.jpg' %}{% endif %}{% endblock %}
 {% block body_class %}institution-page{% endblock %}
@@ -63,7 +63,7 @@
         </ul>
         {% if institution.address %}<p class="sub" style="margin-top: 1rem;">{{ institution.address|linebreaksbr }}</p>{% endif %}
         {% if not institution.contact_phone and not institution.contact_email and not institution.address and not institution.website %}
-          <p class="sub">This institution has not published contact details yet. You can reach the EduSphere team on {{ contact_phone }} or at {{ contact_email }}.</p>
+          <p class="sub">This institution has not published contact details yet. You can reach the {% brand_name %} team on {{ contact_phone }} or at {{ contact_email }}.</p>
         {% endif %}
       </section>
 
@@ -107,7 +107,7 @@
 
   <div class="powered-by">
     <span>{{ institution.name }} &middot; {{ institution.get_type_display }}</span>
-    <a href="{% url 'login' %}"><svg aria-hidden="true"><use href="#i-logo"/></svg>Powered by EduSphere</a>
+    {% include "includes/powered_by.html" %}
   </div>
 </div>
 {% endblock %}

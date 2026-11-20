@@ -8,6 +8,7 @@ from pathlib import Path
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 
+from . import brand
 from .email_config import select_email_settings
 from .env import env_bool, env_int, env_list, env_str, load_dotenv
 
@@ -15,6 +16,11 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
+
+# Product identity. ``BRAND_NAME`` overrides the default set in config/brand.py.
+# Environment variable names and internal identifiers keep their old spelling.
+BRAND_NAME = brand.PRODUCT_NAME
+BRAND_COMPANY = brand.COMPANY_NAME
 
 
 def _first(*names, default=""):
@@ -127,6 +133,8 @@ INSTALLED_APPS = [
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # 301 from an old domain to SITE_URL when OLD_SITE_URL is configured.
+    "core.middleware.OldDomainRedirectMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     # Compress HTML, JSON and CSV on the fly. WhiteNoise already serves the
     # collected static files pre-compressed; this covers dynamic responses.
@@ -161,6 +169,7 @@ TEMPLATES = [{
         "academics.context.institution",
         "platform_admin.context.platform_context",
         "core.errors.support_context",
+        "config.brand.brand_context",
     ]},
 }]
 # --- database --------------------------------------------------------------
@@ -461,7 +470,7 @@ EMAIL_FROM_DOMAIN = _first(
 ).strip()
 DEFAULT_FROM_EMAIL = _first(
     "DEFAULT_FROM_EMAIL", "EDUSPHERE_EMAIL_FROM",
-    default=f"EduSphere <no-reply@{EMAIL_FROM_DOMAIN}>",
+    default=f"{BRAND_NAME} <no-reply@{EMAIL_FROM_DOMAIN}>",
 ).strip()
 SERVER_EMAIL = _first(
     "SERVER_EMAIL", "EDUSPHERE_SERVER_EMAIL", default=DEFAULT_FROM_EMAIL,
@@ -506,6 +515,12 @@ SITE_URL = _first(
 ).strip().rstrip("/")
 if not DEBUG and SITE_URL.startswith("http://"):
     SITE_URL = "https://" + SITE_URL[len("http://"):]
+
+# Optional permanent redirect from an old domain after a rename or a custom
+# domain change. Empty by default, so every existing URL keeps working. Set a
+# comma-separated list of old hosts (for example OLD_SITE_URL=old.example.com)
+# and requests to them get a 301 to the same path on SITE_URL.
+OLD_SITE_URL = env_list("OLD_SITE_URL", [])
 
 # Queue retries: five attempts with exponential backoff. Opt in to Celery
 # dispatch with EMAIL_ASYNC=true on a deployment that actually runs a worker.
@@ -576,7 +591,7 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "EduSphere API",
+    "TITLE": f"{BRAND_NAME} API",
     "DESCRIPTION": (
         "A read-mostly REST API for one institution. Authenticate with an API "
         "key issued on the institution's API keys screen. The key decides the "

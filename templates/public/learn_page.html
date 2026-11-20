@@ -1,4 +1,4 @@
-{% extends "public_base.html" %}
+{% extends "public_base.html" %}{% load branding %}
 {% block title %}{{ page.title }}{% endblock %}
 {% block description %}{{ page.description }}{% endblock %}
 {% block og_title %}{{ page.title }}{% endblock %}
@@ -6,7 +6,7 @@
 {% block content %}
 <section class="learn-hero">
   <div class="wrap">
-    <span class="eyebrow">Learn about EduSphere</span>
+    <span class="eyebrow">Learn about {% brand_name %}</span>
     <h1>{{ page.heading }}</h1>
     <p class="lede">{{ page.lead }}</p>
     <nav class="learn-nav" aria-label="Learn pages">

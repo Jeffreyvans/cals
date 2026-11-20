@@ -294,7 +294,7 @@ class MiddlewareEndToEndTests(PlatformTestBase):
         self.assertEqual(response["X-EduSphere-Grant-Id"], str(grant.pk))
         self.assertTrue(
             response.content.startswith(
-                f"# EduSphere grant {grant.pk}: Access granted until".encode()
+                f"# Platform grant {grant.pk}: Access granted until".encode()
             )
         )
         self.assertEqual(
@@ -331,7 +331,7 @@ class MiddlewareEndToEndTests(PlatformTestBase):
             response = self.client.get(reverse("platform_admin:dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("X-EduSphere-Grant-Id", response)
-        self.assertNotIn(b"# EduSphere grant", response.content)
+        self.assertNotIn(b"# Platform grant", response.content)
 
 
 class WhoAccessedOurDataTests(PlatformTestBase):

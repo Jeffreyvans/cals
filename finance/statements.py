@@ -10,7 +10,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from core.branding import primary_colour
-from core.document_header import build_header
+from core.document_header import build_header, platform_attribution
 
 from . import services
 
@@ -69,5 +69,8 @@ def build_statement_pdf(student):
     if credit:
         story.append(Paragraph(
             f"Credit on account: {currency}{credit:.2f}", styles["BodyText"]))
+    attribution = platform_attribution(institution)
+    if attribution:
+        story += [Spacer(1, 0.25 * cm), Paragraph(attribution, styles["BodyText"])]
     doc.build(story)
     return buffer.getvalue()

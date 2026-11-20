@@ -10,6 +10,7 @@ from core.error_views import (
     permission_denied,
     server_error,
 )
+from core.public_views import manifest
 from core.views import billing_contact, offline, service_worker
 from core.webhooks import mailjet_webhook, resend_webhook
 
@@ -24,6 +25,7 @@ urlpatterns = [
     path("health/", health_check, name="health_check"),
     path("errors/catalogue.js", error_catalogue_js, name="error_catalogue_js"),
     path("sw.js", service_worker, name="service_worker"),
+    path("manifest.json", manifest, name="manifest"),
     path("offline/", offline, name="offline"),
     path("billing/contact/", billing_contact, name="billing_contact"),
     path("webhooks/resend/", resend_webhook, name="resend_webhook"),

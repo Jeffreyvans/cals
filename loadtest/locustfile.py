@@ -1,4 +1,4 @@
-"""Read-only EduSphere load test: login, dashboard, search, payment page.
+"""Read-only platform load test: login, dashboard, search, payment page.
 
 Run it against a staging copy, never the live school database. See
 LOAD_TESTING.md for the exact commands, sizing table and pass criteria.

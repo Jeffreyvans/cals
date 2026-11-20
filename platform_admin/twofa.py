@@ -3,7 +3,6 @@
 No extra package is needed: the time-based one-time password is the standard
 RFC 6238 construction, which any authenticator app can read.
 """
-
 from __future__ import annotations
 
 import base64
@@ -15,6 +14,8 @@ from datetime import timedelta
 from urllib.parse import quote
 
 from django.utils import timezone
+
+from config.brand import PRODUCT_NAME
 
 REAUTH_MINUTES = 15
 STEP_SECONDS = 30
@@ -54,7 +55,7 @@ def verify(secret, code):
     )
 
 
-def provisioning_uri(secret, email, issuer="EduSphere"):
+def provisioning_uri(secret, email, issuer=PRODUCT_NAME):
     label = quote(f"{issuer}:{email or 'platform'}")
     return (
         f"otpauth://totp/{label}?secret={secret}&issuer={quote(issuer)}"

@@ -1,10 +1,10 @@
-{% extends "public_base.html" %}
-{% block title %}Email confirmed — EduSphere{% endblock %}
+{% extends "public_base.html" %}{% load branding %}
+{% block title %}Email confirmed — {% brand_name %}{% endblock %}
 {% block content %}
 <div class="page-shell narrow">
   <div class="page-title">
     <h1>Email confirmed</h1>
-    <p>{{ user.get_full_name|default:user.username }}, your email address is now confirmed for your EduSphere account.</p>
+    <p>{{ user.get_full_name|default:user.username }}, your email address is now confirmed for your {% brand_name %} account.</p>
   </div>
   <div class="panel">
     {% if verified %}

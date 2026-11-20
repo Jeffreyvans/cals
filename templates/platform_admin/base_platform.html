@@ -1,9 +1,9 @@
-{% extends "base.html" %}
-{% block title %}{% block platform_title %}Platform{% endblock %} &middot; EduSphere{% endblock %}
+{% extends "base.html" %}{% load branding %}
+{% block title %}{% block platform_title %}Platform{% endblock %} &middot; {% brand_name %}{% endblock %}
 {% block content %}
 <div class="head">
   <div>
-    <h1>{% block platform_heading %}EduSphere platform{% endblock %}</h1>
+    <h1>{% block platform_heading %}{% brand_name %} platform{% endblock %}</h1>
     <p class="muted">
       {% if PLATFORM_STAFF %}
         Signed in as {{ PLATFORM_STAFF.user.get_full_name|default:PLATFORM_STAFF.user.username }}

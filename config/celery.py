@@ -1,4 +1,4 @@
-"""Celery application for EduSphere.
+"""Celery application for the platform.
 
 Start a worker with::
 

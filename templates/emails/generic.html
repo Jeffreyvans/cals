@@ -1,7 +1,8 @@
-{% extends "emails/base_email.html" %}
+{% extends "emails/base_email.html" %}{% load branding %}
 {% block title %}{{ subject }}{% endblock %}
 {% block preheader %}{{ subject }}{% endblock %}
 {% block content %}
 <p style="margin:0 0 16px; white-space:pre-wrap; color:#2b1a12;">{{ body_html|safe }}</p>
 {% endblock %}
-{% block footer %}{% firstof institution.name "EduSphere" %}{% endblock %}
+{% block footer %}{% brand_via_for institution as via_text %}{% if institution %}{% if via_text %}Sent by {{ institution.name }} via {{ via_text }}.{% else %}Sent by {{ institution.name }}.{% endif %}{% else %}This message was sent by {% brand_name %}.{% endif %}
+{% include "includes/email_brand_footer.html" %}{% endblock %}

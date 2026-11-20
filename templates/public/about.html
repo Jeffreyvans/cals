@@ -1,0 +1,42 @@
+{% extends "public_base.html" %}{% load branding %}
+{% block title %}About {% brand_name %}{% endblock %}
+{% block description %}About {% brand_name %}, the school and college management platform published by {% brand_company %}.{% endblock %}
+{% block og_title %}About {% brand_name %}{% endblock %}
+{% block og_description %}What {% brand_name %} is, who publishes it and how to get in touch.{% endblock %}
+{% block content %}
+<section class="learn-hero">
+  <div class="wrap">
+    <span class="eyebrow">About {% brand_name %}</span>
+    <h1>A calm place to run a school or college.</h1>
+    <p class="lede">{% brand_name %} is school and college management software. It brings admissions, student records, fees, results, attendance, timetables and family communication into one place.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="card-grid">
+      <article class="card">
+        <h3>Who we are</h3>
+        <p>{% brand_name %} is published by {% brand_company %}. We build and maintain the platform, and we support the institutions that use it.</p>
+      </article>
+      <article class="card">
+        <h3>How we work</h3>
+        <p>Each institution keeps its own records, name, logo and colours. Access is checked on every screen, and platform staff only see protected data with a time-limited, revocable grant from the institution.</p>
+      </article>
+      <article class="card">
+        <h3>What we do not claim</h3>
+        <p>We do not publish counts of customers, awards or testimonials. Read the learn pages for a plain description of what the platform does, or contact us with a specific question.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section section-tight">
+  <div class="wrap">
+    <h2>Get in touch</h2>
+    <p>Questions about the platform, a demo, or support: <a href="mailto:{% brand_support_email %}">{% brand_support_email %}</a> or <a href="tel:{% brand_support_phone %}">{% brand_support_phone_display %}</a>.</p>
+    <p><a class="btn" href="{% url 'learn_pricing_and_contact' %}">Request a demo</a> <a class="btn ghost" href="{% url 'learn_features' %}">See what it does</a></p>
+    <p><a href="{% url 'privacy_notice' %}">Privacy notice</a> &middot; <a href="{% url 'platform_admin:data_processing' %}">Data processing statement</a></p>
+  </div>
+</section>
+{% endblock %}

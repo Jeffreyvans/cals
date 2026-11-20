@@ -18,6 +18,7 @@ from academics.models import (
     Term,
 )
 from api.models import ApiKey
+from config.brand import PRODUCT_NAME
 from core.models import Institution
 from core.roles import ensure_roles
 from core.tenancy import use_institution
@@ -274,7 +275,7 @@ class SchemaTests(ApiTestCase):
         response = self.client.get(reverse("api_schema"), HTTP_ACCEPT="application/json")
         self.assertEqual(response.status_code, 200)
         schema = json.loads(response.content)
-        self.assertEqual(schema["info"]["title"], "EduSphere API")
+        self.assertEqual(schema["info"]["title"], f"{PRODUCT_NAME} API")
         self.assertIn("/api/v1/students/", schema["paths"])
         self.assertIn("ApiKeyAuth", schema["components"]["securitySchemes"])
 

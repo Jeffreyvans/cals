@@ -131,6 +131,13 @@ class Institution(models.Model):
             "Show a Register button on the public page when registration is open."
         ),
     )
+    # White-label option for premium plans. Platform staff turn this off when
+    # an institution has its own branding; default True so existing tenants are
+    # unchanged. Institution names, logos and colours are never affected.
+    show_platform_branding = models.BooleanField(
+        default=True,
+        help_text="Show the small 'Powered by' attribution on pages and documents.",
+    )
     # Optional per-institution custom domain. Everything is off by default: a
     # platform admin must point the DNS record at the service, add the host to
     # ALLOWED_HOSTS/CSRF_TRUSTED_ORIGINS and then confirm verification here.

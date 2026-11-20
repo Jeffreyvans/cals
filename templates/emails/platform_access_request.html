@@ -1,9 +1,9 @@
-{% extends "emails/base_email.html" %}
-{% block title %}EduSphere is asking for access to your data{% endblock %}
-{% block preheader %}An EduSphere staff member asked {{ institution.name }} for consent.{% endblock %}
+{% extends "emails/base_email.html" %}{% load branding %}
+{% block title %}{% brand_name %} is asking for access to your data{% endblock %}
+{% block preheader %}An {% brand_name %} staff member asked {{ institution.name }} for consent.{% endblock %}
 {% block content %}
 <p style="margin:0 0 14px;">Hello,</p>
-<p style="margin:0 0 18px;">A member of EduSphere platform staff asked <strong>{{ institution.name }}</strong> for consent to see protected data.</p>
+<p style="margin:0 0 18px;">A member of {% brand_name %} platform staff asked <strong>{{ institution.name }}</strong> for consent to see protected data.</p>
 <div style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e; white-space:pre-line;">{{ body }}</div>
 <p style="margin:0 0 18px;">You can approve only the categories and time you are comfortable with, or deny the request. Nothing is shared until you approve.</p>
 <p style="margin:0 0 18px;">

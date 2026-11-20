@@ -26,7 +26,7 @@ from reportlab.platypus import (
 )
 
 from core.branding import primary_colour
-from core.document_header import build_header
+from core.document_header import build_header, platform_attribution
 
 INK = colors.HexColor("#0f172a")
 MUTED = colors.HexColor("#64748b")
@@ -131,5 +131,8 @@ def build_receipt_pdf(payment, request=None, fiscal=None):
               Paragraph(
                   "This receipt confirms the payment recorded above. "
                   "Keep it for your records.", styles["ReceiptSmall"])]
+    credit = platform_attribution(institution)
+    if credit:
+        story += [Spacer(1, 0.25 * cm), Paragraph(credit, styles["ReceiptSmall"])]
     doc.build(story)
     return buffer.getvalue()

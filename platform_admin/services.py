@@ -4,7 +4,6 @@ The views are deliberately thin. Everything that changes money, consent or an
 institution's data goes through a service here so the same checks apply from a
 web page, a test or a management command.
 """
-
 from __future__ import annotations
 
 import secrets
@@ -17,6 +16,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
+from config.brand import PRODUCT_NAME
 from core.audit import log_action
 from core.email_types import (
     INSTITUTION_APPLICATION_APPROVED,
@@ -107,7 +107,7 @@ def is_main_platform_admin(staff):
 def require_platform_permission(user, *codes, main_admin=False):
     staff = platform_staff_for(user)
     if staff is None:
-        raise PermissionDenied("This area is for EduSphere platform staff.")
+        raise PermissionDenied(f"This area is for {PRODUCT_NAME} platform staff.")
     if main_admin and not staff.is_main_admin:
         raise PermissionDenied("Only the platform main administrator may do this.")
     if codes and not any(has_code(staff, code) for code in codes):
@@ -433,10 +433,10 @@ def create_application(data, files=None, request=None):
         note="Application received from the public form.",
         data={"ip": client_ip(request) or ""},
     )
-    subject = f"We received your EduSphere application ({application.reference})"
+    subject = f"We received your {PRODUCT_NAME} application ({application.reference})"
     body = (
         f"Hello {application.contact_person},\n\n"
-        f"Thank you for applying to use EduSphere for {application.institution_name}.\n"
+        f"Thank you for applying to use {PRODUCT_NAME} for {application.institution_name}.\n"
         f"Your reference is {application.reference}.\n\n"
         f"Follow the progress of your application here:\n"
         f"{application_status_url(application, request)}\n\n"
@@ -452,7 +452,7 @@ def create_application(data, files=None, request=None):
     )
     notify_platform_admins(
         "New institution application",
-        f"{application.institution_name} ({application.reference}) applied to use EduSphere.",
+        f"{application.institution_name} ({application.reference}) applied to use {PRODUCT_NAME}.",
         link=reverse("platform_admin:application_detail", args=[application.pk]),
         category="applications",
     )
@@ -597,7 +597,7 @@ def reject_application(application, actor, reason, request=None):
     _event(application, "rejected", actor, reason, {"reason": reason})
     _application_email(
         application,
-        f"Update on your EduSphere application ({application.reference})",
+        f"Update on your {PRODUCT_NAME} application ({application.reference})",
         "emails/platform_application_rejected.html",
         (
             f"Hello {application.contact_person},\n\n"
@@ -605,7 +605,7 @@ def reject_application(application, actor, reason, request=None):
             f"{application.institution_name} at this time.\n\n"
             f"Reason: {reason}\n\n"
             "If you think this is a mistake, reply to this message or contact "
-            "EduSphere support.\n"
+            f"{PRODUCT_NAME} support.\n"
         ),
         {"reason": reason},
         email_type=INSTITUTION_APPLICATION_REJECTED,
@@ -810,7 +810,7 @@ def approve_application(application, actor, plan=None, request=None):
         )
         _application_email(
             locked,
-            f"Welcome to EduSphere ({locked.reference})",
+            f"Welcome to {PRODUCT_NAME} ({locked.reference})",
             "emails/platform_application_approved.html",
             (
                 f"Hello {locked.contact_person},\n\n"
@@ -906,7 +906,7 @@ def _notify_access_request(access_request, request=None):
     for user in recipients:
         notify(
             user,
-            "EduSphere platform staff asked for access",
+            f"{PRODUCT_NAME} platform staff asked for access",
             (
                 f"{access_request.requested_by.get_full_name() or access_request.requested_by.username} "
                 f"asked for {', '.join(access_request.categories)} for "
@@ -918,11 +918,11 @@ def _notify_access_request(access_request, request=None):
         )
         _access_email(
             user.email or user.username,
-            "EduSphere is asking for access to your institution data",
+            f"{PRODUCT_NAME} is asking for access to your institution data",
             (
                 f"Hello {user.get_full_name() or user.username},\n\n"
                 f"{access_request.requested_by.get_full_name() or access_request.requested_by.username} "
-                f"from EduSphere platform staff asked for consent to access:\n"
+                f"from {PRODUCT_NAME} platform staff asked for consent to access:\n"
                 f"{', '.join(access_request.categories)}\n"
                 f"Mode: {access_request.get_mode_display()}\n"
                 f"Reason: {access_request.reason}\n\n"
@@ -1285,7 +1285,7 @@ def approve_emergency(access_request, actor, request=None):
     for user in _institution_recipients(institution, include_high=True):
         notify(
             user,
-            "Emergency EduSphere access was used",
+            f"Emergency {PRODUCT_NAME} access was used",
             (
                 f"{access_request.requested_by.get_full_name() or access_request.requested_by.username} "
                 f"was given emergency read-only access to {institution.name} for two hours."

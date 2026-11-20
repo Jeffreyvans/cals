@@ -15,7 +15,6 @@ It prints:
 Nothing is written to the database. The page measurements only run when an
 active superuser (or ``--username``) can sign in.
 """
-
 import time
 from contextlib import ExitStack
 
@@ -26,6 +25,7 @@ from django.test import Client
 from django.test.utils import CaptureQueriesContext
 from django.urls import NoReverseMatch, reverse
 
+from config.brand import PRODUCT_NAME
 from core.models import Institution
 
 TABLES = [
@@ -75,7 +75,7 @@ class Command(BaseCommand):
                             help="Only report tables, indexes and settings.")
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.MIGRATE_HEADING("EduSphere performance snapshot"))
+        self.stdout.write(self.style.MIGRATE_HEADING(f"{PRODUCT_NAME} performance snapshot"))
         self._settings()
         self._tables()
         if not options["no_pages"]:

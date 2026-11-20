@@ -1,6 +1,6 @@
-{% extends "emails/base_email.html" %}
+{% extends "emails/base_email.html" %}{% load branding %}
 {% block title %}Sign in to {{ institution.name }}{% endblock %}
-{% block preheader %}Your branded EduSphere sign-in link.{% endblock %}
+{% block preheader %}Your branded {% brand_name %} sign-in link.{% endblock %}
 {% block content %}
 <p style="margin:0 0 18px;">Hello{% if admin %} {{ admin.get_full_name|default:admin.username }}{% endif %},</p>
 <p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e;">

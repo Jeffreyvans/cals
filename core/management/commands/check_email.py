@@ -8,11 +8,11 @@ API keys are never printed: only the provider name, the From address and the
 sanitized provider response are shown. The command also prints the same
 summary as the platform Email health page (last 50 messages and counts).
 """
-
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Count
 
+from config.brand import PRODUCT_NAME
 from core.email_types import EMAIL_CHECK, EMAIL_TYPE_LABELS
 from core.models import OutboundMessage
 from core.notifications import EMAIL_FAILURE_MESSAGE, send_platform_email
@@ -35,8 +35,8 @@ class Command(BaseCommand):
         self.stdout.write(f"Site URL: {getattr(settings, 'SITE_URL', '')}")
 
         message = send_platform_email(
-            subject="EduSphere email check",
-            body="This is a test message from EduSphere. No action is needed.\n",
+            subject=f"{PRODUCT_NAME} email check",
+            body=f"This is a test message from {PRODUCT_NAME}. No action is needed.\n",
             recipient=recipient,
             email_type=EMAIL_CHECK,
         )

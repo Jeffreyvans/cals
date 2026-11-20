@@ -1,16 +1,18 @@
-{% load static media %}<!doctype html>
+{% load branding %}{% load static media %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="EduSphere runs admissions, student records, fees, results, attendance, timetables and parent communication for schools and colleges in one place.">
+  <meta name="description" content="{% brand_name %} runs admissions, student records, fees, results, attendance, timetables and parent communication for schools and colleges in one place.">
   <meta name="theme-color" content="#3e2723">
+  <link rel="manifest" href="{% url 'manifest' %}">
+  <link rel="icon" href="{% brand_favicon_url %}" type="image/svg+xml">
   <meta name="robots" content="index,follow">
   <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
-  <title>EduSphere — Run your school or college in one place</title>
+  <title>{% brand_name %} — Run your school or college in one place</title>
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="EduSphere">
-  <meta property="og:title" content="EduSphere — Run your school or college in one place">
+  <meta property="og:site_name" content="{% brand_name %}">
+  <meta property="og:title" content="{% brand_name %} — Run your school or college in one place">
   <meta property="og:description" content="Admissions, student records, fees, results, attendance, timetables and parent communication in one calm system.">
   <meta property="og:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
   <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'img/landing/hero-classroom-1040.jpg' %}">
@@ -56,9 +58,9 @@
 
 <header class="site-head" data-site-head>
   <div class="wrap">
-    <a class="wordmark" href="{% url 'login' %}" aria-label="EduSphere home">
+    <a class="wordmark" href="{% url 'login' %}" aria-label="{% brand_name %} home">
       <span class="wordmark-mark" aria-hidden="true"><svg><use href="#p-logo"/></svg></span>
-      <span>EduSphere<small>School management</small></span>
+      <span>{% brand_name %}<small>School management</small></span>
     </a>
     <button class="nav-toggle" type="button" data-nav-toggle aria-controls="siteNav" aria-expanded="false" aria-label="Open menu">
       <svg aria-hidden="true"><use href="#p-menu"/></svg>
@@ -87,7 +89,7 @@
       </button>
       <a class="btn btn-ghost btn-sm" href="{% url 'login' %}">Sign in</a>
       <a class="btn btn-ghost btn-sm" href="{% url 'register_choice' %}">Register</a>
-      <a class="btn btn-deep btn-sm" href="{% url 'platform_admin:apply' %}">Apply to use EduSphere</a>
+      <a class="btn btn-deep btn-sm" href="{% url 'platform_admin:apply' %}">Apply to use {% brand_name %}</a>
     </div>
   </div>
 </header>
@@ -98,7 +100,7 @@
       <div class="hero-copy reveal">
         <h1 id="hero-title">Run your school or college in one place.</h1>
         <p class="lede">Admissions, student records, fees, results, attendance, timetables and parents — together in one calm system, built for busy offices and slow connections.</p>
-        <ul class="hero-points" aria-label="What EduSphere covers">
+        <ul class="hero-points" aria-label="What {% brand_name %} covers">
           <li>Fees and receipts</li>
           <li>Results and report cards</li>
           <li>Attendance</li>
@@ -157,7 +159,7 @@
     </div>
   </section>
 
-  <section class="trust section-tight" aria-label="Why schools choose EduSphere">
+  <section class="trust section-tight" aria-label="Why schools choose {% brand_name %}">
     <div class="wrap">
       <div class="trust-grid">
         <div class="trust-item">
@@ -183,7 +185,7 @@
   <section class="section" id="features" aria-labelledby="features-title">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow">What EduSphere does</span>
+        <span class="eyebrow">What {% brand_name %} does</span>
         <h2 id="features-title">The everyday work of a school, in one system.</h2>
         <p>Each part is switched on only if your institution needs it. Nothing is hidden behind jargon.</p>
       </div>
@@ -334,7 +336,7 @@
     <div class="wrap">
       <span class="eyebrow">Secure and reliable</span>
       <h2 id="security-title">Records are private by default.</h2>
-      <p>EduSphere is built for one institution at a time. Permission checks run on every screen and every API call, and sensitive views are logged.</p>
+      <p>{% brand_name %} is built for one institution at a time. Permission checks run on every screen and every API call, and sensitive views are logged.</p>
       <ul class="security-points">
         <li><strong>Data protection</strong><span>Tenant isolation, restricted registers and consent-aware sharing.</span></li>
         <li><strong>Audit trail</strong><span>Money, marks, users and roles leave a dated record of who did what.</span></li>
@@ -351,9 +353,9 @@
           <h2 id="contact-title">Tell us about your institution.</h2>
           <p style="margin-top: 0.9rem; color: var(--muted);">Ask a question, arrange a walkthrough, or tell us what your office needs. We answer in plain English.</p>
           <ul class="contact-list">
-            <li><a href="tel:+263774573765"><svg aria-hidden="true"><use href="#p-phone"/></svg>+263 774 573 765</a></li>
+            <li><a href="tel:{% brand_support_phone %}"><svg aria-hidden="true"><use href="#p-phone"/></svg>{% brand_support_phone_display %}</a></li>
             <li><a href="https://wa.me/263774573765" rel="noopener"><svg aria-hidden="true"><use href="#p-whatsapp"/></svg>WhatsApp us</a></li>
-            <li><a href="mailto:sphereeedu@gmail.com"><svg aria-hidden="true"><use href="#p-mail"/></svg>sphereeedu@gmail.com</a></li>
+            <li><a href="mailto:{% brand_support_email %}"><svg aria-hidden="true"><use href="#p-mail"/></svg>{% brand_support_email %}</a></li>
           </ul>
         </div>
         <div class="contact-card">
@@ -406,7 +408,7 @@
       <div>
         <a class="wordmark" href="{% url 'login' %}">
           <span class="wordmark-mark" aria-hidden="true"><svg><use href="#p-logo"/></svg></span>
-          <span>EduSphere</span>
+          <span>{% brand_name %}</span>
         </a>
         <p>One place to run admissions, academics, attendance, fees and communication for your institution.</p>
       </div>
@@ -420,6 +422,7 @@
           <li><a href="{% url 'learn_security_and_privacy' %}">Security and privacy</a></li>
           <li><a href="{% url 'learn_pricing_and_contact' %}">Pricing and contact</a></li>
           <li><a href="{% url 'learn_faq' %}">FAQ</a></li>
+          <li><a href="{% url 'about' %}">About {% brand_name %}</a></li>
         </ul>
       </div>
       <div>
@@ -427,17 +430,17 @@
         <ul class="foot-links" style="margin-top: 0.7rem;">
           <li><a href="{% url 'login' %}">Sign in</a></li>
           <li><a href="{% url 'register_choice' %}">Register</a></li>
-          <li><a href="{% url 'platform_admin:apply' %}">Apply to use EduSphere</a></li>
+          <li><a href="{% url 'platform_admin:apply' %}">Apply to use {% brand_name %}</a></li>
           <li><a href="{% url 'privacy_notice' %}">Privacy notice</a></li>
           <li><a href="{% url 'platform_admin:privacy' %}">Platform privacy</a></li>
           <li><a href="{% url 'platform_admin:data_processing' %}">Data processing statement</a></li>
-          <li><a href="tel:+263774573765">+263 774 573 765</a></li>
-          <li><a href="mailto:sphereeedu@gmail.com">sphereeedu@gmail.com</a></li>
+          <li><a href="tel:{% brand_support_phone %}">{% brand_support_phone_display %}</a></li>
+          <li><a href="mailto:{% brand_support_email %}">{% brand_support_email %}</a></li>
         </ul>
       </div>
     </div>
     <div class="foot-bottom">
-      <span>&copy; {% now "Y" %} EduSphere. All rights reserved.</span>
+      <span>{% brand_copyright %}</span>
       <span>Built for schools and colleges in Zimbabwe and beyond.</span>
     </div>
   </div>

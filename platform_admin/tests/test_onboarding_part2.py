@@ -15,6 +15,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import SignupLink
+from config.brand import PRODUCT_NAME, SUPPORT_EMAIL
 from core.models import (
     AuditEntry,
     InstitutionSlugRedirect,
@@ -90,7 +91,7 @@ class LoginLinkPanelTests(PlatformTestBase):
         self.assertEqual(message.status, OutboundMessage.Status.SENT)
         self.assertIn("/i/alpha-platform/login/", message.body)
         self.assertIn("+263774573765", message.body)
-        self.assertIn("sphereeedu@gmail.com", message.body)
+        self.assertIn(SUPPORT_EMAIL, message.body)
         self.assertTrue(
             PlatformAuditLog.objects.filter(action="institution.login_link_emailed").exists()
         )
@@ -198,7 +199,7 @@ class PlatformSignupLinkTests(PlatformTestBase):
             actor=self.main,
         ).user
         welcome = OutboundMessage.objects.filter(
-            recipient=admin.email, subject__icontains="Welcome to EduSphere"
+            recipient=admin.email, subject__icontains=f"Welcome to {PRODUCT_NAME}"
         )
         self.assertEqual(welcome.count(), 1)
 

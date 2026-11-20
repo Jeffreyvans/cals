@@ -1,6 +1,6 @@
 """Uploads: validation, resizing, storage safety and URL generation.
 
-Every upload path in EduSphere goes through ``core.uploads``. These tests pin
+Every upload path in the platform goes through ``core.uploads``. These tests pin
 down the behaviour a person sees when a file is rejected (type, size or
 dimensions), prove that large pictures are shrunk before they are stored, and
 check that production cannot silently write to an ephemeral disk.

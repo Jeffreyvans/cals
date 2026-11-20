@@ -1,6 +1,6 @@
-# EduSphere error codes
+# Vanpere error codes
 
-This is the reference for every user-facing failure in EduSphere. The single
+This is the reference for every user-facing failure in Vanpere. The single
 source of truth is `core/error_catalogue.py`: pages, inline messages, JSON API
 errors, logs and the platform **Errors** page all read the same `ErrorSpec`.
 A message always names its category (for example, "Network problem: ...") so

@@ -1,4 +1,4 @@
-{% extends "public_base.html" %}
+{% extends "public_base.html" %}{% load branding %}
 {% block title %}Application received{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
@@ -6,7 +6,7 @@
   <div class="wrap" style="max-width: 720px;">
     <h1>Thank you</h1>
     <p class="lede">Your application has been received. If it needs anything else, we will contact the person named on the form.</p>
-    <a class="btn btn-deep" href="{% url 'login' %}">Back to EduSphere</a>
+    <a class="btn btn-deep" href="{% url 'login' %}">Back to {% brand_name %}</a>
   </div>
 </section>
 {% endblock %}

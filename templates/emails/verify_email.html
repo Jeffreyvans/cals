@@ -1,9 +1,9 @@
-{% extends "emails/base_email.html" %}
-{% block title %}Confirm your EduSphere email address{% endblock %}
-{% block preheader %}Confirm your email address to finish setting up your EduSphere account.{% endblock %}
+{% extends "emails/base_email.html" %}{% load branding %}
+{% block title %}Confirm your {% brand_name %} email address{% endblock %}
+{% block preheader %}Confirm your email address to finish setting up your {% brand_name %} account.{% endblock %}
 {% block content %}
 <p style="margin:0 0 14px;">Hello {{ user.get_full_name|default:user.username }},</p>
-<p style="margin:0 0 18px;">Please confirm your email address for EduSphere by using the button below.</p>
+<p style="margin:0 0 18px;">Please confirm your email address for {% brand_name %} by using the button below.</p>
 <p style="margin:0 0 18px;">
   <a href="{{ link }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">Confirm my email address</a>
 </p>

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load branding %}
 {% block title %}Who accessed our data{% endblock %}
 {% block content %}
 <div class="head">
@@ -30,7 +30,7 @@
       </td>
     </tr>
   {% empty %}
-    <tr><td colspan="6" class="muted">No active grants. Nobody from EduSphere can see protected data right now.</td></tr>
+    <tr><td colspan="6" class="muted">No active grants. Nobody from {% brand_name %} can see protected data right now.</td></tr>
   {% endfor %}
 </table>
 

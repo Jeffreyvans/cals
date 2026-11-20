@@ -20,7 +20,7 @@ class PlatformDataAccessMiddleware:
             response["X-EduSphere-Grant-Id"] = str(grant.pk)
             content_type = response.get("Content-Type", "")
             if "text/csv" in content_type and not getattr(response, "streaming", False):
-                stamp = f"# EduSphere grant {grant.pk}: {grant.banner}\n".encode()
+                stamp = f"# Platform grant {grant.pk}: {grant.banner}\n".encode()
                 response.content = stamp + response.content
                 response["Content-Length"] = str(len(response.content))
         return response

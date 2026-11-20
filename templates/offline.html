@@ -1,5 +1,5 @@
-{% extends "public_base.html" %}
-{% block title %}Network problem: you are offline — EduSphere{% endblock %}
+{% extends "public_base.html" %}{% load branding %}
+{% block title %}Network problem: you are offline — {% brand_name %}{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
 <section class="section error-surface">
@@ -9,7 +9,7 @@
         <strong>Network problem</strong> <span class="error-code-pill">NET-OFFLINE</span></p>
       <h1>Network problem: your device looks offline</h1>
       <p class="error-explanation">This is a network problem, not a problem with your account or our servers.
-        Nothing you were doing was sent to EduSphere.</p>
+        Nothing you were doing was sent to {% brand_name %}.</p>
       <p class="error-action"><strong>What to do:</strong> Reconnect and try again. Unsaved form answers are
         kept on this device, except passwords.</p>
       <ol class="error-steps">
@@ -30,7 +30,7 @@
         <noscript><a class="btn btn-deep" href="/">Try again</a></noscript>
         <a class="btn ghost" href="/" data-go-back>Go back</a>
       </div>
-      <p class="error-meta">Support: +263774573765 &middot;
+      <p class="error-meta">Support: {% brand_support_phone %} &middot;
         <a href="mailto:vanhuvaonejeffrey@gmail.com">vanhuvaonejeffrey@gmail.com</a></p>
       <details class="error-technical">
         <summary>Technical details</summary>

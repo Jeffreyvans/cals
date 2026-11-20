@@ -53,12 +53,12 @@ class User(AbstractUser):
     )
     extra_roles = models.ManyToManyField("core.Role", blank=True, related_name="extra_users")
 
-    # A platform administrator belongs to EduSphere itself, not to a school.
+    # A platform administrator belongs to the platform itself, not to a school.
     # The explicit flag makes the intent clear in the database and lets the
     # account exist without an institution.
     is_platform_admin = models.BooleanField(
         default=False,
-        help_text="A main administrator of the EduSphere platform itself.",
+        help_text="A main administrator of the platform itself.",
     )
 
     # Account lifecycle. A temporary password is only ever shown once, so the

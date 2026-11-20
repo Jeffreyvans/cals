@@ -70,7 +70,7 @@ class OutboundMessageTests(TestCase):
     def test_a_queued_message_is_sent_by_the_pending_worker(self):
         message = queue_message(
             "sms", "+263770000000", "Your receipt is ready.",
-            subject="EduSphere", institution=self._institution())
+            subject="Platform update", institution=self._institution())
         self.assertEqual(message.status, OutboundMessage.Status.QUEUED)
         sent = send_pending()
         self.assertEqual(sent, 1)

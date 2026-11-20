@@ -1,4 +1,4 @@
-{% extends "platform_admin/base_platform.html" %}
+{% extends "platform_admin/base_platform.html" %}{% load branding %}
 {% block platform_title %}Email health{% endblock %}
 {% block platform_heading %}Email health{% endblock %}
 {% block platform_content %}
@@ -54,7 +54,7 @@
     <tr>
       <td>{{ message.created|date:"j M Y H:i" }}</td>
       <td>{{ message.get_email_type_display }}</td>
-      <td>{{ message.institution.name|default:"EduSphere" }}</td>
+      <td>{{ message.institution.name|default:"{% brand_name %}" }}</td>
       <td>{{ message.recipient }}</td>
       <td>{{ message.subject|truncatechars:60 }}</td>
       <td>{{ message.status }}</td>

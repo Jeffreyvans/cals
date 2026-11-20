@@ -9,7 +9,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--mode", choices=["school", "college"], default=None,
-            help="Switch EduSphere to school mode or college mode after seeding.")
+            help="Switch the platform to school mode or college mode after seeding.")
         parser.add_argument("--institution", default=None,
             help="Slug of the institution to seed. Defaults to the default one.")
         parser.add_argument("--prefix", default="",

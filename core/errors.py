@@ -1,4 +1,4 @@
-"""Classification, recording and rendering of every EduSphere error.
+"""Classification, recording and rendering of every platform error.
 
 The single entry point is :func:`classify_exception`. Views, API handlers,
 middleware and logs all call it so the same category and code reach the screen,

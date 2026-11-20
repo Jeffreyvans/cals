@@ -74,7 +74,7 @@ def balances_by_student():
 
 
 class SchoolSettings(TenantModel):
-    """The switches that change how this institution uses EduSphere.
+    """The switches that change how this institution uses the platform.
 
     One row per institution, holding the school mode.
     """

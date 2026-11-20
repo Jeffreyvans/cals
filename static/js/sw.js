@@ -1,10 +1,11 @@
-/* EduSphere app shell.
+/* Vanpere app shell.
  *
  * The worker keeps the small, shared shell (CSS, JS and an offline page) on the
  * device so a repeat visit on a metered connection starts instantly. It never
  * caches HTML pages that belong to a signed-in person and never touches a POST.
  */
-const CACHE = "edusphere-shell-v2";
+// Changing the cache name on a rebrand forces browsers to fetch fresh assets.
+const CACHE = "vanpere-shell-v2";
 const SHELL = [
   "/static/css/app.css",
   "/static/css/public.css",
@@ -42,6 +43,7 @@ function isStatic(url) {
 function mayCachePage(response) {
   /* The server sets this header only for anonymous public pages. */
   return response.ok &&
+    // Internal header name: kept so deployed proxies keep working.
     response.headers.get("X-EduSphere-Offline-Public") === "1" &&
     !response.headers.has("Set-Cookie") &&
     !/no-store|private/.test(response.headers.get("Cache-Control") || "");

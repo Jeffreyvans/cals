@@ -5,7 +5,6 @@ an administrator (or somebody the administrator has given permission to) adds a
 person directly. Every write is tenant-scoped and audited, and an account is
 never given a role above the role of the person doing the adding.
 """
-
 from __future__ import annotations
 
 import secrets
@@ -21,6 +20,7 @@ from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
+from config.brand import PRODUCT_NAME
 from core.audit import log_action
 from core.email_types import (
     ACCOUNT_CREATED,
@@ -299,7 +299,7 @@ def send_username_changed_notice(user, old_username, new_username):
     """Tell a person their login name changed. Never contains a password."""
     return _send_email(
         user,
-        "Your EduSphere username has changed",
+        f"Your {PRODUCT_NAME} username has changed",
         (
             f"Hello {user.get_full_name() or user.username},\n\n"
             f"Your username has changed from {old_username} to {new_username}.\n"
@@ -314,7 +314,7 @@ def _invitation_body(user, invitation, request=None):
     institution = user.institution
     return (
         f"Hello {user.get_full_name() or user.username},\n\n"
-        f"{institution.name} has created an account for you on EduSphere.\n\n"
+        f"{institution.name} has created an account for you on {PRODUCT_NAME}.\n\n"
         f"{_sign_in_instruction(user)}\n"
         f"Choose your password here: {_invitation_link(invitation, request)}\n\n"
         "The link can be used once and expires in 72 hours. If it expires, "

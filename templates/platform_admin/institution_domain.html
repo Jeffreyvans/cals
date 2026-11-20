@@ -1,4 +1,4 @@
-{% extends "platform_admin/base_platform.html" %}
+{% extends "platform_admin/base_platform.html" %}{% load branding %}
 {% block platform_title %}Custom domain for {{ institution.name }}{% endblock %}
 {% block platform_heading %}Custom domain for {{ institution.name }}{% endblock %}
 {% block platform_content %}
@@ -27,8 +27,9 @@
 {% if institution.custom_domain %}
 <h2>Verification steps</h2>
 <ol>
+  {# Internal DNS label is kept so existing verification records stay valid. #}
   <li>At your DNS provider add a TXT record for <code>_edusphere.{{ institution.custom_domain }}</code> with the value <code>{{ institution.custom_domain_token }}</code>.</li>
-  <li>Point the hostname itself at the EduSphere service (a <code>CNAME</code> or the platform's recommended <code>ALIAS</code> record) and wait for the certificate to be issued.</li>
+  <li>Point the hostname itself at the {% brand_name %} service (a <code>CNAME</code> or the platform's recommended <code>ALIAS</code> record) and wait for the certificate to be issued.</li>
   <li>Add the host to the deployment environment (then redeploy):
     <pre>ALLOWED_HOSTS={{ institution.custom_domain }}
 CSRF_TRUSTED_ORIGINS=https://{{ institution.custom_domain }}</pre>

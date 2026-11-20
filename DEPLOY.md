@@ -1,4 +1,4 @@
-# Deploying EduSphere on Render
+# Deploying Vanpere on Render
 
 This guide takes a fresh clone to a working production deployment on
 [Render](https://render.com), with PostgreSQL, object storage and email. It
@@ -59,10 +59,10 @@ Render once; it is never stored in the repository.
 
 1. Sign in to <https://dashboard.render.com>.
 2. Click **New +** in the top right, then **Blueprint**.
-3. Connect your Git provider and pick the EduSphere repository.
-4. Give the Blueprint a name (for example `edusphere`) and confirm the branch
+3. Connect your Git provider and pick the Vanpere repository.
+4. Give the Blueprint a name (for example `vanpere`) and confirm the branch
    (usually `main`).
-5. Render reads `render.yaml` and shows the `edusphere` web service.
+5. Render reads `render.yaml` and shows the `vanpere` web service.
 6. Click **Apply** / **Create**.
 7. Render asks for every variable marked `sync: false`. Fill in:
    * `PLATFORM_ADMIN_USERNAME` – the sign-in name, e.g. `platform-admin`.
@@ -98,7 +98,9 @@ If you prefer not to use `render.yaml`:
    `gunicorn config.wsgi:application --config gunicorn.conf.py`
 5. Health check path: `/health/`
 6. Add the environment variables from section 4. Set `PYTHON_VERSION` to
-   `3.12.10`, `DEBUG` to `false`, and generate `SECRET_KEY`.
+   `3.12.10`, `DEBUG` to `false`, and generate `SECRET_KEY`. Set `SITE_URL` to
+   the final public URL and `BRAND_NAME`/`BRAND_COMPANY` if the defaults need to
+   change.
 7. Deploy.
 
 > **Executable bit:** Render runs `./build.sh`, so the file must be executable
@@ -118,9 +120,12 @@ working. A real environment variable always wins over `.env`.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DEBUG` | Production: `false` | Turns on development behaviour. Render sets `false`; with no variables at all it defaults to `true` locally. |
+| `BRAND_NAME` | No (default `Vanpere`) | Visible product name. Overrides `config/brand.py` for pages, emails, PDFs, PWA manifest and API docs. |
+| `BRAND_COMPANY` | No (default `<BRAND_NAME> Digital Solutions`) | Publisher shown in footers, legal pages and copyright. |
+| `OLD_SITE_URL` | Optional | Comma-separated old host(s) that 301-redirect to `SITE_URL` after a domain change. |
 | `SECRET_KEY` | Yes in production | Django signing key. Render generates it (`generateValue: true`). Never reuse a development key. |
-| `ALLOWED_HOSTS` | Yes in production | Comma-separated hostnames, e.g. `edusphere.example.com`. `RENDER_EXTERNAL_HOSTNAME` is appended automatically. |
-| `CSRF_TRUSTED_ORIGINS` | For a custom domain | Comma-separated full origins, e.g. `https://edusphere.example.com`. `https://<RENDER_EXTERNAL_HOSTNAME>` is appended automatically. |
+| `ALLOWED_HOSTS` | Yes in production | Comma-separated hostnames, e.g. `vanpere.example.com`. `RENDER_EXTERNAL_HOSTNAME` is appended automatically. |
+| `CSRF_TRUSTED_ORIGINS` | For a custom domain | Comma-separated full origins, e.g. `https://vanpere.example.com`. `https://<RENDER_EXTERNAL_HOSTNAME>` is appended automatically. |
 | `RENDER_EXTERNAL_HOSTNAME` | Automatic | Set by Render. Used to add the host and CSRF origin automatically. |
 | `SECURE_SSL_REDIRECT` | No (default `true`) | Redirects HTTP to HTTPS when `DEBUG=false`. |
 | `SECURE_HSTS_SECONDS` | No (default `31536000`) | HSTS lifetime when `DEBUG=false`. |
@@ -161,7 +166,7 @@ changes nothing; it never creates a duplicate.
 | `AWS_S3_ENDPOINT_URL` | For R2/B2/Supabase | S3 endpoint, e.g. `https://<project>.supabase.co/storage/v1/s3`. |
 | `AWS_S3_REGION_NAME` | With S3 storage | `auto` for R2; the bucket region for B2/Supabase. |
 | `AWS_S3_CUSTOM_DOMAIN` | Optional | Public CDN domain for files. |
-| `AWS_LOCATION` | Optional | Key prefix inside the bucket, e.g. `edusphere`. |
+| `AWS_LOCATION` | Optional | Key prefix inside the bucket (keep the legacy `edusphere` value for existing installations). |
 | `EDUSPHERE_MEDIA_PATH` | Local only | Folder for uploads when storage is `local`. |
 
 ### Email
@@ -265,6 +270,36 @@ process.
 `.env.example` lists the same variables with obvious placeholders for local
 use.
 
+### Renaming an existing deployment
+
+Visible names are centralised in `config/brand.py` (and the `BRAND_NAME`,
+`BRAND_COMPANY` environment overrides). The Django package, app names, database
+tables, migrations, `EDUSPHERE_*` environment variables, cache keys, loggers,
+headers and URL names are **internal identifiers** and must not be changed when
+the product is renamed. To rename a live installation:
+
+1. Rename the GitHub repository first (repository **Settings → General →
+   Repository name**). Update any local clone with `git remote set-url origin
+   <new-url>` and update badges/links in `README.md` if present.
+2. In Render, open the web service → **Settings → General → Service name** and
+   set it to `vanpere` (or the new product slug). The Blueprint `name:` field in
+   `render.yaml` should match, but the dashboard name can be changed without a
+   redeploy.
+3. Change the public identity in `config/brand.py`, or set `BRAND_NAME` and
+   `BRAND_COMPANY` in **Environment** to override them without a code change.
+   Replace the placeholder artwork in `static/img/brand/` if required. The PWA
+   manifest, page titles, emails, PDFs and API docs read the same values.
+4. Point the new domain at the service using section 8, then set `SITE_URL`,
+   `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` to the final public hostname.
+   `SITE_URL` builds absolute links in emails and the sitemap; the other two
+   must include the hostname before sessions and forms work on that domain.
+5. If the old domain must keep working, list it in `OLD_SITE_URL` (comma
+   separated). Requests that arrive on an old host are answered with a `301`
+   permanent redirect to the same path on `SITE_URL`, preserving query strings.
+   Leave it unset until the new certificate is issued and verified.
+6. Redeploy, then sign in through the new domain and check a PDF, a password
+   reset email, `/manifest.json`, `/robots.txt` and `/sitemap.xml`.
+
 ---
 
 ## 5. Connect PostgreSQL
@@ -321,7 +356,7 @@ bucket.
 ### Supabase Storage
 
 1. In Supabase, open **Storage** and create a private bucket, e.g.
-   `edusphere-media`.
+   `vanpere-media`.
 2. Open **Project Settings → Storage → S3 connection** and copy the endpoint,
    region and access keys. The endpoint is usually
    `https://<project-ref>.supabase.co/storage/v1/s3`.
@@ -331,7 +366,7 @@ bucket.
    STORAGE_BACKEND=supabase
    AWS_ACCESS_KEY_ID=<access key id>
    AWS_SECRET_ACCESS_KEY=<secret access key>
-   AWS_STORAGE_BUCKET_NAME=edusphere-media
+   AWS_STORAGE_BUCKET_NAME=vanpere-media
    AWS_S3_ENDPOINT_URL=https://<project-ref>.supabase.co/storage/v1/s3
    AWS_S3_REGION_NAME=<region from the S3 connection panel>
    AWS_LOCATION=edusphere
@@ -359,7 +394,7 @@ Files are stored privately and served through short-lived signed URLs
 
 ## 7. Email (Mailjet)
 
-Every message leaves EduSphere through one function,
+Every message leaves Vanpere through one function,
 `core.notifications.send_email`, which writes an `OutboundMessage` row and then
 uses Django's configured backend. Production uses the **Mailjet HTTPS API** via
 `django-anymail`, so Render's free plan (which blocks outbound SMTP on ports
@@ -398,7 +433,7 @@ selectable with `EMAIL_PROVIDER=brevo` / `resend`.
    * `MAILJET_API_KEY` – the API key.
    * `MAILJET_SECRET_KEY` – the secret key.
    * `EMAIL_FROM_DOMAIN` – your verified domain, e.g. `yourdomain.com`.
-   * `DEFAULT_FROM_EMAIL` – e.g. `EduSphere <no-reply@yourdomain.com>`.
+   * `DEFAULT_FROM_EMAIL` – e.g. `Vanpere <no-reply@yourdomain.com>`.
    * `SERVER_EMAIL` – usually the same address.
    * `DEFAULT_REPLY_TO_EMAIL` – a monitored mailbox for replies.
    * `SITE_URL` – `https://<service-name>.onrender.com` (or your custom
@@ -485,7 +520,7 @@ in `python manage.py check_email`. A source-scan test fails the build if a new
 ## 8. Add a custom domain
 
 1. In Render, open the web service → **Settings → Custom Domains**.
-2. Click **Add Custom Domain** and enter `edusphere.example.com`.
+2. Click **Add Custom Domain** and enter `vanpere.example.com`.
 3. Render shows the DNS record to create. At your DNS provider add either:
    * a `CNAME` from `edusphere` to the Render hostname, or
    * the `ALIAS`/`ANAME` record Render recommends for an apex domain.
@@ -493,8 +528,8 @@ in `python manage.py check_email`. A source-scan test fails the build if a new
 5. Add the domain to the service environment:
 
    ```text
-   ALLOWED_HOSTS=edusphere.example.com
-   CSRF_TRUSTED_ORIGINS=https://edusphere.example.com
+   ALLOWED_HOSTS=vanpere.example.com
+   CSRF_TRUSTED_ORIGINS=https://vanpere.example.com
    ```
 
 6. Redeploy. The host and CSRF origin may also inherit
@@ -739,8 +774,8 @@ python manage.py makemigrations --check --dry-run
 # Production configuration check (PowerShell example)
 $env:DEBUG="false"
 $env:SECRET_KEY="<long random string>"
-$env:ALLOWED_HOSTS="edusphere.example.com"
-$env:CSRF_TRUSTED_ORIGINS="https://edusphere.example.com"
+$env:ALLOWED_HOSTS="vanpere.example.com"
+$env:CSRF_TRUSTED_ORIGINS="https://vanpere.example.com"
 $env:EMAIL_PROVIDER="mailjet"
 $env:MAILJET_API_KEY="<api key>"
 $env:MAILJET_SECRET_KEY="<secret key>"

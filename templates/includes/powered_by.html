@@ -1,0 +1,6 @@
+{% load branding %}{# Small attribution for institution pages, documents and emails. Platform staff can switch it off per institution for white-label plans. #}
+{% if institution and not institution.show_platform_branding %}
+{% elif INSTITUTION_OBJECT and not INSTITUTION_OBJECT.show_platform_branding %}
+{% else %}
+<p class="powered-by" style="font-size:0.78rem;opacity:0.72;margin:0.5rem 0;"><a href="{% brand_website %}" style="text-decoration:none;">{% brand_powered_by %}</a></p>
+{% endif %}

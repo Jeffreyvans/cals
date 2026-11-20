@@ -2,25 +2,28 @@
 
 This is a plain-language starting point, not legal advice. A qualified lawyer
 should review it against the Zimbabwe Cyber and Data Protection Act before it is
-relied on in a contract.
+relied on in a contract. The publisher and contact details come from
+``config.brand`` so a rename stays in one place.
 """
+
+from config.brand import COMPANY_NAME, PRODUCT_NAME, SUPPORT_EMAIL, SUPPORT_PHONE_DISPLAY
 
 DATA_PROCESSING_VERSION = "1.0"
 
-DATA_PROCESSING_STATEMENT = """\
-Data processing statement (version 1.0)
+DATA_PROCESSING_STATEMENT = f"""\
+Data processing statement (version {DATA_PROCESSING_VERSION})
 
 1. Roles. The institution is the data controller. It decides what personal data
-   is collected, why it is collected and how long it is kept. EduSphere is the
+   is collected, why it is collected and how long it is kept. {COMPANY_NAME} is the
    data processor. We process personal data only on the institution's written
-   instructions and only to provide the service.
+   instructions and only to provide {PRODUCT_NAME}.
 
-2. Platform staff access. EduSphere staff do not see the personal data inside an
-   institution by default. A member of platform staff may ask the institution for
-   consent to see a named category of data for a stated reason and a limited time.
-   The institution may approve, narrow, refuse or revoke that consent at any time.
-   Health and counselling records need the institution's data protection officer
-   or principal to approve as well.
+2. Platform staff access. Staff of {COMPANY_NAME} do not see the personal data
+   inside an institution by default. A member of platform staff may ask the
+   institution for consent to see a named category of data for a stated reason
+   and a limited time. The institution may approve, narrow, refuse or revoke that
+   consent at any time. Health and counselling records need the institution's
+   data protection officer or principal to approve as well.
 
 3. Security. Access is logged, time-limited and revocable. Every view, export and
    change by platform staff is written to a tamper-evident audit log. Emergency
@@ -33,28 +36,31 @@ Data processing statement (version 1.0)
 
 5. Legal duties. The institution remains responsible for notices, consent and
    lawful grounds under the Zimbabwe Cyber and Data Protection Act [Chapter 12:07]
-   and any other law that applies to it. EduSphere will assist with data subject
-   requests, breach notification and audits as the Act requires.
+   and any other law that applies to it. {COMPANY_NAME} will assist with data
+   subject requests, breach notification and audits as the Act requires.
 
 6. Consent record. Accepting this statement records the institution, the version,
    the time and the person who accepted it. The record is available to the
    institution and is kept to support its statutory record-keeping duties.
+
+Questions about this statement or platform records can be sent to
+{COMPANY_NAME} at {SUPPORT_EMAIL} or {SUPPORT_PHONE_DISPLAY}.
 
 This wording is a summary. A lawyer should review the final contract before an
 institution relies on it.
 """
 
 DATA_PROCESSING_SHORT = (
-    "The institution is the data controller; EduSphere is the processor. "
+    f"The institution is the data controller; {COMPANY_NAME} is the processor. "
     "Platform staff see protected data only with the institution's recorded consent."
 )
 
-PLATFORM_PRIVACY_NOTICE = """\
-EduSphere platform privacy notice
+PLATFORM_PRIVACY_NOTICE = f"""\
+{COMPANY_NAME} platform privacy notice
 
-EduSphere runs school and college management software. This notice explains what
-EduSphere itself collects when a school applies to join or when platform staff
-support an institution.
+{PRODUCT_NAME} is school and college management software published by
+{COMPANY_NAME}. This notice explains what the publisher collects when a school
+applies to join or when platform staff support an institution.
 
 What we collect
 - Application details: institution name, type, country, town, registration
@@ -75,7 +81,8 @@ Your rights
 Under the Zimbabwe Cyber and Data Protection Act you may ask for a copy of your
 data, ask us to correct it, object to processing, or ask for it to be deleted
 where the law allows. Contact the institution first for data inside its account;
-the institution is the controller. Contact EduSphere for platform records.
+the institution is the controller. Contact {COMPANY_NAME} for platform records at
+{SUPPORT_EMAIL} or {SUPPORT_PHONE_DISPLAY}.
 
 This notice is a summary and should be reviewed by a lawyer before it is relied on.
 """

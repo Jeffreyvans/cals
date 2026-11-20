@@ -1,9 +1,9 @@
-{% extends "emails/base_email.html" %}
-{% block title %}We received your EduSphere application{% endblock %}
+{% extends "emails/base_email.html" %}{% load branding %}
+{% block title %}We received your {% brand_name %} application{% endblock %}
 {% block preheader %}Your application {{ reference }} has been received.{% endblock %}
 {% block content %}
 <p style="margin:0 0 14px;">Hello {{ application.contact_person }},</p>
-<p style="margin:0 0 18px;">Thank you for applying to use EduSphere for <strong>{{ institution_name }}</strong>. Our team will review the application and contact you if anything else is needed.</p>
+<p style="margin:0 0 18px;">Thank you for applying to use {% brand_name %} for <strong>{{ institution_name }}</strong>. Our team will review the application and contact you if anything else is needed.</p>
 <p style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-radius:10px; color:#4e342e;">
   Your reference is <strong style="color:#2b1a12;">{{ reference }}</strong>
 </p>

@@ -25,12 +25,22 @@ from reportlab.lib import colors
 from reportlab.lib.units import cm
 from reportlab.platypus import Image, Paragraph, Table, TableStyle
 
+from config.brand import POWERED_BY
 from core.branding import primary_colour, readable_text
 from core.logo import institution_logo_bytes, institution_logo_url, logo_flowable
 
 # The 512 px file is used for print; the 160 px file for screens and email.
 PDF_LOGO = 512
 SCREEN_LOGO = 160
+
+
+def platform_attribution(institution):
+    """Small platform credit for documents, or '' for a white-label tenant.
+
+    Institution names, logos and colours are never changed by this credit. A
+    platform admin can switch it off per institution for premium plans.
+    """
+    return POWERED_BY if getattr(institution, "show_platform_branding", True) else ""
 
 
 def safe(value):

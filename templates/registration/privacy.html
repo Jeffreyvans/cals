@@ -1,17 +1,17 @@
-{% extends "public_base.html" %}
-{% block title %}Privacy notice — EduSphere{% endblock %}
-{% block description %}How EduSphere handles personal information for institutions, students, staff and parents.{% endblock %}
+{% extends "public_base.html" %}{% load branding %}
+{% block title %}Privacy notice — {% brand_name %}{% endblock %}
+{% block description %}How {% brand_name %} handles personal information for institutions, students, staff and parents.{% endblock %}
 {% block content %}
 <div class="page-shell narrow">
   <div class="page-title">
     <a class="back-link" href="{% url 'login' %}">&larr; Back</a>
     <h1>Privacy notice</h1>
-    <p>This notice explains the personal information EduSphere handles and the choices people have.</p>
+    <p>This notice explains the personal information {% brand_name %} handles and the choices people have.</p>
   </div>
 
   <div class="panel">
     <h2>Who controls your information</h2>
-    <p class="sub">Your institution decides what is collected and why. EduSphere provides the system that stores and processes it. Questions about a student or staff record should go to your institution's office first.</p>
+    <p class="sub">Your institution decides what is collected and why. {% brand_name %} provides the system that stores and processes it. Questions about a student or staff record should go to your institution's office first.</p>
   </div>
 
   <div class="panel">
@@ -41,7 +41,7 @@
 
   <div class="panel">
     <h2>Contact</h2>
-    <p class="sub">Email <a href="mailto:sphereeedu@gmail.com">sphereeedu@gmail.com</a> or call <a href="tel:+263774573765">+263 774 573 765</a>. For a student or staff record, contact the institution that holds it.</p>
+    <p class="sub">Email <a href="mailto:{% brand_support_email %}">{% brand_support_email %}</a> or call <a href="tel:{% brand_support_phone %}">{% brand_support_phone_display %}</a>. For a student or staff record, contact the institution that holds it.</p>
   </div>
 </div>
 {% endblock %}

@@ -4,7 +4,6 @@ Every public document carries a QR code that points at the verification page.
 The page shows only enough to confirm the document is genuine, never marks or
 money.
 """
-
 import html
 from io import BytesIO
 
@@ -25,12 +24,14 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from config.brand import PRODUCT_NAME
 from core.branding import primary_colour, readable_text
 from core.document_header import (
     build_header,
     contact_lines,
     header_mark,
     institution_details,
+    platform_attribution,
 )
 
 INK = colors.HexColor("#0f172a")
@@ -93,6 +94,11 @@ def _header(institution, title, styles, subtitle=""):
         title_style=styles["AdTitle"], small_style=styles["AdSmall"],
         logo_size=1.8 * cm, widths=(2.2 * cm, 9.3 * cm, 6.0 * cm),
         primary=primary_colour(institution))
+
+
+def _powered_by(institution, styles):
+    text = platform_attribution(institution)
+    return Paragraph(text, styles["AdSmall"]) if text else None
 
 
 def _footer(text):
@@ -165,6 +171,9 @@ def build_offer_letter(offer, request=None):
     story += [Spacer(1, 0.3 * cm), qr, Spacer(1, 0.3 * cm),
               Paragraph("The QR code opens the same page. Do not share this link.",
                         styles["AdSmall"])]
+    attribution = _powered_by(institution, styles)
+    if attribution is not None:
+        story += [Spacer(1, 0.25 * cm), attribution]
     doc.build(story, onFirstPage=_footer(institution.name),
               onLaterPages=_footer(institution.name))
     return buffer.getvalue()
@@ -214,6 +223,9 @@ def build_certificate(certificate, request=None):
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
     ]))
     story.append(signature)
+    attribution = _powered_by(institution, styles)
+    if attribution is not None:
+        story += [Spacer(1, 0.25 * cm), attribution]
     doc.build(story, onFirstPage=_footer(institution.name),
               onLaterPages=_footer(institution.name))
     return buffer.getvalue()
@@ -296,7 +308,7 @@ def build_id_cards(cards, request=None):
         buffer, pagesize=A4, leftMargin=1.8 * cm, rightMargin=1.8 * cm,
         topMargin=1.6 * cm, bottomMargin=1.6 * cm,
         title="Student identity cards",
-        author=institution.name if institution else "EduSphere")
+        author=institution.name if institution else PRODUCT_NAME)
     story = []
     for index, card in enumerate(cards):
         story += _card_block(card, request, styles, primary)
@@ -306,6 +318,9 @@ def build_id_cards(cards, request=None):
             story.append(Spacer(1, 0.3 * cm))
     if not story:
         story = [Paragraph("No cards to print.", styles["AdBody"])]
+    attribution = _powered_by(institution, styles)
+    if attribution is not None:
+        story += [Spacer(1, 0.25 * cm), attribution]
     doc.build(story, onFirstPage=_footer(institution.name if institution else ""),
               onLaterPages=_footer(institution.name if institution else ""))
     return buffer.getvalue()

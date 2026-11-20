@@ -1,6 +1,6 @@
-{% extends "emails/base_email.html" %}
-{% block title %}More information needed for your EduSphere application{% endblock %}
-{% block preheader %}EduSphere needs a little more information about {{ institution_name }}.{% endblock %}
+{% extends "emails/base_email.html" %}{% load branding %}
+{% block title %}More information needed for your {% brand_name %} application{% endblock %}
+{% block preheader %}{% brand_name %} needs a little more information about {{ institution_name }}.{% endblock %}
 {% block content %}
 <p style="margin:0 0 14px;">Hello {{ application.contact_person }},</p>
 <p style="margin:0 0 18px;">We are reviewing the application for <strong>{{ institution_name }}</strong> and need a little more information before we can continue.</p>

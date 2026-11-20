@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 56" role="img" aria-label="Vanpere">
+  <!-- Placeholder wordmark. Drop the final approved artwork at this path (or upload a PNG/JPG/WebP in Platform settings). Marigold accent for dark app headers. -->
+  <g fill="none" stroke="#E9A23B" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M12 12 27 44 42 12"/>
+    <path d="M19 12h16"/>
+  </g>
+  <text x="56" y="39" font-family="Figtree, Arial, sans-serif" font-size="32" font-weight="800" fill="#E9A23B">Vanpere</text>
+</svg>

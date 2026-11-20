@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from accounts.models import ReservedUsername, UserInvitation
 from accounts.user_admin import accept_invitation
+from config.brand import PRODUCT_NAME, SUPPORT_EMAIL
 from core.models import AuditEntry, Institution, OutboundMessage
 from core.notifications import absolute_url
 from platform_admin.models import InstitutionOnboarding, PlatformAuditLog, Subscription
@@ -86,12 +87,12 @@ class OnboardingFlowTests(PlatformTestBase):
 
         # The welcome email goes through the central email function exactly once.
         welcome = OutboundMessage.objects.filter(
-            recipient=admin.email, subject__icontains="Welcome to EduSphere"
+            recipient=admin.email, subject__icontains=f"Welcome to {PRODUCT_NAME}"
         )
         self.assertEqual(welcome.count(), 1)
         self.assertIn("Sign in", welcome.get().body)
         self.assertIn("+263774573765", welcome.get().body)
-        self.assertIn("sphereeedu@gmail.com", welcome.get().body)
+        self.assertIn(SUPPORT_EMAIL, welcome.get().body)
 
         # The institution, not the administrator, is notified separately.
         self.assertTrue(
@@ -323,7 +324,7 @@ class OnboardingFlowTests(PlatformTestBase):
             actor=self.main,
         ).user
         welcome = OutboundMessage.objects.filter(
-            recipient=admin.email, subject__icontains="Welcome to EduSphere"
+            recipient=admin.email, subject__icontains=f"Welcome to {PRODUCT_NAME}"
         )
         self.assertEqual(welcome.count(), 1)
         response = self.client.post(
@@ -346,7 +347,7 @@ class OnboardingFlowTests(PlatformTestBase):
             actor=self.main,
         ).user
         message = OutboundMessage.objects.get(
-            recipient=admin.email, subject__icontains="Welcome to EduSphere"
+            recipient=admin.email, subject__icontains=f"Welcome to {PRODUCT_NAME}"
         )
         self.assertIn(absolute_url(f"/i/{institution.slug}/login/"), message.body)
 
@@ -453,7 +454,7 @@ class AdministratorUsernameTests(PlatformTestBase):
             recipient=admin.email, subject__icontains="Your"
         )
         welcome = OutboundMessage.objects.get(
-            recipient=admin.email, subject__icontains="Welcome to EduSphere"
+            recipient=admin.email, subject__icontains=f"Welcome to {PRODUCT_NAME}"
         )
         self.assertIn(instruction, invitation.body)
         self.assertIn(instruction, welcome.body)

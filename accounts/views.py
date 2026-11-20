@@ -1,5 +1,4 @@
 """Public landing, registration, email verification and admin review screens."""
-
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -11,6 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 
+from config.brand import PRODUCT_NAME
 from core.access import permission_required_code
 from core.audit import log_action
 from core.email_types import CONTACT_FORM
@@ -188,14 +188,14 @@ class EduSphereLoginView(LoginLockoutMixin, LoginView):
         if form.is_valid():
             data = form.cleaned_data
             body = (
-                f"New EduSphere contact message\n\n"
+                f"New {PRODUCT_NAME} contact message\n\n"
                 f"Name: {data['name']}\n"
                 f"Email: {data['email']}\n"
                 f"Phone: {data.get('phone') or 'Not given'}\n\n"
                 f"{data['message']}\n"
             )
             message = send_platform_email(
-                "EduSphere contact form",
+                f"{PRODUCT_NAME} contact form",
                 body,
                 contact_recipient(),
                 reply_to=[data["email"]],

@@ -9,6 +9,7 @@ from django.utils.html import escape
 
 from accounts.models import SignupLink
 from accounts.registration import CONTACT_EMAIL
+from config.brand import PRODUCT_NAME
 from core.learn import LEARN_PAGES
 from core.models import Institution
 
@@ -56,7 +57,7 @@ class LearnPageTests(TestCase):
     def test_the_faq_page_publishes_structured_answers(self):
         response = self.client.get(reverse("learn_faq"))
         self.assertContains(response, "application/ld+json")
-        self.assertContains(response, "What is EduSphere?")
+        self.assertContains(response, f"What is {PRODUCT_NAME}?")
 
     def test_the_pricing_page_does_not_invent_a_price(self):
         response = self.client.get(reverse("learn_pricing_and_contact"))
@@ -136,7 +137,7 @@ class InstitutionPublicPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("institution_login", args=["alpha"]))
         self.assertContains(response, "Only accounts belonging to Alpha College")
-        self.assertContains(response, "Powered by EduSphere")
+        self.assertContains(response, f"Powered by {PRODUCT_NAME}")
         self.assertContains(response, reverse("login"))
 
     def test_the_page_can_be_switched_off(self):

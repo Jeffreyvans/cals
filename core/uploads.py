@@ -1,4 +1,4 @@
-"""Shared, safe handling for every uploaded file in EduSphere.
+"""Shared, safe handling for every uploaded file in the platform.
 
 Two rules apply to every upload:
 

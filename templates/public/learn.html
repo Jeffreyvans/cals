@@ -1,12 +1,12 @@
-{% extends "public_base.html" %}
-{% block title %}Learn about EduSphere{% endblock %}
-{% block description %}Plain-English pages about EduSphere: features, schools, colleges, parents and students, security and privacy, pricing and contact, and frequently asked questions.{% endblock %}
-{% block og_title %}Learn about EduSphere{% endblock %}
-{% block og_description %}Plain-English pages about what EduSphere does and who it is for.{% endblock %}
+{% extends "public_base.html" %}{% load branding %}
+{% block title %}Learn about {% brand_name %}{% endblock %}
+{% block description %}Plain-English pages about {% brand_name %}: features, schools, colleges, parents and students, security and privacy, pricing and contact, and frequently asked questions.{% endblock %}
+{% block og_title %}Learn about {% brand_name %}{% endblock %}
+{% block og_description %}Plain-English pages about what {% brand_name %} does and who it is for.{% endblock %}
 {% block content %}
 <section class="learn-hero">
   <div class="wrap">
-    <span class="eyebrow">Learn about EduSphere</span>
+    <span class="eyebrow">Learn about {% brand_name %}</span>
     <h1>Start with the part you need.</h1>
     <p class="lede">Short, plain-English pages about the system, the people who use it and the way records are kept. No jargon and no invented numbers.</p>
     <nav class="learn-nav" aria-label="Learn pages">

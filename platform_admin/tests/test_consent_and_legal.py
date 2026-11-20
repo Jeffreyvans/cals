@@ -1,6 +1,6 @@
 """Data processing consent: the statement, the record and the institution views.
 
-EduSphere is the processor and the institution is the controller. These tests
+The platform is the processor and the institution is the controller. These tests
 cover the public explanation, the consent record written when an application is
 approved, and the institution's own ability to see and download that record.
 """

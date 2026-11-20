@@ -321,11 +321,11 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
 - [x] Verification: 890 tests pass, `ruff check .` is clean, `manage.py check` is clean and `makemigrations --check` reports no changes.
 
 ## Public landing page and self-registration (session 17)
-- [x] Replaced the old split-panel sign-in page with a platform-level landing page that never reads institution branding or names: EduSphere wordmark and navigation, sign-in card beside a classroom photo, trust strip, feature and audience cards, how-it-works steps, role blocks, a security band, a contact section and a footer with the current year and privacy link.
+- [x] Replaced the old split-panel sign-in page with a platform-level landing page that never reads institution branding or names: Vanpere wordmark and navigation, sign-in card beside a classroom photo, trust strip, feature and audience cards, how-it-works steps, role blocks, a security band, a contact section and a footer with the current year and privacy link.
 - [x] Added a separate `static/css/landing.css` built on the existing deep green `#12403c`, marigold `#e8a317` and Figtree identity, with dark mode, mobile-first breakpoints, reduced-motion handling, visible focus, a skip link and a gradient placeholder that appears when a photo file is absent. The signed-in application keeps its navy tokens in `app.css`.
 - [x] Added `static/js/landing.js` for the mobile menu, sticky-header state and a searchable institution picker. The page works without JavaScript; no library or hotlinked image was added.
 - [x] Generated WebP and JPEG landing images at phone and desktop widths under `static/img/landing/`; every file is below 200 KB. `scripts/build_landing_images.py` rebuilds them from `static/img/landing/originals/`.
-- [x] Added the contact form on the landing page with a honeypot, per-IP rate limit, CSRF protection and an email to `sphereeedu@gmail.com`; the phone number is linked with `tel:` and `https://wa.me/263774573765`, and the footer repeats both contacts.
+- [x] Added the contact form on the landing page with a honeypot, per-IP rate limit, CSRF protection and an email to `vanhuvaonejeffrey@gmail.com`; the phone number is linked with `tel:` and `https://wa.me/263774573765`, and the footer repeats both contacts.
 - [x] Added `accounts/urls.py` for sign-in, sign-out, password reset, registration, email verification, privacy and administrator review, and removed the old inline auth routes from `config/urls.py`.
 - [x] Added `/register/` with clear student and staff paths. Both list only institutions whose new `public_registration` setting is on, and the staff position list is limited by that institution's `staff_positions` setting.
 - [x] Student path: registration number, surname and date of birth are compared case-insensitively with collapsed spaces against the existing admission record. A match attaches or creates one login, activates it immediately and sends an email verification link when the contact is an email address. A mismatch always shows the required generic message, offers the institution's contact page and writes an audit entry; attempts are throttled per IP and per registration number. A duplicate login is reported with sign-in and password-reset links.
@@ -446,11 +446,11 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
 
 ## Green public platform, learn pages and institution profiles (Part 3C, session 27)
 - [x] Replaced the brown public palette with the deep-green and marigold identity (`--green #12403c`, `--green-deep #0b2b28`, `--marigold #e8a317`, `--marigold-deep #a86f00`, and soft/ink/line tokens) in `static/css/public.css`, keeping Figtree, the mobile-first layout, the reduced-motion and focus styles, and the green/marigold dark variant driven by `prefers-color-scheme` plus the remembered `edusphere.public.theme` toggle. Added `--link` and `--accent-ink` so anchors, eyebrows, icons and choice links stay readable without fighting `.btn`. The signed-in app keeps `static/css/app.css`.
-- [x] `/` is the platform login-and-marketing page: hero, sign-in card, responsive classroom photo (WebP with JPEG fallback, `loading="lazy"` below the fold), trust strip, feature cards, audience cards, how-it-works steps, role blocks, security band, contact section (phone `+263 774 573 765`, email `sphereeedu@gmail.com`) and the footer. It carries no institution-specific content and a signed-in visitor is redirected to the dashboard.
+- [x] `/` is the platform login-and-marketing page: hero, sign-in card, responsive classroom photo (WebP with JPEG fallback, `loading="lazy"` below the fold), trust strip, feature cards, audience cards, how-it-works steps, role blocks, security band, contact section (phone `+263 774 573 765`, email `vanhuvaonejeffrey@gmail.com`) and the footer. It carries no institution-specific content and a signed-in visitor is redirected to the dashboard.
 - [x] Added `core/learn.py` with the content for seven learn pages and their clean top-level routes (`/features/`, `/for-schools/`, `/for-colleges/`, `/for-parents-and-students/`, `/security-and-privacy/`, `/pricing-and-contact/`, `/faq/`), plus a `/learn/` hub. `core/public_views.learn_page` renders `templates/public/learn_page.html`; `learn_alias` permanently redirects the old `/learn/<slug>/` addresses. The header uses `<details class="nav-more">` with every page, so the menu works without JavaScript. The words are plain English and contain no invented statistics, client names, awards, testimonials or prices.
 - [x] `/pricing-and-contact/` uses `DemoRequestForm` (`accounts/forms.py`) with a hidden honeypot, optional message and the shared contact rate limit. A valid request emails `contact_recipient()` with the visitor's address as `Reply-To`, then shows a thank-you message; a bot, a bad address or too many attempts sends nothing.
 - [x] Added `Institution.public_page_enabled` and `Institution.show_register_button` (migration `core/0014`) with controls on `templates/core/institution_settings.html` and the `registration` action in `core/views.settings_view`. `accounts.signup_links.open_signup_links(institution)` was added and exported so the public page and the institution login share one rule.
-- [x] Rewrote `templates/public/institution.html` as the branded `/i/<slug>/` page: logo (or initials), name, tagline, About, contact details, a sign-in card, a conditional Register button and the "Powered by EduSphere" footer linking to `/`. Validated primary/accent colours are passed through `core.branding` and their text colours are computed for contrast; the page can be switched off (404) and only renders Register when `public_registration` is on or an open sign-up link exists.
+- [x] Rewrote `templates/public/institution.html` as the branded `/i/<slug>/` page: logo (or initials), name, tagline, About, contact details, a sign-in card, a conditional Register button and the "Powered by Vanpere" footer linking to `/`. Validated primary/accent colours are passed through `core.branding` and their text colours are computed for contrast; the page can be switched off (404) and only renders Register when `public_registration` is on or an open sign-up link exists.
 - [x] Institution sign-in stays scoped and unbranded: the page posts to `institution_login`, `InstitutionAuthenticationForm` refuses another institution's account with the standard "Wrong username or password" message, and the institution's colours are applied only on `/i/<slug>/`, never on `/i/<slug>/login/`.
 - [x] SEO: `templates/public_base.html` and `templates/registration/login.html` carry titles, meta descriptions, Open Graph/Twitter tags, canonical URLs and robots directives. Added `core/sitemaps.py` (`PlatformSitemap`, `LearnSitemap`, `InstitutionSitemap`), `django.contrib.sitemaps` and `/sitemap.xml`, and `public_views.robots_txt` with `ROBOTS_DISALLOW` for the private app plus `ROBOTS_ALLOW` for the public check pages. Institution and private login pages are `noindex,follow`; public pages never show student or staff records.
 - [x] Emails moved from brown to the green/marigold palette (`templates/emails/base_email.html`, verification, invitation, password reset, receipt and fee reminder) while keeping the plain-text alternative and the branded document masthead.
@@ -542,7 +542,7 @@ The whole suite is now 814 tests, all passing; `ruff check .` is clean and `make
 - [x] Added `platform_admin/onboarding.py`. It reuses `accounts.user_admin` for invitation creation/acceptance, temporary passwords, password reset, unlock and deactivation; `core.roles.ensure_roles` for the institution-admin role; `core.notifications` for all email; `core.audit.log_action` plus `platform_admin.services.log_platform_action` for audit; and `notify()` for the in-app institution notice. Platform staff are recorded as the real actor even though the underlying account services run without an institutional actor.
 - [x] Added the onboarding checklist to the institution detail and administrator list screens, with progress, a percentage bar and plain-English "still missing" text. The administrator list now offers add, resend invitation, reset password, unlock, deactivate/remove and reactivate. Removing means deactivating so the audit trail survives. The last active administrator is protected.
 - [x] Added `InstitutionAdministratorForm`, `onboarding_admin_create` and `onboarding_credential`. Invitation mode creates a single-use 72-hour set-password link; temporary-password mode creates a strong random password, forces a change at first sign-in and displays it once. The secret lives only in the session for the single display and is then popped; a second load redirects away with a friendly message. Copy and Print are available, and a failed email shows a collapsible one-time link instead.
-- [x] The branded welcome email was unified: `platform_admin.services._send_welcome` now calls the onboarding service, so approvals and directly created institutions share one template and one central email path. Every new administrator receives it once; an explicit resend is audited as `institution.welcome_email_resent`. The message includes the `/i/<slug>/login/` link, the invitation link when applicable, the getting-started steps and support contacts `+263774573765` / `sphereeedu@gmail.com`. No password is ever emailed.
+- [x] The branded welcome email was unified: `platform_admin.services._send_welcome` now calls the onboarding service, so approvals and directly created institutions share one template and one central email path. Every new administrator receives it once; an explicit resend is audited as `institution.welcome_email_resent`. The message includes the `/i/<slug>/login/` link, the invitation link when applicable, the getting-started steps and support contacts `+263774573765` / `vanhuvaonejeffrey@gmail.com`. No password is ever emailed.
 - [x] Added `platform_admin/tests/test_institution_onboarding.py` (10 tests): both access modes, one-use/expired invitations, temporary-password force change, institution-only scoping and 404 from `/platform/`, last-admin protection, non-platform 404s, checklist progression, audit without secrets, welcome resend and `SITE_URL` links. Updated `test_institution_admins_can_be_deactivated_and_reactivated` to add a backup admin first, because the new last-admin rule intentionally changes that older behaviour.
 - [x] Debugging notes fixed: the temporary-password path now sends the welcome email (it previously sent only the account-created notice); the plan checklist step reverses `platform_admin:subscriptions` without a primary-key argument; the force-change assertion now follows the login POST to the next GET, where the middleware redirects; and the scoping test refreshes the user after invitation acceptance so the test client's auth hash matches the saved password.
 - [x] Verification: 1,498 tests pass (0 failures), `ruff check .` is clean and `makemigrations --check` reports no changes. Full suite, lint and migration check were run again after the final test adjustment. Parts 2 and 3 of the onboarding plan remain.
@@ -693,3 +693,35 @@ catalogue the source of truth for every surface.
   detected", and `python manage.py check` shows only the expected
   console-email warning. `docs/ERROR_CODES.md` was checked against the
   catalogue: all 30 codes and their exact messages are present.
+
+## Rebrand to Vanpere (session 37, 2026-11-20)
+Status: complete.
+
+- [x] Built `config/brand.py` as the single visible identity source and wired
+  it through `PLATFORM_BRAND` and `{% brand_* %}` template tags. A rename is now
+  one edit in `config/brand.py` or the `BRAND_NAME` environment variable.
+- [x] Converted every user-facing template, Python message, email, PDF and
+  document to the brand values, including login/registration, error pages,
+  platform admin, Swagger, management commands, docs, legal pages, PWA
+  manifest, tab titles, meta/OG tags, robots and sitemap.
+- [x] Added the small “Powered by Vanpere” attribution with a link, switchable
+  off per institution through `Institution.show_platform_branding`
+  (`core/0024`). Institution names, logos and colours remain their own.
+- [x] Added placeholder brown/green/marigold wordmarks and favicon/PWA icons;
+  platform admins can upload replacement raster artwork from Platform settings
+  using the existing safe image pipeline.
+- [x] Added `/about/` with factual product and publisher information and no
+  invented claims. Updated email sender display name, subjects, headers and
+  footers; institution emails keep their display name with a switchable
+  “via Vanpere” footer.
+- [x] Updated deployment and docs: `render.yaml`, `DEPLOY.md`, `.env.example`,
+  `README.md`, the test/check lists and error docs. `DEPLOY.md` now explains
+  the GitHub/Render rename, custom domain, host/CSRF/`SITE_URL` settings and
+  permanent `OLD_SITE_URL` redirects.
+- [x] Added `config/tests/test_brand.py` (12 tests) with an explicit allow-list
+  for internal names and surface checks for pages, email, manifest, errors,
+  PDF attribution, white-label mode and tenant branding preservation.
+- [x] Verification: full suite **1,669 passed**, `ruff check .` clean, 299
+  templates compile, `python manage.py makemigrations --check --dry-run`
+  reports "No changes detected", and `python manage.py check` shows only the
+  expected console-email warning.

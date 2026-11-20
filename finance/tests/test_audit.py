@@ -7,6 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from academics.models import Programme, Student
+from config.brand import PRODUCT_NAME
 from finance.models import Invoice, MoneyLog, Payment, Waiver
 
 User = get_user_model()
@@ -59,7 +60,7 @@ class MoneyLogEntryTests(BaseAudit):
                                amount=Decimal("30.00"), due_date=date.today())
         entry = MoneyLog.objects.get(action="invoice")
         self.assertIsNone(entry.actor)
-        self.assertEqual(entry.actor_name, "EduSphere office")
+        self.assertEqual(entry.actor_name, f"{PRODUCT_NAME} office")
 
     def test_payment_is_logged_with_receipt_and_taker(self):
         p = Payment.objects.create(invoice=self.invoice,

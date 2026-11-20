@@ -14,6 +14,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from accounts.registration import send_email_verification
+from config.brand import PRODUCT_NAME
 from core.models import EmailEvent, EmailSuppression, Institution, OutboundMessage
 from core.notifications import (
     DjangoEmailProvider,
@@ -144,7 +145,7 @@ class EmailPipelineTests(TestCase):
         })
         self.assertEqual(response.status_code, 200)
         self.assertTrue(OutboundMessage.all_objects.filter(
-            recipient=contact_recipient(), subject="EduSphere contact form").exists())
+            recipient=contact_recipient(), subject=f"{PRODUCT_NAME} contact form").exists())
 
     def test_generic_html_fallback_is_added(self):
         message = queue_message(

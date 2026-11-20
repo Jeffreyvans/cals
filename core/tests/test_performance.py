@@ -52,8 +52,10 @@ class StaffListPerformanceTests(TestCase):
         self.client.force_login(self.admin)
 
         # 25 profiles, their departments and the permission checks: the count
-        # must not grow when the page has more rows. A new N+1 breaks this.
-        with self.assertNumQueries(16):
+        # must not grow when the page has more rows. One extra query loads
+        # the optional platform logo settings on a cold cache. A new N+1
+        # still breaks this fixed guard.
+        with self.assertNumQueries(17):
             self.client.get(reverse("staff_list"))
 
     def test_the_measurement_command_reports_tables_without_a_user(self):

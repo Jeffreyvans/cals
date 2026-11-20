@@ -21,7 +21,7 @@ from reportlab.platypus import (
 
 from core.audit import log_action
 from core.branding import accent_colour, primary_colour, readable_text
-from core.document_header import build_header
+from core.document_header import build_header, platform_attribution
 
 from .models import DAY_CHOICES, DocumentVerification, GradeBand
 from .services import enrollment_credits
@@ -208,6 +208,12 @@ def _term_table(term_data, bands, styles, primary):
     return story
 
 
+def _powered_by(institution, style):
+    """Small platform attribution, removable per institution (white label)."""
+    text = platform_attribution(institution)
+    return Paragraph(text, style) if text else None
+
+
 def _footer(institution_name, title):
     def draw(canvas, doc):
         canvas.saveState()
@@ -264,6 +270,9 @@ def build_academic_document(student, context, kind, verify_url):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     story.extend([Spacer(1, 0.55 * cm), qr_table])
+    attribution = _powered_by(institution, styles["DocSmall"])
+    if attribution is not None:
+        story.extend([Spacer(1, 0.25 * cm), attribution])
     document.build(story, onFirstPage=_footer(institution.name, title),
                    onLaterPages=_footer(institution.name, title))
     return buffer.getvalue()
@@ -353,6 +362,9 @@ def build_timetable_pdf(institution, title, entries, term=None, subtitle=""):
          [colors.white, colors.HexColor("#f5f8f7")]),
     ]))
     story.append(grid)
+    attribution = _powered_by(institution, styles["DocSmall"])
+    if attribution is not None:
+        story.extend([Spacer(1, 0.25 * cm), attribution])
     document.build(story, onFirstPage=_footer(institution.name, title),
                    onLaterPages=_footer(institution.name, title))
     return buffer.getvalue()

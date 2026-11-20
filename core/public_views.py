@@ -7,12 +7,12 @@ brown: an institution's primary and accent colours are reserved for receipts,
 documents and the signed-in application, so a public page can never publish an
 unreadable or off-palette page.
 """
-
 import json
 
 from django.contrib import messages
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.templatetags.static import static
 from django.urls import reverse
 
 from accounts.forms import DemoRequestForm
@@ -25,6 +25,8 @@ from accounts.registration import (
     record_contact_attempt,
 )
 from accounts.signup_links import open_signup_links
+from config.brand import COLOUR_PUBLIC, PRODUCT_NAME
+from config.brand import values as brand_values
 from core.email_types import DEMO_REQUEST
 from core.learn import LEARN_BY_SLUG, LEARN_PAGES
 from core.logo import absolute_logo_url
@@ -101,6 +103,52 @@ def learn_index(request):
     return render(request, "public/learn.html", {"learn_pages": LEARN_PAGES})
 
 
+def about(request):
+    """Plain-English information about the product and its publisher.
+
+    No statistics, client names, awards or testimonials: the page says what the
+    platform is, who publishes it and how to get in touch.
+    """
+    return render(request, "public/about.html", {"learn_pages": LEARN_PAGES})
+
+
+def manifest(request):
+    """PWA manifest generated from the brand values.
+
+    The checked-in ``static/manifest.json`` is a placeholder for tools that read
+    the file directly. Browsers use this route, so a rename is one edit in
+    ``config/brand.py`` and the installed app name changes too.
+    """
+    brand = brand_values()
+    data = {
+        "name": brand["product_name"],
+        "short_name": brand["product_name"],
+        "description": f"{brand['tagline']}.",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": COLOUR_PUBLIC,
+        "theme_color": COLOUR_PUBLIC,
+        "icons": [
+            {
+                "src": static("img/brand/icon-192.png"),
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any maskable",
+            },
+            {
+                "src": static("img/brand/icon-512.png"),
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable",
+            },
+        ],
+    }
+    response = JsonResponse(data)
+    response["Cache-Control"] = "public, max-age=3600"
+    return response
+
+
 def learn_alias(request, slug):
     """Send the old ``/learn/<slug>/`` address to the canonical top-level URL.
 
@@ -174,7 +222,7 @@ def _pricing_page(request, context):
         return render(request, "public/learn_page.html", context, status=429)
 
     body = (
-        "New EduSphere demo request\n\n"
+        f"New {PRODUCT_NAME} demo request\n\n"
         f"Institution: {data['institution']}\n"
         f"Name: {data['name']}\n"
         f"Email: {data['email']}\n"
@@ -182,7 +230,7 @@ def _pricing_page(request, context):
         f"{data.get('message') or 'No extra notes.'}\n"
     )
     message = send_platform_email(
-        "EduSphere demo request",
+        f"{PRODUCT_NAME} demo request",
         body,
         contact_recipient(),
         reply_to=[data["email"]],

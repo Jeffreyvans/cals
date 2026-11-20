@@ -8,7 +8,6 @@ a single on-screen display; they are never stored in an audit row or in the
 onboarding record. Where the recipient needs one, it is included in that
 person's central email, not in a log the platform team can browse.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -36,6 +35,8 @@ from accounts.usernames import (
     reserve_username,
     validate_username,
 )
+from config.brand import PRODUCT_NAME
+from config.brand import SUPPORT_EMAIL as BRAND_SUPPORT_EMAIL
 from core.audit import log_action
 from core.email_types import INSTITUTION_APPLICATION_APPROVED, WELCOME
 from core.notifications import (
@@ -54,7 +55,7 @@ from .services import log_platform_action
 User = get_user_model()
 
 SUPPORT_PHONE = "+263774573765"
-SUPPORT_EMAIL = "sphereeedu@gmail.com"
+SUPPORT_EMAIL = BRAND_SUPPORT_EMAIL
 
 
 def _sign_in_instruction(login_url, username):
@@ -236,7 +237,7 @@ def send_welcome_email(
     login_url = absolute_url(reverse("institution_login", args=[institution.slug]))
     body = (
         f"Hello {admin.get_full_name() or admin.username},\n\n"
-        f"Welcome to EduSphere. {institution.name} is ready for you.\n\n"
+        f"Welcome to {PRODUCT_NAME}. {institution.name} is ready for you.\n\n"
         f"{_sign_in_instruction(login_url, admin.username)}\n"
     )
     if invitation_link:
@@ -268,7 +269,7 @@ def send_welcome_email(
         "email",
         admin.email,
         body,
-        subject=f"Welcome to EduSphere - set up {institution.name}",
+        subject=f"Welcome to {PRODUCT_NAME} - set up {institution.name}",
         institution=institution,
         related_object=admin,
         html_body=html_body,
@@ -517,7 +518,7 @@ def change_administrator_username(
     send_username_changed_notice(admin_user, old_username, key)
     notify(
         admin_user,
-        "Your EduSphere username has changed",
+        f"Your {PRODUCT_NAME} username has changed",
         f"Your new username is {key}. {_sign_in_instruction(login_url, key)}",
         link=reverse("institution_login", args=[institution.slug]),
         institution=institution,

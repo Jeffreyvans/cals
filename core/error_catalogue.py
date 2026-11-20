@@ -1,4 +1,4 @@
-"""One shared catalogue of every user-facing error in EduSphere.
+"""One shared catalogue of every user-facing platform error.
 
 Pages, inline messages, JSON responses, logs and the platform Errors page all
 read from this list. A message always names its category so a person can tell
@@ -9,6 +9,8 @@ what to do, numbered next steps, and who can fix it.
 """
 
 from dataclasses import dataclass
+
+from config.brand import PRODUCT_NAME
 
 
 @dataclass(frozen=True)
@@ -74,7 +76,7 @@ ERROR_CATALOGUE = (
     _spec(
         "NET-OFFLINE", "NETWORK", "Network problem", "\u25cf",
         "Network problem: your device looks offline",
-        "Your device cannot reach the internet right now, so nothing was sent to EduSphere.",
+        f"Your device cannot reach the internet right now, so nothing was sent to {PRODUCT_NAME}.",
         "Reconnect to the internet and try again. Your unsaved answers are kept on this device.",
         ("Check your internet or mobile data connection.", "Wait for the connection indicator to return.", "Try again."),
         "user", 503,
@@ -90,7 +92,7 @@ ERROR_CATALOGUE = (
     _spec(
         "NET-TIMEOUT", "NETWORK", "Network problem", "\u25cf",
         "Network problem: the request timed out",
-        "The request did not reach EduSphere before the timeout. We cannot tell whether it was saved.",
+        f"The request did not reach {PRODUCT_NAME} before the timeout. We cannot tell whether it was saved.",
         "Try again with the same request. A retry key prevents duplicate payments or registrations.",
         ("Check your internet connection.", "Wait a few seconds.", "Use Try again - it will not create a duplicate."),
         "user", 408,
@@ -98,7 +100,7 @@ ERROR_CATALOGUE = (
     _spec(
         "NET-UNREACHABLE", "NETWORK", "Network problem", "\u25cf",
         "Network problem: the server could not be reached",
-        "Your device could not find or connect to the EduSphere server (DNS or connection failure).",
+        f"Your device could not find or connect to the {PRODUCT_NAME} server (DNS or connection failure).",
         "Check your connection and try again. If it persists, ask your administrator to check the school network.",
         ("Check that your internet works in another tab.", "Try again.", "Ask your school administrator if only this network is affected."),
         "user", 503,
@@ -107,7 +109,7 @@ ERROR_CATALOGUE = (
     _spec(
         "SRV-500", "SERVER", "Server problem", "\u25a0",
         "Server problem: our system had a fault, it is not your internet",
-        "EduSphere crashed while handling this request. Your device reached us successfully.",
+        f"{PRODUCT_NAME} crashed while handling this request. Your device reached us successfully.",
         "Try again. If it keeps happening, send us the reference number below.",
         ("Use Try again once.", "If it repeats, copy the reference number.", "Contact support with the reference number."),
         "developer", 500,
@@ -123,7 +125,7 @@ ERROR_CATALOGUE = (
     _spec(
         "SRV-504", "SERVER", "Server problem", "\u25a0",
         "Server problem: the gateway timed out",
-        "A gateway between you and EduSphere waited too long for our server to answer.",
+        f"A gateway between you and {PRODUCT_NAME} waited too long for our server to answer.",
         "Try again in a moment; this is not caused by your device.",
         ("Wait a few seconds.", "Use Try again.", "Contact support with the reference number if it repeats."),
         "platform admin", 504,
@@ -139,7 +141,7 @@ ERROR_CATALOGUE = (
     _spec(
         "SRV-MAINT", "SERVER", "Server problem", "\u25a0",
         "Server problem: scheduled maintenance is running",
-        "We are upgrading EduSphere right now. Your internet connection is fine.",
+        f"We are upgrading {PRODUCT_NAME} right now. Your internet connection is fine.",
         "Wait for maintenance to finish, then try again.",
         ("Check the expected finish time in the notice.", "Wait and try again.", "Contact support if the notice has expired."),
         "platform admin", 503,
@@ -148,7 +150,7 @@ ERROR_CATALOGUE = (
     _spec(
         "DB-DOWN", "DATABASE", "Database problem", "\u25a6",
         "Database problem: the data store is unavailable",
-        "EduSphere could not reach its database. Your internet connection worked, but no record could be read or saved.",
+        f"{PRODUCT_NAME} could not reach its database. Your internet connection worked, but no record could be read or saved.",
         "Try again shortly. If it continues, the platform team must restore the database.",
         ("Wait a few seconds.", "Use Try again.", "Send the reference number to support if it repeats."),
         "platform admin", 503,
@@ -229,7 +231,7 @@ ERROR_CATALOGUE = (
     _spec(
         "ORG-SUSPENDED", "ACCESS", "Access problem", "\u25b3",
         "Access problem: your institution is suspended",
-        "Your school's account is suspended, so no one at the school can use EduSphere until it is restored.",
+        "Your school's account is suspended, so no one at the school can use {PRODUCT_NAME} until it is restored.",
         "Ask your school's billing contact to visit the billing contact page and settle the account.",
         ("Contact your school's billing contact.", "Ask them to open the billing contact page at /billing/contact/.", "Try again after the school is restored."),
         "school administrator", 403,
@@ -279,7 +281,7 @@ ERROR_CATALOGUE = (
     _spec(
         "EXT-EMAIL", "EXTERNAL", "External service problem", "\u2b21",
         "External service problem: the email service did not respond",
-        "Our email provider failed. The action you requested was still completed inside EduSphere.",
+        f"Our email provider failed. The action you requested was still completed inside {PRODUCT_NAME}.",
         "Use Show one-time link instead, or try sending later.",
         ("Copy the one-time link shown on this page.", "Try again in a few minutes.", "Contact support if emails keep failing."),
         "platform admin", 502, "email",
@@ -311,7 +313,7 @@ ERROR_CATALOGUE = (
     _spec(
         "EXT-HOOK", "EXTERNAL", "External service problem", "\u2b21",
         "External service problem: a webhook delivery failed",
-        "An outgoing notification to another system failed. EduSphere itself is working.",
+        f"An outgoing notification to another system failed. {PRODUCT_NAME} itself is working.",
         "The delivery will be retried automatically; no action is needed from you.",
         ("Wait for the automatic retry.", "Check the Jobs page if it keeps failing.", "Contact support with the reference number."),
         "developer", 502, "webhook",

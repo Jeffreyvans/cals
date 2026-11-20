@@ -14,6 +14,7 @@ from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
+from config.brand import PRODUCT_NAME
 from core.email_types import (
     FORCED_PASSWORD_CHANGE_NOTICE,
     PASSWORD_CHANGE_NOTICE,
@@ -112,7 +113,7 @@ class EduSpherePasswordResetForm(PasswordResetForm):
                 "email",
                 user.email,
                 body,
-                subject="Reset your EduSphere password",
+                subject=f"Reset your {PRODUCT_NAME} password",
                 institution=institution,
                 related_object=user,
                 html_body=html,
@@ -154,10 +155,10 @@ def send_password_reset_confirmation_notice(user):
     return send_email(
         PASSWORD_RESET_CONFIRMATION,
         user.email,
-        "Your EduSphere password was reset",
+        f"Your {PRODUCT_NAME} password was reset",
         (
             f"Hello {user.get_full_name() or user.username},\n\n"
-            "Your EduSphere password has been changed using the one-time reset "
+            f"Your {PRODUCT_NAME} password has been changed using the one-time reset "
             "link.\n"
             f"Sign in at {login_link} with your email or username {user.username}.\n\n"
             "If you did not do this, contact your institution immediately.\n"
@@ -176,10 +177,10 @@ def send_password_change_notice(user, forced=False):
     return send_email(
         kind,
         user.email,
-        "Your EduSphere password was changed",
+        f"Your {PRODUCT_NAME} password was changed",
         (
             f"Hello {user.get_full_name() or user.username},\n\n"
-            "The password on your EduSphere account has been changed.\n"
+            f"The password on your {PRODUCT_NAME} account has been changed.\n"
             f"Sign in at {login_link} with your email or username {user.username}.\n\n"
             "If you did not make this change, contact your institution.\n"
         ),

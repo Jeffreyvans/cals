@@ -8,6 +8,7 @@ from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
 
+from config.brand import PRODUCT_NAME
 from core.models import TenantModel
 
 # The standard VAT rate used when an institution is registered but has not
@@ -416,7 +417,7 @@ class Payment(ImmutableFinancialDocument, TenantModel):
     @property
     def received_by_name(self):
         if not self.received_by_id:
-            return "EduSphere office"
+            return f"{PRODUCT_NAME} office"
         return self.received_by.get_full_name() or self.received_by.username
 
     @property
@@ -489,7 +490,7 @@ class Waiver(ImmutableFinancialDocument, TenantModel):
     @property
     def recorded_by_name(self):
         if not self.recorded_by_id:
-            return "EduSphere office"
+            return f"{PRODUCT_NAME} office"
         return self.recorded_by.get_full_name() or self.recorded_by.username
 
     def available_for_waiver(self):
@@ -564,7 +565,7 @@ class DebitNote(ImmutableFinancialDocument, TenantModel):
     @property
     def recorded_by_name(self):
         if not self.recorded_by_id:
-            return "EduSphere office"
+            return f"{PRODUCT_NAME} office"
         return self.recorded_by.get_full_name() or self.recorded_by.username
 
     def clean(self):
@@ -604,7 +605,7 @@ class MoneyLog(TenantModel):
     @property
     def actor_name(self):
         if not self.actor_id:
-            return "EduSphere office"
+            return f"{PRODUCT_NAME} office"
         return self.actor.get_full_name() or self.actor.username
 
     def __str__(self):

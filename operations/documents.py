@@ -11,6 +11,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from core.branding import primary_colour
+from core.document_header import platform_attribution
 
 
 def _safe(value):
@@ -127,5 +128,8 @@ def build_payslip_pdf(payslip):
             styles["Heading2"],
         )
     )
+    credit = platform_attribution(institution)
+    if credit:
+        story += [Spacer(1, 0.25 * cm), Paragraph(credit, styles["PayslipSmall"])]
     doc.build(story)
     return buffer.getvalue()

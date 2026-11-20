@@ -1,4 +1,4 @@
-{% extends "base.html" %}
-{% block title %}Billing contact — EduSphere{% endblock %}
+{% extends "base.html" %}{% load branding %}
+{% block title %}Billing contact — {% brand_name %}{% endblock %}
 {% block content %}{% include "errors/billing_contact_detail.html" %}{% endblock %}
 {% block bare %}{% include "errors/billing_contact_detail.html" %}{% endblock %}

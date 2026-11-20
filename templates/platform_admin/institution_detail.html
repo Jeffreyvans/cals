@@ -1,4 +1,4 @@
-{% extends "platform_admin/base_platform.html" %}
+{% extends "platform_admin/base_platform.html" %}{% load branding %}
 {% block platform_title %}{{ institution.name }}{% endblock %}
 {% block platform_heading %}{{ institution.name }}{% endblock %}
 {% block platform_content %}
@@ -59,6 +59,7 @@
   <p><label>Address<textarea name="address" rows="2">{{ institution.address }}</textarea></label></p>
   <p><label>Longest consent grant (hours, max 168)<input name="access_grant_max_hours" type="number" min="1" max="168" value="{{ institution.access_grant_max_hours }}"></label></p>
   <p><label><input type="checkbox" name="public_page_enabled" {% if institution.public_page_enabled %}checked{% endif %}> Public page enabled</label></p>
+  <p><label><input type="checkbox" name="show_platform_branding" {% if institution.show_platform_branding %}checked{% endif %}> Show “Powered by {% brand_name %}” attribution</label></p>
   <button class="btn" type="submit">Save details</button>
 </form>
 
@@ -85,7 +86,7 @@
 {% else %}
   <p class="muted">No consent record yet.</p>
 {% endif %}
-<p class="muted">The institution is the data controller. EduSphere staff see protected data only through a time-limited, revocable grant. <a href="{% url 'platform_admin:data_processing' %}">Read the statement</a>.</p>
+<p class="muted">The institution is the data controller. {% brand_name %} staff see protected data only through a time-limited, revocable grant. <a href="{% url 'platform_admin:data_processing' %}">Read the statement</a>.</p>
 
 <h2>Lifecycle</h2>
 <form method="post" class="inline wide">

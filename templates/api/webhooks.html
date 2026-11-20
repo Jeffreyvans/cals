@@ -13,7 +13,7 @@
 <form method="post" class="inline wide">
   {% csrf_token %}
   <p><label>Name<input name="name" maxlength="100" placeholder="Finance system" required></label></p>
-  <p><label>URL<input name="url" maxlength="500" placeholder="https://example.org/hooks/edusphere" required></label></p>
+  <p><label>URL<input name="url" maxlength="500" placeholder="https://example.org/hooks/vanpere" required></label></p>
   <div class="scope-grid">
     {% for code, label in events %}
       <label class="check"><input type="checkbox" name="events" value="{{ code }}"> <code>{{ code }}</code> <span class="muted">{{ label }}</span></label>

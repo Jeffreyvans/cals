@@ -5,19 +5,21 @@ short and concrete: no statistics, client names, awards or testimonials, and no
 prices. The pricing page asks for a demo instead of inventing a number.
 """
 
+from config.brand import PRODUCT_NAME
+
 LEARN_PAGES = [
     {
         "slug": "features",
         "name": "learn_features",
         "nav_label": "Features",
-        "title": "Features — EduSphere",
+        "title": f"Features — {PRODUCT_NAME}",
         "description": (
-            "See how EduSphere brings admissions, student records, fees, results, "
+            f"See how {PRODUCT_NAME} brings admissions, student records, fees, results, "
             "attendance, timetables and communication together in one system."
         ),
         "heading": "Everything your institution needs, in one calm place",
         "lead": (
-            "EduSphere joins the office, the classroom and the family. Each part "
+            f"{PRODUCT_NAME} joins the office, the classroom and the family. Each part "
             "is switched on only when your institution needs it, so the system "
             "grows with you instead of getting in the way."
         ),
@@ -160,7 +162,7 @@ LEARN_PAGES = [
             "heading": "See it with your own records",
             "body": (
                 "Tell us what your office struggles with and we will walk through "
-                "the parts of EduSphere that fit your institution."
+                f"the parts of {PRODUCT_NAME} that fit your institution."
             ),
         },
     },
@@ -168,14 +170,14 @@ LEARN_PAGES = [
         "slug": "for-schools",
         "name": "learn_for_schools",
         "nav_label": "For schools",
-        "title": "For schools — EduSphere",
+        "title": f"For schools — {PRODUCT_NAME}",
         "description": (
-            "EduSphere for primary and secondary schools: class lists, "
+            f"{PRODUCT_NAME} for primary and secondary schools: class lists, "
             "attendance, report cards, fees, parent messages, boarding and transport."
         ),
         "heading": "For primary and secondary schools",
         "lead": (
-            "A school day moves quickly. EduSphere keeps the register, the fees, "
+            f"A school day moves quickly. {PRODUCT_NAME} keeps the register, the fees, "
             "the report cards and the messages to parents in one place, so the "
             "office can keep up without chasing paper."
         ),
@@ -292,15 +294,15 @@ LEARN_PAGES = [
         "slug": "for-colleges",
         "name": "learn_for_colleges",
         "nav_label": "For colleges",
-        "title": "For colleges — EduSphere",
+        "title": f"For colleges — {PRODUCT_NAME}",
         "description": (
-            "EduSphere for colleges and universities: programmes, course "
+            f"{PRODUCT_NAME} for colleges and universities: programmes, course "
             "registration, credit limits, marks, GPA, transcripts and fees."
         ),
         "heading": "For colleges and universities",
         "lead": (
             "A college has to track programmes, course choices, credits and "
-            "results across several years. EduSphere keeps that history together "
+            f"results across several years. {PRODUCT_NAME} keeps that history together "
             "and gives each student a clear view of where they stand."
         ),
         "sections": [
@@ -408,7 +410,7 @@ LEARN_PAGES = [
             "heading": "A transcript is only useful if the record is right",
             "body": (
                 "Walk us through your programme rules and we will show how "
-                "EduSphere keeps registration, marks and graduation in step."
+                f"{PRODUCT_NAME} keeps registration, marks and graduation in step."
             ),
         },
     },
@@ -416,9 +418,9 @@ LEARN_PAGES = [
         "slug": "for-parents-and-students",
         "name": "learn_for_parents_and_students",
         "nav_label": "Parents and students",
-        "title": "For parents and students — EduSphere",
+        "title": f"For parents and students — {PRODUCT_NAME}",
         "description": (
-            "What parents and students can see in the EduSphere portal: results, "
+            f"What parents and students can see in the {PRODUCT_NAME} portal: results, "
             "attendance, fees, receipts, learning materials and school notices."
         ),
         "heading": "For parents and students",
@@ -502,7 +504,7 @@ LEARN_PAGES = [
             {
                 "heading": "Your privacy",
                 "body": (
-                    "Your records belong to your institution. EduSphere stores "
+                    f"Your records belong to your institution. {PRODUCT_NAME} stores "
                     "and processes them on the institution's behalf, and only "
                     "the people with the right role can open them."
                 ),
@@ -520,14 +522,14 @@ LEARN_PAGES = [
         "slug": "security-and-privacy",
         "name": "learn_security_and_privacy",
         "nav_label": "Security and privacy",
-        "title": "Security and privacy — EduSphere",
+        "title": f"Security and privacy — {PRODUCT_NAME}",
         "description": (
-            "How EduSphere keeps one institution's records separate, limits who "
+            f"How {PRODUCT_NAME} keeps one institution's records separate, limits who "
             "can see what, and gives every important change a dated record."
         ),
         "heading": "Your records stay private",
         "lead": (
-            "EduSphere is built for one institution at a time. The system asks "
+            f"{PRODUCT_NAME} is built for one institution at a time. The system asks "
             "who a person is and which institution they belong to before it "
             "shows a record, and it keeps a dated record of the work that matters."
         ),
@@ -598,9 +600,9 @@ LEARN_PAGES = [
         "slug": "pricing-and-contact",
         "name": "learn_pricing_and_contact",
         "nav_label": "Pricing and contact",
-        "title": "Pricing and contact — EduSphere",
+        "title": f"Pricing and contact — {PRODUCT_NAME}",
         "description": (
-            "EduSphere does not publish a price list. Request a demo and tell us "
+            f"{PRODUCT_NAME} does not publish a price list. Request a demo and tell us "
             "about your institution, or contact us by phone, WhatsApp or email."
         ),
         "heading": "Talk to us about your institution",
@@ -613,7 +615,7 @@ LEARN_PAGES = [
             {
                 "heading": "How pricing works",
                 "body": (
-                    "EduSphere is priced for the institution, not for each "
+                    f"{PRODUCT_NAME} is priced for the institution, not for each "
                     "screen. We look at the number of students and staff, the "
                     "modules you will use and the support you need, then send a "
                     "written proposal."
@@ -644,9 +646,9 @@ LEARN_PAGES = [
         "slug": "faq",
         "name": "learn_faq",
         "nav_label": "FAQ",
-        "title": "Frequently asked questions — EduSphere",
+        "title": f"Frequently asked questions — {PRODUCT_NAME}",
         "description": (
-            "Answers to common questions about EduSphere: what it does, who owns "
+            f"Answers to common questions about {PRODUCT_NAME}: what it does, who owns "
             "the data, signing in, phones, fees, setup and privacy."
         ),
         "heading": "Questions people ask",
@@ -657,9 +659,9 @@ LEARN_PAGES = [
         "sections": [],
         "faqs": [
             {
-                "q": "What is EduSphere?",
+                "q": f"What is {PRODUCT_NAME}?",
                 "a": (
-                    "EduSphere is a school management system for schools, "
+                    f"{PRODUCT_NAME} is a school management system for schools, "
                     "colleges and vocational institutes. It brings admissions, "
                     "student records, fees, results, attendance, timetables and "
                     "communication into one place."
@@ -677,7 +679,7 @@ LEARN_PAGES = [
                 "q": "Who owns the data?",
                 "a": (
                     "Your institution decides what is collected and why. "
-                    "EduSphere stores and processes the records on the "
+                    f"{PRODUCT_NAME} stores and processes the records on the "
                     "institution's behalf. Read the privacy notice for the full "
                     "explanation."
                 ),

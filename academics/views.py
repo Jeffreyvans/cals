@@ -389,7 +389,7 @@ def _staff_dashboard_figures():
 def dashboard(request):
     u = request.user
     if getattr(u, "is_platform_admin", False):
-        # A platform administrator belongs to EduSphere, not to a school.
+        # A platform administrator belongs to the platform, not to a school.
         return redirect("platform_admin:dashboard")
     if u.role == "student":
         return redirect("student_portal")

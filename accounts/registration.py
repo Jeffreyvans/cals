@@ -26,6 +26,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
+from config.brand import PRODUCT_NAME, SUPPORT_EMAIL, SUPPORT_PHONE
 from core.audit import log_action
 from core.email_types import (
     EMAIL_VERIFICATION,
@@ -68,9 +69,9 @@ STUDENT_RATE_WINDOW = 15 * 60
 CONTACT_RATE_LIMIT = 5
 CONTACT_RATE_WINDOW = 60 * 60
 
-CONTACT_EMAIL = "sphereeedu@gmail.com"
-CONTACT_PHONE = "+263774573765"
-CONTACT_WHATSAPP = "https://wa.me/263774573765"
+CONTACT_EMAIL = SUPPORT_EMAIL
+CONTACT_PHONE = SUPPORT_PHONE
+CONTACT_WHATSAPP = f"https://wa.me/{SUPPORT_PHONE.lstrip('+')}"
 
 
 @dataclass(frozen=True)
@@ -334,7 +335,7 @@ def send_email_verification(user, request=None, resend=False):
     link = _verification_link(request, verification)
     body = (
         f"Hello {user.get_full_name() or user.username},\n\n"
-        "Please confirm your email address for EduSphere by opening this link:\n"
+        f"Please confirm your email address for {PRODUCT_NAME} by opening this link:\n"
         f"{link}\n\n"
         "If you did not create this account, you can ignore this message.\n"
     )
@@ -347,7 +348,7 @@ def send_email_verification(user, request=None, resend=False):
         "email",
         user.email,
         body,
-        subject="Confirm your EduSphere email address",
+        subject=f"Confirm your {PRODUCT_NAME} email address",
         institution=user.institution,
         related_object=verification,
         html_body=html_body,
@@ -588,22 +589,22 @@ def _send_staff_decision(reg_request, approved, reason=""):
     if approved:
         body = (
             f"Hello {reg_request.full_name},\n\n"
-            f"Your EduSphere staff account at {institution.name} has "
+            f"Your {PRODUCT_NAME} staff account at {institution.name} has "
             f"been approved as {reg_request.position_label}.\n"
             f"Sign in at {login_link} with your email or username {user.username}.\n\n"
             "Use the password you chose when you registered.\n"
         )
-        subject = "Your EduSphere staff account is approved"
+        subject = f"Your {PRODUCT_NAME} staff account is approved"
     else:
         body = (
             f"Hello {reg_request.full_name},\n\n"
-            f"Your EduSphere staff registration at {institution.name} "
+            f"Your {PRODUCT_NAME} staff registration at {institution.name} "
             "was not approved.\n"
         )
         if reason:
             body += f"Reason: {reason}\n"
         body += "If you think this is a mistake, contact the institution.\n"
-        subject = "Your EduSphere staff registration was not approved"
+        subject = f"Your {PRODUCT_NAME} staff registration was not approved"
     message = queue_message(
         "email",
         reg_request.email,

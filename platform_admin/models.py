@@ -157,7 +157,7 @@ class PlatformPayment(models.Model):
 
 
 class InstitutionApplication(models.Model):
-    """A public request from a school or college that wants EduSphere."""
+    """A public request from a school or college that wants the platform."""
 
     class Status(models.TextChoices):
         SUBMITTED = "submitted", "Submitted"
@@ -299,7 +299,7 @@ class ApplicationEvent(models.Model):
 class ApplicationMessage(models.Model):
     class AuthorKind(models.TextChoices):
         APPLICANT = "applicant", "Applicant"
-        STAFF = "staff", "EduSphere"
+        STAFF = "staff", "Platform staff"
 
     application = models.ForeignKey(
         InstitutionApplication, on_delete=models.CASCADE, related_name="messages"
@@ -676,7 +676,7 @@ class PlatformRole(models.Model):
 
 
 class PlatformStaff(models.Model):
-    """A person who works for EduSphere, not for one of its institutions."""
+    """A person who works for the platform, not for one of its institutions."""
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,

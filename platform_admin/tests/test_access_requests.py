@@ -14,6 +14,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.urls import reverse
 from django.utils import timezone
 
+from config.brand import PRODUCT_NAME
 from core.models import Notification
 from platform_admin.models import (
     AccessRequest,
@@ -396,7 +397,7 @@ class EmergencyAccessTests(PlatformTestBase):
         # The institution administrator is told immediately.
         self.assertTrue(
             Notification.objects.filter(
-                user=self.inst_admin, title__icontains="Emergency EduSphere access"
+                user=self.inst_admin, title__icontains=f"Emergency {PRODUCT_NAME} access"
             ).exists()
         )
         self.assertTrue(

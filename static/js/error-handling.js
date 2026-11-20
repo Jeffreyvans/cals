@@ -1,6 +1,8 @@
 /* Categorised error handling for every page. No inline scripts, no secrets.
  *
- * The catalogue comes from window.EDUSPHERE_ERRORS (served from the shared
+ * Internal names below (window.EDUSPHERE_ERRORS, the error banner id and the
+ * X-EduSphere-* headers) are kept on purpose: changing them would break live
+ * pages and proxies. The catalogue comes from window.EDUSPHERE_ERRORS (served from the shared
  * Python list by /errors/catalogue.js), so browser messages cannot drift from
  * the messages on the server.
  */

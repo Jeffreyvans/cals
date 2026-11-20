@@ -63,6 +63,41 @@ def institution_from_request(request):
     return None
 
 
+class OldDomainRedirectMiddleware:
+    """Permanently redirect a configured old domain to the current SITE_URL.
+
+    After a domain or service rename, the old host keeps its DNS entry and this
+    middleware sends a 301 with the same path and query string to the new host.
+    Nothing happens unless ``OLD_SITE_URL`` is set.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        old_hosts = {
+            str(host).strip().lower().split(":", 1)[0]
+            for host in getattr(settings, "OLD_SITE_URL", [])
+            if str(host).strip()
+        }
+        if old_hosts:
+            # Read the raw Host header instead of request.get_host(): an old
+            # domain is deliberately not in ALLOWED_HOSTS, so get_host() would
+            # raise DisallowedHost before we can redirect it. The only value
+            # used for the redirect is the configured SITE_URL.
+            raw_host = request.META.get("HTTP_HOST", "")
+            host = raw_host.split(":", 1)[0].strip(".").lower()
+            if host in old_hosts:
+                target = getattr(settings, "SITE_URL", "").rstrip("/")
+                if target:
+                    query = request.META.get("QUERY_STRING", "")
+                    destination = f"{target}{request.path}"
+                    if query:
+                        destination = f"{destination}?{query}"
+                    return redirect(destination, permanent=True)
+        return self.get_response(request)
+
+
 class FirstSignInSetupMiddleware:
     """Open the guided setup after a first sign-in, whichever login was used.
 

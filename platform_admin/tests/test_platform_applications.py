@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from accounts.models import UserInvitation
 from accounts.user_admin import accept_invitation
+from config.brand import PRODUCT_NAME
 from core.models import Institution, InstitutionModule, NumberFormat, OutboundMessage
 from platform_admin.models import (
     ApplicationDocument,
@@ -377,7 +378,7 @@ class ApplicationApprovalTests(MediaMixin, PlatformTestBase):
         self.assertTrue(consent.statement_hash)
 
         welcome = OutboundMessage.objects.filter(recipient="farai@example.com")
-        self.assertTrue(welcome.filter(subject__icontains="Welcome to EduSphere").exists())
+        self.assertTrue(welcome.filter(subject__icontains=f"Welcome to {PRODUCT_NAME}").exists())
         self.assertTrue(welcome.filter(body__icontains="choose your password").exists())
 
     def test_approval_is_exactly_once(self):

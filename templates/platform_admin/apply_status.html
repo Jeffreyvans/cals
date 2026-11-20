@@ -1,5 +1,5 @@
-{% extends "public_base.html" %}
-{% block title %}Your EduSphere application {{ application.reference }}{% endblock %}
+{% extends "public_base.html" %}{% load branding %}
+{% block title %}Your {% brand_name %} application {{ application.reference }}{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
 <section class="section">
@@ -10,7 +10,7 @@
 
     {% if application.status == 'more_information_needed' %}
       <div class="panel">
-        <h2>EduSphere needs more information</h2>
+        <h2>{% brand_name %} needs more information</h2>
         <p style="white-space: pre-line;">{{ application.more_information_message }}</p>
       </div>
     {% endif %}
@@ -37,7 +37,7 @@
       <h2>Messages</h2>
       {% for item in conversation %}
         <div style="border-top:1px solid #dcc8b6; padding:12px 0;">
-          <strong>{% if item.author_kind == 'staff' %}EduSphere{% else %}You{% endif %}</strong>
+          <strong>{% if item.author_kind == 'staff' %}{% brand_name %}{% else %}You{% endif %}</strong>
           <span class="muted">{{ item.created|date:"j M Y H:i" }}</span>
           <p style="white-space: pre-line;">{{ item.body }}</p>
         </div>

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load branding %}
 {% block title %}Access request {{ access_request.pk }}{% endblock %}
 {% block content %}
 <div class="head">
@@ -7,7 +7,7 @@
     <p class="muted">{{ institution.name }} &middot; {{ access_request.get_status_display }}</p>
   </div>
 </div>
-<p><strong>EduSphere staff:</strong> {{ access_request.requested_by.get_full_name|default:access_request.requested_by.username }}</p>
+<p><strong>{% brand_name %} staff:</strong> {{ access_request.requested_by.get_full_name|default:access_request.requested_by.username }}</p>
 <p><strong>Asked for:</strong> {{ access_request.categories|join:", " }} &middot; {{ access_request.get_mode_display }}{% if access_request.include_export %} &middot; export{% endif %} &middot; {{ access_request.duration_hours }} hour{{ access_request.duration_hours|pluralize }}</p>
 <p><strong>Reason:</strong> {{ access_request.reason }}</p>
 <p><strong>Related reference:</strong> {{ access_request.reference|default:"None" }}</p>
@@ -29,7 +29,7 @@
   <p><label>Mode<select name="mode">{% for value, label in form.fields.mode.choices %}<option value="{{ value }}" {% if access_request.mode == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></p>
   <p><label>Hours (at most {{ institution.access_grant_max_hours }})<input type="number" name="hours" min="1" max="{{ institution.access_grant_max_hours }}" value="{{ access_request.duration_hours }}"></label></p>
   {% if access_request.include_export %}<p><label><input type="checkbox" name="include_export" checked> Allow export</label></p>{% endif %}
-  <p class="full"><label>Optional note to EduSphere<textarea name="reason" rows="3"></textarea></label></p>
+  <p class="full"><label>Optional note to {% brand_name %}<textarea name="reason" rows="3"></textarea></label></p>
   <p><button class="btn" type="submit" name="decision" value="approve">Approve</button></p>
   <p><button class="btn ghost" type="submit" name="decision" value="deny">Deny</button></p>
 </form>

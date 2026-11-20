@@ -1,13 +1,13 @@
-{% extends "emails/base_email.html" %}
-{% block title %}An update on your EduSphere application{% endblock %}
+{% extends "emails/base_email.html" %}{% load branding %}
+{% block title %}An update on your {% brand_name %} application{% endblock %}
 {% block preheader %}There is an update on application {{ reference }}.{% endblock %}
 {% block content %}
 <p style="margin:0 0 14px;">Hello {{ application.contact_person }},</p>
 <p style="margin:0 0 18px;">We are sorry that we cannot approve the application for <strong>{{ institution_name }}</strong> at this time.</p>
 <div style="margin:0 0 18px; padding:14px 16px; background-color:#faf4ec; border:1px solid #dcc8b6; border-left:4px solid #5d4037; border-radius:10px; color:#4e342e; white-space:pre-line;">{{ reason }}</div>
-<p style="margin:0 0 18px;">If you think this is a mistake, reply to this message or contact EduSphere support. Your reference is <strong>{{ reference }}</strong>.</p>
+<p style="margin:0 0 18px;">If you think this is a mistake, reply to this message or contact {% brand_name %} support. Your reference is <strong>{{ reference }}</strong>.</p>
 <p style="margin:0 0 18px;">
   <a href="{{ status_url }}" style="display:inline-block; padding:13px 22px; background-color:#5d4037; color:#faf4ec; text-decoration:none; border-radius:10px; font-weight:700;">View my application</a>
 </p>
-<p style="margin:0; color:#6f4a36; font-size:14px;">This message was sent by EduSphere about a pending institution application. If you were not expecting it, you can ignore it.</p>
+<p style="margin:0; color:#6f4a36; font-size:14px;">This message was sent by {% brand_name %} about a pending institution application. If you were not expecting it, you can ignore it.</p>
 {% endblock %}

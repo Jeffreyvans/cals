@@ -38,6 +38,7 @@ from django.utils.http import urlsafe_base64_encode
 from PIL import Image
 
 from accounts.models import EmailVerification, SignupLink, UserInvitation
+from config.brand import PRODUCT_NAME
 from core.branding import contrast_ratio
 from core.logo import save_logo
 from core.models import Institution, OutboundMessage
@@ -447,7 +448,7 @@ class InstitutionBrandingOnPublicPagesTests(PublicPageRenderTests):
         self.assertContains(response, "Learn. Serve. Lead.")
         self.assertContains(response, "A community college in Harare.")
         self.assertContains(response, "brand-badge")
-        self.assertContains(response, "Powered by EduSphere")
+        self.assertContains(response, f"Powered by {PRODUCT_NAME}")
 
     def test_the_institution_colours_are_not_applied_to_public_pages(self):
         for url in (

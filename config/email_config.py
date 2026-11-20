@@ -1,4 +1,4 @@
-"""Pure provider selection for EduSphere's outbound email.
+"""Pure provider selection for the platform's outbound email.
 
 Kept separate from ``settings.py`` so the choice can be tested without
 reloading Django settings. All providers use django-anymail's HTTPS API, so no

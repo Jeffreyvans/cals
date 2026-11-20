@@ -1,4 +1,4 @@
-/* EduSphere public pages: mobile menu, sticky header, searchable institution
+/* Vanpere public pages: mobile menu, sticky header, searchable institution
    picker. No framework and no tracking; the page works without JavaScript. */
 (function () {
   "use strict";
@@ -120,6 +120,7 @@
   function setUpTheme() {
     var root = document.documentElement;
     var button = document.querySelector("[data-theme-toggle]");
+    // Internal browser-storage key: kept so saved themes keep working.
     var storageKey = "edusphere.public.theme";
     var media = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
