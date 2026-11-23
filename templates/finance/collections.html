@@ -1,9 +1,10 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% load hierarchy_tags %}{% block content %}
 <div class="noprint"><button class="btn" onclick="window.print()">Print report</button>
 {% include "finance/_export_links.html" with export_name="export_collections" %}</div>
 <h1>Collections report</h1>
 <p class="muted">Money received, filtered by date and broken down by payment method.</p>
 <form method="get" class="inline">
+{% hierarchy_filters %}
 <label>From <input type="date" name="from" value="{{ raw_from }}"></label>
 <label>To <input type="date" name="to" value="{{ raw_to }}"></label>
 <button class="btn">Apply</button>

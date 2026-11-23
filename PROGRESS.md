@@ -725,3 +725,66 @@ Status: complete.
   templates compile, `python manage.py makemigrations --check --dry-run`
   reports "No changes detected", and `python manage.py check` shows only the
   expected console-email warning.
+
+## Session 38 - Configurable academic hierarchy (2026-11-23)
+
+The brief was to add one configurable School/Faculty > Department > Programme >
+Course hierarchy to every institution type without breaking the existing school
+workflows. The safest route was to keep every existing model and screen working
+with empty hierarchy fields, then layer the new structure on top.
+
+- [x] Added `Institution.Type.UNIVERSITY` and the `AcademicSchool` model. The
+  migration also adds the nullable school/department links on Department,
+  Programme, SchoolClass and Student, the class capacity/room/active fields and
+  `GradeLevel.promotion_to`. No existing row is changed by the migration; a
+  school-less department still works exactly as before.
+- [x] Put all built-in academic defaults in `academics/hierarchy.py`. It owns
+  the per-type templates, level sets (Year 1-4, Year 1-6, Grade 8-13, combined
+  primary+secondary, university years), Term/Semester schemes, stream
+  suggestions, terminology defaults, validation and `apply_template()`. Using
+  one module means the wizard, import, platform editor and tests cannot drift.
+- [x] Fixed the level-code generator while building the templates: `Year 1` now
+  becomes `Y1` instead of `YEAR`, which previously collided with `Year 1-6`.
+  `validate_template_data()` now rejects duplicate level codes with a clear
+  message before a bad template can be published.
+- [x] Added versioned academic templates to the platform area. Publishing
+  always writes `version = latest + 1` (the earlier draft reused a version and
+  hit a UNIQUE constraint); activating an old version only changes the default
+  copied into future institutions. `apply_template()` logs
+  `academic.template_applied` against the new institution, not just globally.
+- [x] Rebuilt the wizard flow as details -> academic type -> structure -> year
+  -> modules -> grading -> admin -> demo. The structure step renders the
+  template rows with checkboxes, editable name/code/description fields and
+  add-row fields; the cleaned state keeps selected/renames/additions separate.
+  Primary/secondary hide the School/Faculty list and create a single Term by
+  default; other types get Semester when that scheme is chosen. The wizard
+  derives term names from `academic["term_scheme"]`, so the added tests do not
+  assume a typo in the fixture.
+- [x] Added the Academic structure and Grades and classes screens with a
+  shared `_require_manage()` helper. Reads allow admin/registrar; writes need
+  `academics.manage_structure`, call `log_permission_denied()` on refusal and
+  audit every success. Deactivation is preferred to deletion; a hard delete is
+  only offered when no student, class, programme, course, timetable, mark,
+  result or fee record references the row.
+- [x] Extended the academic setup importer with four new kinds and Excel
+  sheets. Each kind selects its own sheet automatically, matches an existing
+  row by code first and name second, and never renames or deletes existing
+  structure. Added a platform-style template download and the same permission
+  code and audit fields as the other import kinds.
+- [x] Added reusable hierarchy filters (`hierarchy_context`,
+  `filter_hierarchy`, `has_hierarchy_filters`) and a single partial/tag pair for
+  the UI. Applied them to student/staff/course/programme/timetable/results and
+  finance screens. Dashboard views now skip `core.cache.dashboard_figures()`
+  when a filter is active, because the cached global numbers otherwise hid the
+  filtered result.
+- [x] Added hierarchy crumbs and labels to the report-card/transcript screens
+  and PDFs, including school and department columns in the student table.
+- [x] Added 35 tests across five new modules. The first full run had one
+  failure: the staff-list performance guard expected 17 queries, but the new
+  hierarchy filter choices add four fixed queries (schools, departments,
+  levels and classes). The guard now expects 21 and still catches an N+1; the
+  focused test passes. Fixed a ruff import-order issue found by the final lint.
+- [x] Verification: full suite **1,736 passed**, `ruff check .` clean,
+  `python manage.py check` shows only the expected console-email warning and
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected". Manual scenarios are in `MANUAL_TESTING.md` section 11.

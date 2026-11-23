@@ -364,11 +364,16 @@ def _institution_id_for(request):
     return current_institution_id()
 
 
-def _staff_dashboard_figures():
+def _staff_dashboard_figures(request=None):
+    from .hierarchy import filter_hierarchy
+
+    students = Student.objects.filter(status="active")
+    if request is not None:
+        students = filter_hierarchy(
+            students, request, school_field="school", department_field="department",
+            level_field="school_class__grade_level", class_field="school_class")
     billed, paid, waived = balances_by_student()
-    active_ids = list(
-        Student.objects.filter(status="active").values_list("pk", flat=True)
-    )
+    active_ids = list(students.values_list("pk", flat=True))
     owing = 0
     for pk in active_ids:
         balance = (
@@ -381,7 +386,10 @@ def _staff_dashboard_figures():
     return {
         "students": len(active_ids),
         "owing": owing,
-        "courses": Course.objects.count(),
+        "courses": filter_hierarchy(
+            Course.objects.all(), request, school_field="programme__school",
+            department_field="programme__department"
+        ).count() if request is not None else Course.objects.count(),
     }
 
 
@@ -399,25 +407,37 @@ def dashboard(request):
         return redirect("parent_portal")
     from core.cache import dashboard_figures
 
-    ctx = dashboard_figures(
-        _institution_id_for(request), _staff_dashboard_figures, kind="staff")
+    from .hierarchy import has_hierarchy_filters
+
+    if has_hierarchy_filters(request):
+        ctx = _staff_dashboard_figures(request)
+    else:
+        ctx = dashboard_figures(
+            _institution_id_for(request), _staff_dashboard_figures, kind="staff")
     ctx = dict(ctx)
     ctx["announcements"] = Announcement.visible_to(request.user)[:5]
     ctx["events"] = CalendarEvent.upcoming(request.user, limit=6)
     return render(request, "academics/staff_dashboard.html", ctx)
 
 
-def _role_dashboard_figures():
+def _role_dashboard_figures(request=None):
     from django.db.models import Sum
     from django.db.models.functions import TruncMonth
 
     from finance.models import Payment
 
+    from .hierarchy import filter_hierarchy
+
     students = Student.objects.filter(status="active")
+    if request is not None:
+        students = filter_hierarchy(
+            students, request, school_field="school", department_field="department",
+            level_field="school_class__grade_level", class_field="school_class")
     billed, paid, waived = balances_by_student()
-    total_billed = sum(billed.values(), Decimal("0"))
-    total_paid = sum(paid.values(), Decimal("0"))
-    total_waived = sum(waived.values(), Decimal("0"))
+    included = set(students.values_list("pk", flat=True))
+    total_billed = sum((billed.get(pk, Decimal("0")) for pk in included), Decimal("0"))
+    total_paid = sum((paid.get(pk, Decimal("0")) for pk in included), Decimal("0"))
+    total_waived = sum((waived.get(pk, Decimal("0")) for pk in included), Decimal("0"))
     outstanding = Decimal("0")
     for pk in students.values_list("pk", flat=True):
         if pk in billed:
@@ -436,6 +456,12 @@ def _role_dashboard_figures():
     attendance = Attendance.objects.all()
     if term is not None:
         attendance = attendance.filter(enrollment__term=term)
+    if request is not None:
+        attendance = filter_hierarchy(
+            attendance, request, school_field="enrollment__student__school",
+            department_field="enrollment__student__department",
+            level_field="enrollment__student__school_class__grade_level",
+            class_field="enrollment__student__school_class")
     att = attendance.aggregate(
         total=Count("id"), present=Count("id", filter=Q(present=True)))
     attendance_pct = (
@@ -450,9 +476,15 @@ def _role_dashboard_figures():
     class_values = [row["total"] for row in by_class]
 
     since = timezone.localdate() - timedelta(days=180)
+    payments = Payment.objects.filter(paid_on__date__gte=since)
+    if request is not None:
+        payments = filter_hierarchy(
+            payments, request, school_field="invoice__student__school",
+            department_field="invoice__student__department",
+            level_field="invoice__student__school_class__grade_level",
+            class_field="invoice__student__school_class")
     monthly = list(
-        Payment.objects.filter(paid_on__date__gte=since)
-        .annotate(month=TruncMonth("paid_on")).values("month")
+        payments.annotate(month=TruncMonth("paid_on")).values("month")
         .annotate(total=Sum("amount")).order_by("month"))
     month_labels = [row["month"].strftime("%b %Y") for row in monthly]
     month_values = [float(row["total"]) for row in monthly]
@@ -476,13 +508,23 @@ def role_dashboard(request):
     """Charts and at-risk students for the roles that run the institution."""
     from core.cache import dashboard_figures
 
-    figures = dashboard_figures(
-        _institution_id_for(request), _role_dashboard_figures, kind="role")
+    from .hierarchy import has_hierarchy_filters
+
+    if has_hierarchy_filters(request):
+        figures = _role_dashboard_figures(request)
+    else:
+        figures = dashboard_figures(
+            _institution_id_for(request), _role_dashboard_figures, kind="role")
     ctx = dict(figures)
     at_risk = []
     if user_has_code(request.user, "reports.view_at_risk"):
+        from .hierarchy import filter_hierarchy
+
         students = Student.objects.filter(status="active").select_related(
             "user", "school_class")
+        students = filter_hierarchy(
+            students, request, school_field="school", department_field="department",
+            level_field="school_class__grade_level", class_field="school_class")
         at_risk = compute_at_risk(students=students)[:25]
     ctx.update({
         "at_risk": at_risk,
@@ -527,8 +569,13 @@ def student_search(request):
 
 @role_required("registrar", "bursar", "lecturer")
 def student_search_api(request):
+    from .hierarchy import filter_hierarchy
+
     q = request.GET.get("q", "").strip()[:100]
     qs = Student.objects.select_related("user", "programme")
+    qs = filter_hierarchy(
+        qs, request, school_field="school", department_field="department",
+        level_field="school_class__grade_level", class_field="school_class")
     if q:
         from core.numbering import matching_pks
 
@@ -1033,8 +1080,14 @@ def college_structure(request):
 
 @role_required("registrar")
 def timetable(request):
+    from .hierarchy import filter_hierarchy
+
     entries = TimetableEntry.objects.select_related(
         "subject", "course", "course__programme", "lecturer", "school_class", "stream", "term")
+    entries = filter_hierarchy(
+        entries, request, school_field="school_class__school",
+        department_field="school_class__department",
+        level_field="school_class__grade_level", class_field="school_class")
     if request.GET.get("class"):
         entries = entries.filter(school_class_id=request.GET["class"])
     if request.GET.get("lecturer"):
@@ -1051,7 +1104,8 @@ def timetable(request):
         "lecturers": User.tenant_objects.filter(role__in=("lecturer", "admin"), is_active=True)
                                  .order_by("first_name"),
         "filter_class": request.GET.get("class", ""),
-        "filter_lecturer": request.GET.get("lecturer", "")})
+        "filter_lecturer": request.GET.get("lecturer", ""),
+        "filter_query": request.GET.urlencode()})
 
 
 @role_required("lecturer")
@@ -1076,8 +1130,14 @@ def _timetable_pdf_response(request, title, entries, term, subtitle=""):
 @role_required("registrar")
 def timetable_pdf(request):
     """A printable PDF of the weekly timetable, honouring the class and teacher filters."""
+    from .hierarchy import breadcrumb_label, filter_hierarchy
+
     entries = TimetableEntry.objects.select_related(
         "subject", "course", "course__programme", "lecturer", "school_class", "stream", "term")
+    entries = filter_hierarchy(
+        entries, request, school_field="school_class__school",
+        department_field="school_class__department",
+        level_field="school_class__grade_level", class_field="school_class")
     term = _current_term()
     if term:
         entries = entries.filter(term=term)
@@ -1094,6 +1154,9 @@ def timetable_pdf(request):
             title = f"{lecturer.get_full_name() or lecturer.username} – timetable"
     if school_class is not None:
         title = f"{school_class.name} – timetable"
+    crumb = breadcrumb_label(request)
+    if crumb:
+        subtitle = f"{subtitle} · {crumb}" if subtitle else crumb
     return _timetable_pdf_response(request, title, list(entries), term, subtitle)
 
 
@@ -1310,8 +1373,15 @@ def marks_report(request, kind, pk):
     owner_id = getattr(item, "lecturer_id", None)
     if not (request.user.role in ("registrar", "admin") or owner_id == request.user.pk):
         raise PermissionDenied("Only the teacher in charge can open this mark sheet.")
-    rows = list(item.enrollments.select_related("student__user")
-                .order_by("student__user__last_name", "student__user__first_name"))
+    from .hierarchy import filter_hierarchy
+
+    enrollments = filter_hierarchy(
+        item.enrollments.select_related("student__user"), request,
+        school_field="student__school", department_field="student__department",
+        level_field="student__school_class__grade_level",
+        class_field="student__school_class")
+    rows = list(enrollments.order_by("student__user__last_name",
+                                     "student__user__first_name"))
     components = _components_for(kind, item)
     _annotate_positions(rows)
     _annotate_components(rows, components)
@@ -1374,13 +1444,20 @@ def results_workflow(request, kind, pk):
         except ResultsError as exc:
             messages.error(request, str(exc))
         return redirect("results_workflow", kind=kind, pk=pk)
-    term_ids = (Enrollment.objects.filter(**lookup).exclude(term=None)
+    from .hierarchy import filter_hierarchy
+
+    enrollments = filter_hierarchy(
+        Enrollment.objects.filter(**lookup), request,
+        school_field="student__school", department_field="student__department",
+        level_field="student__school_class__grade_level",
+        class_field="student__school_class")
+    term_ids = (enrollments.exclude(term=None)
                 .values_list("term_id", flat=True).distinct())
     terms = list(Term.objects.filter(pk__in=term_ids)
                  .select_related("academic_year").order_by("-start_date"))
     counts = {
         row["term_id"]: (row["total"], row["marked"])
-        for row in Enrollment.objects.filter(**lookup).exclude(term=None)
+        for row in enrollments.exclude(term=None)
         .values("term_id").annotate(
             total=Count("pk"), marked=Count("pk", filter=Q(mark__isnull=False)))
     }

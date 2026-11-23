@@ -189,6 +189,61 @@ STU-1001,Tariro,Dube,2008-03-04,Female,tariro.dube@example.com,0771234567,DIT,1,
    open, try to view or run the first institution's batch URL: it is not
    visible and no student is matched across institutions.
 
+## 11. Configurable academic hierarchy
+
+Use a fresh test institution and an administrator who holds
+`academics.manage_structure`. The platform-only steps need a `main_admin`
+platform account.
+
+1. **Platform templates.** Sign in at `/platform/`, open **Academic templates**
+   (`/platform/academic-templates/`) and choose **University**. Confirm the
+   editor shows the built-in departments (Business, Engineering, etc.), levels
+   and Semester terms. Rename the first level to `Foundation Year`, publish,
+   and confirm a new version number appears. Open an earlier version and
+   activate it; the default shown for future institutions returns to the old
+   level name. Try an invalid JSON body and confirm no version is created.
+2. **Wizard for a university.** Create a second institution through
+   `/setup/` and choose **University** at the Academic type step. The Structure
+   step must show Faculty, Department and Level checkboxes with the university
+   defaults. Untick two departments, rename one, change a level code, add a
+   custom level and continue. After finish, open `/settings/structure/` and
+   `/settings/structure/schools/`: only the ticked/renamed/added rows exist, and
+   the Audit page shows `academic.template_applied` for this institution.
+3. **Wizard for a primary school.** Repeat with **Primary**. There must be no
+   Faculty section, one `Term 1` (not two Semesters), and the Grades and classes
+   page must show Year 1 upwards. Optionally tick the alternative Year 1-4 or
+   combined primary+secondary level set and confirm the grade list changes.
+   Finish and check the report-card header uses "Pupil", "Class" and "Term";
+   change those labels in institution settings and reload to see the labels
+   update without touching the underlying records.
+4. **Structure and terminology.** On `/settings/structure/grades-classes/`,
+   rename a level, move it up/down, set its promotion target, deactivate it and
+   confirm it stays visible but inactive. Deactivate a class too. Give one
+   class a class teacher, capacity, room and two bulk streams. Try to delete a
+   level that still has classes or a class that still has students: the page
+   must refuse and tell you to deactivate instead. Remove all history on a
+   scratch class and delete it successfully.
+5. **Import sheets.** Download the workbook from
+   `/imports/academic-structure/template.xlsx`. Confirm it has `Schools or
+   Faculties`, `Departments`, `Grade levels` and `Classes` sheets. Fill one row
+   in each, upload it as one XLSX through `/imports/new/`, preview and run.
+   Re-upload with a changed name but the same code and confirm the row is
+   updated, not duplicated; change only the name on a second row and confirm
+   it is matched by name. A missing row in the next import must not delete
+   anything.
+6. **Permissions and tenants.** Sign in as a user without
+   `academics.manage_structure`: structure pages are readable, but every save
+   button is hidden and a hand-crafted POST is refused with 403 and an audit
+   denial. Open another institution and check none of the first institution's
+   schools, departments, classes or files appear.
+7. **Filters and documents.** Give two students different schools/departments.
+   Set the School and Department filters on student search, staff list,
+   programme list, timetable, results, debtors, collections and fee structures;
+   each list must show only the chosen branch, and dashboard numbers must change
+   rather than showing cached global totals. Open a report card and transcript
+   on screen and as PDF and confirm the School/Faculty > Department breadcrumb
+   and columns appear.
+
 ## Cleanup
 
 Delete the test institution, its test users and any custom DNS records. Remove

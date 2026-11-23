@@ -48,6 +48,8 @@ urlpatterns = [
          name="bulk_upload_undo"),
     path("imports/template/<str:kind>.csv", import_views.import_template,
          name="import_template"),
+    path("imports/academic-structure/template.xlsx", import_views.academic_setup_template,
+         name="academic_setup_template"),
     path("imports/<int:pk>/map/", import_views.import_map, name="import_map"),
     path("imports/<int:pk>/preview/", import_views.import_preview, name="import_preview"),
     path("imports/<int:pk>/run/", import_views.import_run, name="import_run"),

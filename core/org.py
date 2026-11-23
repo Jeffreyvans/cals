@@ -30,6 +30,21 @@ def _require(request, code):
         raise PermissionDenied("Your role does not allow this page.")
 
 
+def _require_structure(request):
+    """Structure edits accept either the structural or the HR permission."""
+    from core.access import user_has_code
+
+    codes = ("academics.manage_structure", "admin.manage_departments")
+    if not any(user_has_code(request.user, code) for code in codes):
+        raise PermissionDenied("Your role does not allow structure changes.")
+
+
+def _academic_schools(institution):
+    from academics.models import AcademicSchool
+
+    return AcademicSchool.objects.filter(institution=institution).order_by("sort_order", "name")
+
+
 def _staff_users(institution):
     """The user accounts of this institution that may be staff."""
     from accounts.models import User
@@ -60,8 +75,8 @@ def department_list(request):
 
 @login_required
 def department_create(request):
-    """Add a department."""
-    _require(request, "admin.manage_departments")
+    """Add a department, optionally under a school/faculty."""
+    _require_structure(request)
     inst = _institution(request)
     if request.method == "POST":
         name = request.POST.get("name", "").strip()[:120]
@@ -77,21 +92,28 @@ def department_create(request):
                 code=code,
                 parent_id=request.POST.get("parent") or None,
                 head_id=request.POST.get("head") or None,
+                school_id=request.POST.get("school") or None,
+                description=request.POST.get("description", "").strip()[:2000],
+                is_active=request.POST.get("is_active") != "off",
+                sort_order=int(request.POST.get("sort_order") or 0),
             )
-            log_action(request.user, "department.created", dept, request=request)
+            log_action(request.user, "department.created", dept, request=request,
+                       after={"name": name, "code": code, "school_id": dept.school_id,
+                              "is_active": dept.is_active, "sort_order": dept.sort_order})
             messages.success(request, f"Department {dept.name} added.")
             return redirect("department_list")
     return render(request, "core/department_form.html", {
         "inst": inst,
         "departments": Department.objects.filter(institution=inst),
+        "schools": _academic_schools(inst),
         "heads": _staff_users(inst),
     })
 
 
 @login_required
 def department_detail(request, pk):
-    """Rename a department or change who leads it."""
-    _require(request, "admin.manage_departments")
+    """Rename a department or change where it sits in the hierarchy."""
+    _require_structure(request)
     inst = _institution(request)
     dept = get_object_or_404(Department, pk=pk, institution=inst)
     if request.method == "POST":
@@ -103,19 +125,29 @@ def department_detail(request, pk):
         elif clash.exists():
             messages.error(request, f"The code '{code}' is already used.")
         else:
-            before = {"name": dept.name, "code": dept.code}
+            before = {"name": dept.name, "code": dept.code, "school_id": dept.school_id,
+                      "description": dept.description, "is_active": dept.is_active,
+                      "sort_order": dept.sort_order}
             dept.name = name
             dept.code = code
             dept.parent_id = request.POST.get("parent") or None
             dept.head_id = request.POST.get("head") or None
+            dept.school_id = request.POST.get("school") or None
+            dept.description = request.POST.get("description", "").strip()[:2000]
+            dept.is_active = request.POST.get("is_active") != "off"
+            dept.sort_order = int(request.POST.get("sort_order") or 0)
             dept.save()
-            log_action(request.user, "department.updated", dept, before=before, request=request)
+            log_action(request.user, "department.updated", dept, before=before, request=request,
+                       after={"name": dept.name, "code": dept.code, "school_id": dept.school_id,
+                              "description": dept.description, "is_active": dept.is_active,
+                              "sort_order": dept.sort_order})
             messages.success(request, "Department saved.")
             return redirect("department_list")
     return render(request, "core/department_form.html", {
         "inst": inst,
         "dept": dept,
         "departments": Department.objects.filter(institution=inst).exclude(pk=dept.pk),
+        "schools": _academic_schools(inst),
         "heads": _staff_users(inst),
     })
 
@@ -123,11 +155,20 @@ def department_detail(request, pk):
 @login_required
 def department_delete(request, pk):
     """Remove a department that nothing depends on."""
-    _require(request, "admin.manage_departments")
+    _require_structure(request)
     inst = _institution(request)
     dept = get_object_or_404(Department, pk=pk, institution=inst)
+    blockers = []
     if dept.child_departments.exists():
-        messages.error(request, "Move the sub-departments first.")
+        blockers.append("sub-departments")
+    if dept.classes.exists():
+        blockers.append("classes")
+    if dept.programmes.exists():
+        blockers.append("programmes")
+    if dept.students.exists():
+        blockers.append("students")
+    if blockers:
+        messages.error(request, f"Move the {', '.join(blockers)} first.")
         return redirect("department_list")
     if request.method == "POST":
         log_action(request.user, "department.deleted", dept, request=request)
@@ -186,6 +227,17 @@ def staff_list(request):
     inst = _institution(request)
     query = request.GET.get("q", "").strip()
     rows = StaffProfile.objects.filter(institution=inst).select_related("user").prefetch_related("departments")
+    get = request.GET
+    for key, lookup in (
+        ("school", "departments__school_id"),
+        ("department", "departments__id"),
+        ("level", "user__classes_taught__school_class__grade_level_id"),
+        ("class", "user__classes_taught__school_class_id"),
+        ("school_class", "user__classes_taught__school_class_id"),
+    ):
+        value = (get.get(key) or "").strip()
+        if value.isdigit():
+            rows = rows.filter(**{lookup: value}).distinct()
     if query:
         from core.numbering import matching_pks
 
@@ -212,7 +264,10 @@ def staff_list(request):
         "inst": inst,
         "rows": page.object_list,
         "page_obj": page,
-        "extra_query": ("&" + urlencode({"q": query})) if query else "",
+        "extra_query": ("&" + urlencode([
+            (key, value) for key, values in request.GET.lists() for value in values
+            if key not in ("page",)
+        ])) if request.GET else "",
         "query": query,
         "without_profile": without,
     })

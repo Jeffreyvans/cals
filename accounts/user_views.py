@@ -132,8 +132,32 @@ def user_list(request):
 
     if role_id:
         queryset = queryset.filter(primary_role_id=role_id)
-    if department_id:
-        queryset = queryset.filter(staff_profile__departments__pk=department_id)
+
+    # The hierarchy filters work for both halves of the list: a student is
+    # linked directly, while a staff member is linked through departments and
+    # the classes they teach.
+    school_id = (request.GET.get("school") or "").strip()
+    level_id = (request.GET.get("level") or "").strip()
+    class_id = (request.GET.get("school_class") or request.GET.get("class") or "").strip()
+    if school_id.isdigit():
+        queryset = queryset.filter(
+            Q(student__school_id=school_id)
+            | Q(staff_profile__departments__school_id=school_id))
+    if department_id.isdigit():
+        queryset = queryset.filter(
+            Q(student__department_id=department_id)
+            | Q(staff_profile__departments__pk=department_id))
+    if level_id.isdigit():
+        queryset = queryset.filter(
+            Q(student__school_class__grade_level_id=level_id)
+            | Q(classes_taught__school_class__grade_level_id=level_id))
+    if class_id.isdigit():
+        queryset = queryset.filter(
+            Q(student__school_class_id=class_id)
+            | Q(classes_taught__school_class_id=class_id))
+    if school_id or department_id or level_id or class_id:
+        queryset = queryset.distinct()
+
     if status == "active":
         queryset = queryset.filter(is_active=True)
     elif status == "inactive":

@@ -85,23 +85,37 @@ def _styles(primary):
 
 
 def _header(student, kind, styles, issued_on):
+    from .hierarchy import hierarchy_label
+
     institution = student.institution
     title = ("Academic transcript" if kind == DocumentVerification.Kind.TRANSCRIPT
              else "Report card")
+    subtitle = f"Issued {issued_on:%d %B %Y}"
+    hierarchy = hierarchy_label(student)
+    if hierarchy:
+        subtitle = f"{subtitle} · {hierarchy}"
     return build_header(
-        institution, title, subtitle=f"Issued {issued_on:%d %B %Y}",
+        institution, title, subtitle=subtitle,
         title_style=styles["DocTitle"], small_style=styles["DocSmall"],
         logo_size=1.9 * cm, widths=(2.2 * cm, 10.3 * cm, 5.5 * cm),
         primary=primary_colour(institution))
 
 
 def _student_table(student, styles):
+    from .hierarchy import hierarchy_context
+
     class_label = (student.class_label if student.school_class_id
                    else f"Year {student.year_or_grade}")
+    hierarchy = hierarchy_context(student)
     rows = [
         ["Student", _safe(student.name), "Student number", _safe(student.student_no)],
         ["Programme", _safe(student.programme.name), "Class / year", _safe(class_label)],
     ]
+    if hierarchy["school"] or hierarchy["department"]:
+        rows.append([
+            "School / faculty", _safe(hierarchy["school"]), "Department",
+            _safe(hierarchy["department"].name if hierarchy["department"] else ""),
+        ])
     table = Table(rows, colWidths=[2.5 * cm, 6.7 * cm, 3.0 * cm, 5.8 * cm])
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),

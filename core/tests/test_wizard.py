@@ -1,4 +1,4 @@
-"""Phase 1: the setup wizard builds a complete institution in six steps."""
+"""Phase 1: the setup wizard builds a complete institution in eight steps."""
 
 from datetime import date
 
@@ -28,6 +28,40 @@ def _details(**overrides):
         "accent_color": "#3B82F6",
     }
     data.update(overrides)
+    return data
+
+
+def _academic_type(institution_type="primary", level_set=None, **overrides):
+    from academics.hierarchy import DEFAULT_LEVEL_SET, DEFAULT_TERM_SCHEME
+
+    data = {
+        "level_set": level_set or DEFAULT_LEVEL_SET.get(institution_type, "primary"),
+        "term_scheme": DEFAULT_TERM_SCHEME.get(institution_type, "terms"),
+        "class_label": "Class",
+        "grade_label": "Grade",
+        "pupil_label": "Pupil",
+        "teacher_label": "Teacher",
+        "unit_label": "School",
+        "term_label": "Term",
+    }
+    data.update(overrides)
+    return data
+
+
+def _structure(institution_type="primary", level_set=None):
+    """Tick every default row so the helper mirrors the usual wizard path."""
+    from academics.hierarchy import template_for
+
+    template = template_for(institution_type, level_set=level_set)
+    data = {"schools": [], "departments": [], "levels": []}
+    for school in template.get("schools") or []:
+        data["schools"].append(school["code"])
+        for department in school.get("departments") or []:
+            data["departments"].append(department["code"])
+    for department in template.get("departments") or []:
+        data["departments"].append(department["code"])
+    for level in template.get("levels") or []:
+        data["levels"].append(level["code"])
     return data
 
 
@@ -115,6 +149,13 @@ class WizardStepTests(TestCase):
         if step == "details":
             return
         self.client.post(reverse("setup_wizard"), _details())
+        if step == "academic_type":
+            return
+        self.client.post(reverse("setup_wizard"), _academic_type())
+        if step == "structure":
+            return
+        institution_type = (_details().get("type") or "primary")
+        self.client.post(reverse("setup_wizard"), _structure(institution_type))
         if step == "year":
             return
         self.client.post(reverse("setup_wizard"), _year())
@@ -134,6 +175,16 @@ class WizardStepTests(TestCase):
 
     def test_the_steps_are_walked_one_at_a_time(self):
         resp = self.client.post(reverse("setup_wizard"), _details())
+        self.assertEqual(resp.status_code, 302)
+        resp = self.client.get(reverse("setup_wizard"))
+        self.assertContains(resp, "Academic levels")
+
+        resp = self.client.post(reverse("setup_wizard"), _academic_type())
+        self.assertEqual(resp.status_code, 302)
+        resp = self.client.get(reverse("setup_wizard"))
+        self.assertContains(resp, "Tick what this institution needs")
+
+        resp = self.client.post(reverse("setup_wizard"), _structure())
         self.assertEqual(resp.status_code, 302)
         resp = self.client.get(reverse("setup_wizard"))
         self.assertContains(resp, "Academic year name")
@@ -161,6 +212,8 @@ class WizardStepTests(TestCase):
 
     def test_going_back_keeps_the_answers(self):
         self.client.post(reverse("setup_wizard"), _details())
+        self.client.post(reverse("setup_wizard"), _academic_type())
+        self.client.post(reverse("setup_wizard"), _structure())
         self.client.post(reverse("setup_wizard"), _year())
         resp = self.client.post(reverse("setup_wizard"), {"action": "back"})
         self.assertEqual(resp.status_code, 302)
@@ -222,6 +275,8 @@ class WizardBuildTests(TestCase):
 
     def _run_to_the_end(self, demo=False):
         self.client.post(reverse("setup_wizard"), _details())
+        self.client.post(reverse("setup_wizard"), _academic_type())
+        self.client.post(reverse("setup_wizard"), _structure())
         self.client.post(reverse("setup_wizard"), _year())
         self.client.post(reverse("setup_wizard"),
                          {"modules": ["core_academics", "finance", "library"]})
@@ -325,6 +380,9 @@ class WizardBuildTests(TestCase):
         self._run_to_the_end()
         self.client.post(reverse("setup_wizard"),
                          _details(name="Chiredzi High", slug="chiredzi", type="secondary"))
+        self.client.post(reverse("setup_wizard"),
+                         _academic_type("secondary"))
+        self.client.post(reverse("setup_wizard"), _structure("secondary"))
         self.client.post(reverse("setup_wizard"), _year())
         self.client.post(reverse("setup_wizard"), {"modules": ["core_academics"]})
         self.client.post(reverse("setup_wizard"), {

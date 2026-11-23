@@ -1,7 +1,9 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% load hierarchy_tags %}{% block content %}
 <div class="head"><div><h1>Role dashboard</h1>
 <p class="muted">A live picture of enrolment, money and attendance{% if term %} for {{ term }}{% endif %}.</p></div>
 <a class="btn ghost" href="{% url 'report_debtors' %}">Debtors report</a></div>
+
+<form method="get">{% hierarchy_filters %}</form>
 
 <div class="stats">
   <div><b>{{ students }}</b>Active students</div>

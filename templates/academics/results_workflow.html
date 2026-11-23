@@ -1,7 +1,8 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% load hierarchy_tags %}{% block content %}
 <div class="noprint"><a class="btn ghost" href="{{ back }}">Back to roster</a> <a class="btn ghost" href="{{ report_url }}">Mark sheet</a></div>
 <h1>Results workflow</h1>
 <h2>{{ item }}</h2>
+<form method="get" class="noprint">{% hierarchy_filters %}</form>
 <p class="muted">Enter marks on the roster, then submit them here. Students see results only after the registrar moderates, approves and releases them. Marks can still be corrected while a sheet is submitted; return a reviewed sheet to unlock it.</p>
 <table class="tbl"><tr><th>Term</th><th class="r">Marked</th><th>Status</th><th>Last submission</th><th>Actions</th></tr>
 {% for term, sheet, total, marked in rows %}<tr>

@@ -1,4 +1,4 @@
-{% load static %}{% load perms %}{% load branding %}{% load error_ui %}<!doctype html>
+{% load static %}{% load perms %}{% load branding %}{% load error_ui %}{% load hierarchy_tags %}<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="{% if INSTITUTION_OBJECT.primary_color %}{{ INSTITUTION_OBJECT.primary_color }}{% else %}#1E3A8A{% endif %}">
 <link rel="manifest" href="{% url 'manifest' %}"><link rel="icon" href="{% brand_favicon_url %}" type="image/svg+xml">
@@ -156,7 +156,9 @@
           <p class="nav-label">Academics</p>
           <a href="{% url 'student_create' %}"><svg class="ico"><use href="#i-user-plus"/></svg><span>Register student</span></a>
           <a href="{% url 'academic_years' %}"><svg class="ico"><use href="#i-calendar"/></svg><span>Years and terms</span></a>
-          <a href="{% url 'grade_levels' %}"><svg class="ico"><use href="#i-layers"/></svg><span>Levels</span></a>
+          <a href="{% url 'academic_structure' %}"><svg class="ico"><use href="#i-layers"/></svg><span>Academic structure</span></a>
+          <a href="{% url 'grades_classes' %}"><svg class="ico"><use href="#i-layers"/></svg><span>{{ TERMS.grade_label|default:'Grade' }} levels and classes</span></a>
+          <a href="{% url 'grade_levels' %}"><svg class="ico"><use href="#i-layers"/></svg><span>Levels (classic)</span></a>
           <a href="{% url 'timetable' %}"><svg class="ico"><use href="#i-clock"/></svg><span>Timetable</span></a>
           {% if IS_SCHOOL %}
             <a href="{% url 'class_list' %}"><svg class="ico"><use href="#i-building"/></svg><span>Classes</span></a>
@@ -213,7 +215,7 @@
     <header class="topbar">
       <div class="topbar-left">
         <button class="menu" type="button" id="menuToggle" aria-label="Open menu" aria-controls="side" aria-expanded="false"><svg class="ico"><use href="#i-menu"/></svg></button>
-        <div class="crumb"><span class="crumb-kicker">Workspace</span><span class="crumb-title">{{ INSTITUTION }}</span></div>
+        <div class="crumb"><span class="crumb-kicker">Workspace</span><span class="crumb-title">{{ INSTITUTION }}</span>{% hierarchy_crumb as crumb %}{% if crumb %}<span class="crumb-title"> / {{ crumb }}</span>{% endif %}</div>
       </div>
       <div class="topbar-actions">
         <a class="bell" href="{% url 'notifications' %}"><svg class="ico"><use href="#i-bell"/></svg><span class="bell-text">Notifications</span>{% if UNREAD_COUNT %}<span class="dot">{{ UNREAD_COUNT }}</span>{% endif %}</a>

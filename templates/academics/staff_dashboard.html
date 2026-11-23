@@ -1,5 +1,6 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% load hierarchy_tags %}{% block content %}
 <h1>Overview</h1>
+<form method="get">{% hierarchy_filters %}</form>
 <div class="stats"><div><b>{{ students }}</b>Active students</div><div class="warn"><b>{{ owing }}</b>Students owing fees</div><div><b>{{ courses }}</b>Courses running</div></div>
 <a class="btn" href="{% url 'student_search' %}">Find a student</a>
 <h2>Coming up</h2>

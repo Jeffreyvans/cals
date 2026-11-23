@@ -106,6 +106,80 @@
       <input name="accent_color" value="{{ form.accent_color|default:'#3B82F6' }}" maxlength="20" placeholder="#3B82F6">
       <span class="helptext">The colour of buttons and highlights.</span></label></p>
 
+  {% elif step == "academic_type" %}
+    <p class="muted">These are sensible defaults for a {{ details.type|default:'institution' }}. Change anything now; the words and levels below belong to this institution alone.</p>
+    <p><label>Academic levels
+      <select name="level_set">
+        {% for value, label in level_set_choices %}
+          <option value="{{ value }}" {% if form.level_set|default:selected_level_set == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select></label></p>
+    <fieldset><legend>Academic periods</legend>
+      {% for value, label in term_scheme_choices %}
+        <p><label class="check"><input type="radio" name="term_scheme" value="{{ value }}" {% if form.term_scheme|default:selected_term_scheme == value %}checked{% endif %}> {{ label }}</label></p>
+      {% endfor %}
+    </fieldset>
+    <h3>Words used in this institution</h3>
+    <div class="cols">
+      <p><label>Class / Form<input name="class_label" value="{{ form.class_label|default:'' }}" maxlength="30"></label></p>
+      <p><label>Grade / Year<input name="grade_label" value="{{ form.grade_label|default:'' }}" maxlength="30"></label></p>
+      <p><label>Pupil / Student<input name="pupil_label" value="{{ form.pupil_label|default:'' }}" maxlength="30"></label></p>
+      <p><label>Teacher / Lecturer<input name="teacher_label" value="{{ form.teacher_label|default:'' }}" maxlength="30"></label></p>
+      <p><label>School / Faculty<input name="unit_label" value="{{ form.unit_label|default:'' }}" maxlength="30"></label></p>
+      <p><label>Term / Semester<input name="term_label" value="{{ form.term_label|default:'' }}" maxlength="30"></label></p>
+    </div>
+
+  {% elif step == "structure" %}
+    <p class="muted">Tick what this institution needs. Edit a name or code in place, or add your own at the bottom. Unticked rows are skipped; nothing is deleted from other institutions.</p>
+    {% if show_schools %}
+    <h3>Schools or faculties</h3>
+    <div class="tbl-wrap"><table class="tbl">
+      <tr><th>Use</th><th>Name</th><th>Code</th><th>Description</th><th>Departments</th></tr>
+      {% for row in structure_schools %}<tr>
+        <td><input type="checkbox" name="schools" value="{{ row.code }}" {% if row.checked %}checked{% endif %}></td>
+        <td><input name="schools_name_{{ row.code }}" value="{{ row.name }}" maxlength="120"></td>
+        <td><input name="schools_code_{{ row.code }}" value="{{ row.new_code }}" maxlength="20"></td>
+        <td><input name="schools_description_{{ row.code }}" value="{{ row.description }}" maxlength="200"></td>
+        <td>{% for d in row.departments %}{{ d.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+      </tr>{% endfor %}
+    </table></div>
+    <p><label>Add a school
+      <input name="new_school_name" maxlength="120" placeholder="School of Medicine">
+      <input name="new_school_code" maxlength="20" placeholder="MED">
+      <input name="new_school_description" maxlength="200" placeholder="Description"></label></p>
+    {% endif %}
+
+    <h3>Departments</h3>
+    <div class="tbl-wrap"><table class="tbl">
+      <tr><th>Use</th><th>Name</th><th>Code</th><th>Description</th></tr>
+      {% for row in structure_departments %}<tr>
+        <td><input type="checkbox" name="departments" value="{{ row.code }}" {% if row.checked %}checked{% endif %}></td>
+        <td><input name="departments_name_{{ row.code }}" value="{{ row.name }}" maxlength="120"></td>
+        <td><input name="departments_code_{{ row.code }}" value="{{ row.new_code }}" maxlength="20"></td>
+        <td><input name="departments_description_{{ row.code }}" value="{{ row.description }}" maxlength="200"></td>
+      </tr>{% endfor %}
+    </table></div>
+    <p><label>Add a department
+      <input name="new_department_name" maxlength="120" placeholder="Music">
+      <input name="new_department_code" maxlength="20" placeholder="MUS">
+      {% if show_schools %}<select name="new_department_school"><option value="">No school</option>
+        {% for row in structure_schools %}<option value="{{ row.code }}">{{ row.name }}</option>{% endfor %}
+      </select>{% endif %}</label></p>
+
+    <h3>{{ TERMS.grade_label|default:'Grade' }} levels</h3>
+    <div class="tbl-wrap"><table class="tbl">
+      <tr><th>Use</th><th>Name</th><th>Code</th></tr>
+      {% for row in structure_levels %}<tr>
+        <td><input type="checkbox" name="levels" value="{{ row.code }}" {% if row.checked %}checked{% endif %}></td>
+        <td><input name="levels_name_{{ row.code }}" value="{{ row.name }}" maxlength="60"></td>
+        <td><input name="levels_code_{{ row.code }}" value="{{ row.new_code }}" maxlength="20"></td>
+      </tr>{% endfor %}
+    </table></div>
+    <p><label>Add a level
+      <input name="new_level_name" maxlength="60" placeholder="Grade 8">
+      <input name="new_level_code" maxlength="20" placeholder="G8"></label></p>
+    <p class="muted">Template version {{ template_version }}. Stream suggestions: {{ structure_streams|join:', ' }}. Periods: {{ structure_terms|join:', ' }}.</p>
+
   {% elif step == "year" %}
     <p><label>Academic year name
       <input name="year_name" value="{{ form.year_name|default:'' }}" maxlength="20" placeholder="2026" required autofocus>

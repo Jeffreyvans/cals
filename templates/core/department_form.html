@@ -21,6 +21,16 @@
         <option value="{{ d.pk }}" {% if dept.parent_id == d.pk %}selected{% endif %}>{{ d.code }} - {{ d.name }}</option>
       {% endfor %}
     </select></label></p>
+  <p><label>{{ TERMS.unit_label|default:'School' }} / faculty
+    <select name="school">
+      <option value="">- none -</option>
+      {% for s in schools %}
+        <option value="{{ s.pk }}" {% if dept.school_id == s.pk %}selected{% endif %}>{{ s.code }} - {{ s.name }}</option>
+      {% endfor %}
+    </select></label></p>
+  <p><label>Description<textarea name="description" rows="3">{{ dept.description|default:'' }}</textarea></label></p>
+  <p><label>Sort order<input name="sort_order" type="number" min="0" value="{{ dept.sort_order|default:0 }}"></label></p>
+  <p><label class="check"><input type="checkbox" name="is_active" {% if dept.is_active or not dept %}checked{% endif %}> Active</label></p>
   <p><label>Head of department
     <select name="head">
       <option value="">- not set -</option>

@@ -108,7 +108,7 @@ def import_start(request):
                 f"That file is too big. The limit is {max_bytes // (1024 * 1024)} MB.")
             return redirect("import_start")
         try:
-            rows = importer.read_rows(upload, upload.name)
+            rows = importer.read_rows(upload, upload.name, kind=kind)
         except importer.ImportError as exc:
             messages.error(request, str(exc))
             return redirect("import_start")
@@ -133,6 +133,7 @@ def import_start(request):
     return render(request, "core/import_start.html", {
         "inst": inst,
         "kinds": kinds,
+        "can_import_structure": user_has_code(request.user, "academics.manage_structure"),
     })
 
 
@@ -347,6 +348,70 @@ def import_template(request, kind):
 
 
 @login_required
+def academic_setup_template(request):
+    """One workbook with the four academic structure sheets and an example row."""
+    _may_import(request, "schools")
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    kinds = ("schools", "departments", "grade_levels", "classes")
+    examples = {
+        "schools": {
+            "code": "SCI", "name": "Faculty of Science",
+            "description": "Science programmes", "head": "sciencehead",
+            "parent": "", "active": "yes", "sort_order": "1",
+        },
+        "departments": {
+            "code": "PHY", "name": "Physics", "school": "SCI",
+            "description": "", "active": "yes", "sort_order": "1",
+        },
+        "grade_levels": {
+            "name": "Year 1", "code": "Y1", "kind": "college",
+            "order": "1", "promotion_to": "Year 2", "active": "yes",
+        },
+        "classes": {
+            "name": "Year 1 A", "grade_level": "Year 1", "school": "SCI",
+            "department": "PHY", "streams": "A; B", "class_teacher": "lecturer1",
+            "capacity": "40", "room": "Lab 1", "active": "yes",
+        },
+    }
+    book = Workbook()
+    book.remove(book.active)
+    for kind in kinds:
+        fields = importer.FIELDS_BY_KIND[kind]
+        sheet = book.create_sheet(importer.KINDS[kind]["sheet"])
+        sheet.append([field["label"] for field in fields])
+        sheet.append([examples[kind].get(field["key"], "") for field in fields])
+        for cell in sheet[1]:
+            cell.font = Font(bold=True)
+        sheet.freeze_panes = "A2"
+    instructions = book.create_sheet("Instructions")
+    instructions.append(["How to use this workbook", ""])
+    instructions.append(["", ""])
+    instructions.append([
+        "Choose the matching import on the upload screen. The right sheet is read automatically.",
+        "",
+    ])
+    instructions.append(["Delete the example rows before you upload.", ""])
+    instructions.append(["Rows are matched by code first, then by name. Nothing is deleted.", ""])
+    instructions.append(["", ""])
+    instructions.append(["Sheet", "What it changes"])
+    for kind in kinds:
+        spec = importer.KINDS[kind]
+        instructions.append([spec["sheet"], spec["help"]])
+    for cell in instructions[1]:
+        cell.font = Font(bold=True)
+    instructions.column_dimensions["A"].width = 34
+    instructions.column_dimensions["B"].width = 70
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = (
+        'attachment; filename="edusphere-academic-structure-template.xlsx"')
+    book.save(response)
+    return response
+
+
+@login_required
 def import_errors(request, pk):
     """Download the report of the rows that were left out."""
     batch = _batch(request, pk=pk)
@@ -418,7 +483,7 @@ def bulk_upload_start(request):
                 f"That file is too big. The limit is {limit // (1024 * 1024)} MB.")
             return redirect("bulk_upload_start")
         try:
-            rows = importer.read_rows(upload, upload.name)
+            rows = importer.read_rows(upload, upload.name, kind=bulk_upload.KIND)
         except importer.ImportError as exc:
             messages.error(request, str(exc))
             return redirect("bulk_upload_start")

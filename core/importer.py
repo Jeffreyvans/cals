@@ -21,7 +21,7 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
-from django.db import transaction
+from django.db import models, transaction
 
 from accounts.usernames import (
     normalize_email as normalize_email_value,
@@ -185,6 +185,62 @@ FEE_STRUCTURE_FIELDS = [
     _field("academic_year", "Academic year", aliases=("academic year", "year")),
 ]
 
+# The academic structure sheets. Codes are matched before names so a renamed
+# department keeps its history; a blank code falls back to the name. Rows are
+# only ever created or updated, never deleted.
+SCHOOL_FIELDS = [
+    _field("code", "Code", required=True, aliases=("school code", "faculty code")),
+    _field("name", "Name", required=True,
+           aliases=("school name", "faculty name", "school", "faculty")),
+    _field("description", "Description", aliases=("description", "details")),
+    _field("head", "Head", aliases=("head", "head of school", "head of faculty", "dean")),
+    _field("parent", "Parent school or faculty",
+           aliases=("parent", "parent school", "parent faculty")),
+    _field("active", "Active", kind=CHOICE, choices=("yes", "no"),
+           aliases=("active", "is active")),
+    _field("sort_order", "Sort order", kind=NUMBER, aliases=("sort order", "order")),
+]
+
+DEPARTMENT_IMPORT_FIELDS = [
+    _field("code", "Code", required=True, aliases=("department code", "dept code")),
+    _field("name", "Name", required=True,
+           aliases=("department name", "department", "dept")),
+    _field("school", "School or faculty",
+           aliases=("school", "faculty", "school code", "faculty code")),
+    _field("description", "Description", aliases=("description", "details")),
+    _field("active", "Active", kind=CHOICE, choices=("yes", "no"),
+           aliases=("active", "is active")),
+    _field("sort_order", "Sort order", kind=NUMBER, aliases=("sort order", "order")),
+]
+
+GRADE_LEVEL_IMPORT_FIELDS = [
+    _field("name", "Name", required=True,
+           aliases=("grade level", "level", "grade", "form", "year")),
+    _field("code", "Code", aliases=("grade code", "level code")),
+    _field("kind", "Level type", kind=CHOICE, choices=("primary", "secondary", "college"),
+           aliases=("level type", "type", "kind")),
+    _field("order", "Order", kind=NUMBER, aliases=("order", "sort order")),
+    _field("promotion_to", "Promotion target",
+           aliases=("promotion target", "promotion to", "next level")),
+    _field("active", "Active", kind=CHOICE, choices=("yes", "no"),
+           aliases=("active", "is active")),
+]
+
+CLASS_IMPORT_FIELDS = [
+    _field("name", "Name", required=True, aliases=("class", "class name", "form", "grade")),
+    _field("grade_level", "Grade level", aliases=("grade level", "level", "grade", "form")),
+    _field("school", "School or faculty", aliases=("school", "faculty")),
+    _field("department", "Department", aliases=("department", "dept")),
+    _field("streams", "Streams",
+           aliases=("stream", "streams"),
+           help_text="Separate several streams with semicolons or commas."),
+    _field("class_teacher", "Class teacher", aliases=("class teacher", "teacher", "form teacher")),
+    _field("capacity", "Capacity", kind=NUMBER, aliases=("capacity", "max students")),
+    _field("room", "Room", aliases=("room", "classroom")),
+    _field("active", "Active", kind=CHOICE, choices=("yes", "no"),
+           aliases=("active", "is active")),
+]
+
 
 KINDS = {
     "students": {
@@ -223,6 +279,34 @@ KINDS = {
         "fields": FEE_STRUCTURE_FIELDS,
         "help": "One row per fee item. Rows with the same structure code belong to one structure.",
     },
+    "schools": {
+        "label": "Schools or Faculties",
+        "permission": "academics.manage_structure",
+        "fields": SCHOOL_FIELDS,
+        "sheet": "Schools or Faculties",
+        "help": "One row per school, faculty or division. Codes identify rows across imports.",
+    },
+    "departments": {
+        "label": "Departments",
+        "permission": "academics.manage_structure",
+        "fields": DEPARTMENT_IMPORT_FIELDS,
+        "sheet": "Departments",
+        "help": "One row per department. A school or faculty is optional.",
+    },
+    "grade_levels": {
+        "label": "Grade levels",
+        "permission": "academics.manage_structure",
+        "fields": GRADE_LEVEL_IMPORT_FIELDS,
+        "sheet": "Grade levels",
+        "help": "One row per grade, form or year. Order controls promotion.",
+    },
+    "classes": {
+        "label": "Classes",
+        "permission": "academics.manage_structure",
+        "fields": CLASS_IMPORT_FIELDS,
+        "sheet": "Classes",
+        "help": "One row per class, with its grade level, school, streams and teacher.",
+    },
 }
 
 
@@ -239,15 +323,22 @@ def kind_label(kind):
 
 
 # ---------- reading the file ----------
-def read_rows(uploaded_file, filename):
+def read_rows(uploaded_file, filename, kind=None):
     """Read an uploaded file into a list of rows.
 
     The first row is the header. Every row is a dictionary of column name to
     value, so the rest of the import never has to think about columns again.
+    For an Excel workbook, the sheet named for the chosen import kind is used
+    when it is present; otherwise the first sheet is read as before. This lets
+    one workbook carry all four academic structure sheets.
     """
     name = (filename or "").lower()
     if name.endswith((".xlsx", ".xlsm")):
-        raw = _read_xlsx(uploaded_file)
+        spec = KINDS.get(kind or "", {})
+        raw = _read_xlsx(
+            uploaded_file,
+            sheet=spec.get("sheet") or ("Students" if kind == "student_upload" else None),
+        )
     elif name.endswith(".csv"):
         raw = _read_csv(uploaded_file)
     else:
@@ -305,7 +396,7 @@ def _read_csv(uploaded_file):
     return [list(row) for row in reader]
 
 
-def _read_xlsx(uploaded_file):
+def _read_xlsx(uploaded_file, sheet=None):
     try:
         from openpyxl import load_workbook
     except ImportError as exc:  # pragma: no cover - depends on the install
@@ -319,9 +410,12 @@ def _read_xlsx(uploaded_file):
         book = load_workbook(uploaded_file, read_only=True, data_only=True)
     except Exception as exc:
         raise ImportError("That Excel file could not be opened.") from exc
-    sheet = book[book.sheetnames[0]]
+    if sheet and sheet in book.sheetnames:
+        chosen = book[sheet]
+    else:
+        chosen = book[book.sheetnames[0]]
     rows = []
-    for row in sheet.iter_rows(values_only=True):
+    for row in chosen.iter_rows(values_only=True):
         rows.append(["" if cell is None else cell for cell in row])
     book.close()
     return rows
@@ -440,6 +534,12 @@ class Context:
         self.users = {}
         self.years = {}
         self.roles = {}
+        self.schools_by_code = {}
+        self.schools_by_name = {}
+        self.departments_by_code = {}
+        self.departments_by_name = {}
+        self.levels_by_code = {}
+        self.levels_by_name = {}
         self._student_numbers = None
         self._employee_numbers = None
         self._usernames = None
@@ -449,9 +549,28 @@ class Context:
     def load(self):
         if self._loaded:
             return
-        from academics.models import AcademicYear, Programme, SchoolClass, Stream
-        from core.models import Role
+        from academics.models import (
+            AcademicSchool,
+            AcademicYear,
+            GradeLevel,
+            Programme,
+            SchoolClass,
+            Stream,
+        )
+        from core.models import Department, Role
 
+        for row in AcademicSchool.all_objects.filter(institution=self.institution):
+            if row.code:
+                self.schools_by_code[row.code.strip().lower()] = row
+            self.schools_by_name[row.name.strip().lower()] = row
+        for row in Department.all_objects.filter(institution=self.institution):
+            if row.code:
+                self.departments_by_code[row.code.strip().lower()] = row
+            self.departments_by_name[row.name.strip().lower()] = row
+        for row in GradeLevel.all_objects.filter(institution=self.institution):
+            if row.code:
+                self.levels_by_code[row.code.strip().lower()] = row
+            self.levels_by_name[row.name.strip().lower()] = row
         for row in Programme.all_objects.filter(institution=self.institution):
             self.programmes[row.code.strip().lower()] = row
             self.programmes[row.name.strip().lower()] = row
@@ -511,6 +630,37 @@ class Context:
         """An institution role, looked up by code or by name."""
         self.load()
         return self.roles.get((name or "").strip().lower())
+
+    @staticmethod
+    def _find(by_code, by_name, value):
+        """Match a reference by code first, then by name; empty means none."""
+        key = (value or "").strip().lower()
+        if not key:
+            return None
+        return by_code.get(key) or by_name.get(key)
+
+    def school(self, value):
+        self.load()
+        return self._find(self.schools_by_code, self.schools_by_name, value)
+
+    def department(self, value):
+        self.load()
+        return self._find(self.departments_by_code, self.departments_by_name, value)
+
+    def level(self, value):
+        self.load()
+        return self._find(self.levels_by_code, self.levels_by_name, value)
+
+    def user(self, value):
+        """A staff account, matched by login username or email in this tenant."""
+        from accounts.models import User
+
+        key = (value or "").strip().lower()
+        if not key:
+            return None
+        return User.objects.filter(institution=self.institution).filter(
+            models.Q(username__iexact=key) | models.Q(email__iexact=key)
+        ).first()
 
     def student_numbers(self):
         from academics.models import Student
@@ -745,7 +895,7 @@ def _check_courses(values, errors, context, seen_numbers, seen_usernames, seen_e
         if code in seen_numbers:
             errors.append(f"Course code '{code}' is used twice in this file.")
         seen_numbers[code] = True
-        if Course.all_objects.filter(code=code).exists():
+        if Course.all_objects.filter(institution=context.institution, code=code).exists():
             errors.append(f"Course code '{code}' is already used.")
     if values.get("programme"):
         if context.programme(values["programme"]) is None:
@@ -806,6 +956,121 @@ def _check_bulk_students(values, errors, context, seen_numbers, seen_usernames, 
     return check_row(values, errors, context.institution)
 
 
+def _reference_key(value):
+    """A forgiving key for codes and names used to identify structure rows."""
+    return re.sub(r"[^a-z0-9]", "", str(value or "").lower())
+
+
+def _duplicate(value, seen, label, errors):
+    key = _reference_key(value)
+    if key and key in seen:
+        errors.append(f"{label} '{value}' is used twice in this file.")
+    if key:
+        seen[key] = True
+
+
+def _optional_bool(values, key, label, errors):
+    if key in values:
+        values[key] = parse_yes_no(values[key], label, errors, default=True)
+
+
+def _optional_number(values, key, label, errors):
+    if key in values:
+        values[key] = parse_number(values[key], label, errors)
+
+
+def _check_schools(values, errors, context, seen_numbers, seen_usernames, seen_emails):
+    _duplicate(values.get("code") or values.get("name"), seen_numbers,
+               "School code", errors)
+    if values.get("parent"):
+        parent = context.school(values["parent"])
+        if parent is None:
+            errors.append(f"Unknown parent school '{values['parent']}'.")
+        else:
+            values["parent_id"] = parent.pk
+    if values.get("head"):
+        head = context.user(values["head"])
+        if head is None:
+            errors.append(f"There is no user called '{values['head']}' at this institution.")
+        else:
+            values["head_id"] = head.pk
+    _optional_bool(values, "active", "Active", errors)
+    _optional_number(values, "sort_order", "Sort order", errors)
+    return values, errors
+
+
+def _check_departments(values, errors, context, seen_numbers, seen_usernames, seen_emails):
+    _duplicate(values.get("code") or values.get("name"), seen_numbers,
+               "Department code", errors)
+    if values.get("school"):
+        school = context.school(values["school"])
+        if school is None:
+            errors.append(f"Unknown school or faculty '{values['school']}'.")
+        else:
+            values["school_id"] = school.pk
+    _optional_bool(values, "active", "Active", errors)
+    _optional_number(values, "sort_order", "Sort order", errors)
+    return values, errors
+
+
+def _check_grade_levels(values, errors, context, seen_numbers, seen_usernames, seen_emails):
+    from academics.models import GradeLevel
+
+    _duplicate(values.get("code") or values.get("name"), seen_numbers,
+               "Grade level", errors)
+    if values.get("kind"):
+        values["kind"] = parse_choice(
+            values["kind"], "Level type", GradeLevel.Kind.values, errors,
+            default=GradeLevel.Kind.SECONDARY)
+    if values.get("order"):
+        values["order"] = parse_number(values["order"], "Order", errors)
+    if values.get("promotion_to"):
+        target = context.level(values["promotion_to"])
+        if target is None:
+            errors.append(f"Unknown promotion target '{values['promotion_to']}'.")
+        else:
+            values["promotion_to_id"] = target.pk
+    _optional_bool(values, "active", "Active", errors)
+    return values, errors
+
+
+def _check_classes(values, errors, context, seen_numbers, seen_usernames, seen_emails):
+    _duplicate(values.get("name"), seen_numbers, "Class", errors)
+    if values.get("grade_level"):
+        level = context.level(values["grade_level"])
+        if level is None:
+            errors.append(f"Unknown grade level '{values['grade_level']}'.")
+        else:
+            values["grade_level_id"] = level.pk
+    if values.get("school"):
+        school = context.school(values["school"])
+        if school is None:
+            errors.append(f"Unknown school or faculty '{values['school']}'.")
+        else:
+            values["school_id"] = school.pk
+    if values.get("department"):
+        department = context.department(values["department"])
+        if department is None:
+            errors.append(f"Unknown department '{values['department']}'.")
+        else:
+            values["department_id"] = department.pk
+    if values.get("class_teacher"):
+        teacher = context.user(values["class_teacher"])
+        if teacher is None:
+            errors.append(
+                f"There is no user called '{values['class_teacher']}' at this institution.")
+        else:
+            values["class_teacher_id"] = teacher.pk
+    if values.get("streams"):
+        values["streams"] = [
+            name.strip()[:30] for name in re.split(r"[;,|\n]+", values["streams"])
+            if name.strip()
+        ]
+    _optional_number(values, "capacity", "Capacity", errors)
+    _optional_bool(values, "active", "Active", errors)
+    return values, errors
+
+
 CHECKERS = {
     "students": _check_students,
     "student_upload": _check_bulk_students,
@@ -813,6 +1078,10 @@ CHECKERS = {
     "courses": _check_courses,
     "subjects": _check_subjects,
     "fee_structures": _check_fee_structures,
+    "schools": _check_schools,
+    "departments": _check_departments,
+    "grade_levels": _check_grade_levels,
+    "classes": _check_classes,
 }
 
 
@@ -1166,12 +1435,177 @@ def _write_fee_structure(values, institution, user):
         item.save(update_fields=["amount", "is_mandatory"])
 
 
+def _snapshot(row, fields):
+    return {field: getattr(row, field, None) for field in fields}
+
+
+def _audit_write(user, action, row, before, after, institution):
+    from core.audit import log_action
+
+    log_action(user, action, row, before=before, after=after, institution=institution)
+
+
+def _apply_fields(row, fields, changes):
+    for field, value in changes.items():
+        if field in fields:
+            setattr(row, field, value)
+
+
+def _write_school(values, institution, user):
+    from academics.models import AcademicSchool
+
+    context = Context(institution)
+    fields = ("name", "code", "description", "head_id", "parent_id", "is_active", "sort_order")
+    row = context.school(values.get("code")) or context.school(values.get("name"))
+    before = _snapshot(row, fields) if row else None
+    if row is None:
+        row = AcademicSchool(institution=institution, name=values.get("name", "")[:120],
+                             code=values.get("code", "")[:20])
+    changes = {
+        "name": values.get("name", "")[:120],
+        "description": values.get("description", ""),
+    }
+    if values.get("code"):
+        changes["code"] = values["code"][:20]
+    if "head_id" in values:
+        changes["head_id"] = values["head_id"]
+    if "parent_id" in values:
+        changes["parent_id"] = values["parent_id"]
+    if "active" in values:
+        changes["is_active"] = values["active"]
+    if values.get("sort_order") is not None:
+        changes["sort_order"] = values["sort_order"]
+    _apply_fields(row, fields, changes)
+    row.save()
+    _audit_write(user, "academic.school.imported", row, before,
+                 _snapshot(row, fields), institution)
+    return row
+
+
+def _write_department(values, institution, user):
+    from core.models import Department
+
+    context = Context(institution)
+    fields = ("name", "code", "school_id", "description", "is_active", "sort_order")
+    row = context.department(values.get("code")) or context.department(values.get("name"))
+    before = _snapshot(row, fields) if row else None
+    if row is None:
+        row = Department(institution=institution, name=values.get("name", "")[:120],
+                         code=values.get("code", "")[:20])
+    changes = {
+        "name": values.get("name", "")[:120],
+        "description": values.get("description", ""),
+    }
+    if values.get("code"):
+        changes["code"] = values["code"][:20]
+    if "school_id" in values:
+        changes["school_id"] = values["school_id"]
+    if "active" in values:
+        changes["is_active"] = values["active"]
+    if values.get("sort_order") is not None:
+        changes["sort_order"] = values["sort_order"]
+    _apply_fields(row, fields, changes)
+    row.save()
+    _audit_write(user, "academic.department.imported", row, before,
+                 _snapshot(row, fields), institution)
+    return row
+
+
+def _write_grade_level(values, institution, user):
+    from academics.hierarchy import code_for
+    from academics.models import GradeLevel
+
+    context = Context(institution)
+    fields = ("name", "code", "kind", "order", "is_active", "promotion_to_id")
+    row = context.level(values.get("code")) or context.level(values.get("name"))
+    before = _snapshot(row, fields) if row else None
+    if row is None:
+        order = values.get("order")
+        if order is None:
+            order = GradeLevel.all_objects.filter(institution=institution).count() + 1
+        row = GradeLevel(
+            institution=institution,
+            name=values.get("name", "")[:60],
+            code=(values.get("code") or code_for(values.get("name", "")))[:20],
+            order=order,
+        )
+    changes = {"name": values.get("name", "")[:60]}
+    if values.get("code"):
+        changes["code"] = values["code"][:20]
+    if values.get("kind"):
+        changes["kind"] = values["kind"]
+    if values.get("order") is not None:
+        changes["order"] = values["order"]
+    if "active" in values:
+        changes["is_active"] = values["active"]
+    if "promotion_to_id" in values:
+        changes["promotion_to_id"] = values["promotion_to_id"]
+    _apply_fields(row, fields, changes)
+    row.save()
+    _audit_write(user, "academic.grade_level.imported", row, before,
+                 _snapshot(row, fields), institution)
+    return row
+
+
+def _write_class(values, institution, user):
+    from academics.models import (
+        AcademicYear,
+        ClassTeacher,
+        GradeLevel,
+        SchoolClass,
+        Stream,
+    )
+
+    context = Context(institution)
+    fields = ("name", "level", "grade_level_id", "school_id", "department_id",
+              "capacity", "room", "is_active")
+    row = context.school_class(values.get("name"))
+    before = _snapshot(row, fields) if row else None
+    if row is None:
+        row = SchoolClass(institution=institution, name=values.get("name", "")[:60])
+    changes = {"name": values.get("name", "")[:60]}
+    if "grade_level_id" in values:
+        changes["grade_level_id"] = values["grade_level_id"]
+        level = GradeLevel.all_objects.filter(pk=values["grade_level_id"]).first()
+        if level is not None:
+            changes["level"] = level.kind
+    if "school_id" in values:
+        changes["school_id"] = values["school_id"]
+    if "department_id" in values:
+        changes["department_id"] = values["department_id"]
+    if values.get("capacity") is not None:
+        changes["capacity"] = values["capacity"]
+    if "room" in values:
+        changes["room"] = values["room"][:60]
+    if "active" in values:
+        changes["is_active"] = values["active"]
+    _apply_fields(row, fields, changes)
+    row.save()
+    if values.get("streams"):
+        for stream_name in values["streams"]:
+            Stream.objects.get_or_create(
+                institution=institution, school_class=row, name=stream_name)
+    if "class_teacher_id" in values:
+        year = AcademicYear.objects.filter(institution=institution, is_current=True).first()
+        if year is not None:
+            ClassTeacher.objects.update_or_create(
+                institution=institution, school_class=row, academic_year=year,
+                defaults={"teacher_id": values["class_teacher_id"]})
+    _audit_write(user, "academic.class.imported", row, before,
+                 _snapshot(row, fields), institution)
+    return row
+
+
 WRITERS = {
     "students": _write_student,
     "staff": _write_staff,
     "courses": _write_course,
     "subjects": _write_subject,
     "fee_structures": _write_fee_structure,
+    "schools": _write_school,
+    "departments": _write_department,
+    "grade_levels": _write_grade_level,
+    "classes": _write_class,
 }
 
 ACCESS_WRITERS = {

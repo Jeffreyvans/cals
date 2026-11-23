@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from decimal import Decimal
 
 from django.contrib import messages
@@ -1732,6 +1733,87 @@ def settings_view(request):
             "statement": DATA_PROCESSING_STATEMENT,
             "version": DATA_PROCESSING_VERSION,
             "privacy": PLATFORM_PRIVACY_NOTICE,
+            "staff": request.platform_staff,
+        },
+    )
+
+
+@platform_required("platform.manage_settings", main_admin=True)
+def academic_templates(request):
+    """Edit and publish the starting points copied into new institutions.
+
+    Saving always creates a new version; activating an older version rolls the
+    default back for future institutions only. An institution keeps the version
+    recorded on it at setup, so publishing here never rewrites live data.
+    """
+    from academics.hierarchy import builtin_template, validate_template_data
+
+    from .models import AcademicTemplate
+
+    types = [(code, label) for code, label in Institution.Type.choices]
+    valid_codes = {code for code, _label in types}
+    code = request.GET.get("code") or types[0][0]
+    if code not in valid_codes:
+        code = types[0][0]
+    if request.method == "POST":
+        posted_code = request.POST.get("code", code)
+        if posted_code not in valid_codes:
+            messages.error(request, "Choose a known institution type.")
+            return redirect("platform_admin:academic_templates")
+        code = posted_code
+        action = request.POST.get("action", "")
+        if action == "publish":
+            try:
+                data = validate_template_data(json.loads(request.POST.get("data", "")))
+            except (ValueError, TypeError) as exc:
+                messages.error(request, f"The template was not changed: {exc}")
+                return redirect(f"{reverse('platform_admin:academic_templates')}?code={code}")
+            name = (request.POST.get("name") or dict(types)[code])[:120]
+            row = AcademicTemplate.publish(code, name, data, actor=request.user)
+            services.log_platform_action(
+                request.user, "platform.academic_template.published",
+                record_type="AcademicTemplate", record_id=row.pk,
+                detail={"code": code, "version": row.version}, request=request,
+            )
+            messages.success(
+                request,
+                f"{name} version {row.version} is published. New institutions use it; "
+                "existing institutions keep their own copy.",
+            )
+            return redirect(f"{reverse('platform_admin:academic_templates')}?code={code}")
+        if action == "activate":
+            row = get_object_or_404(AcademicTemplate, pk=request.POST.get("version"), code=code)
+            if not row.is_active:
+                row.is_active = True
+                row.updated_by = request.user
+                row.save()
+                services.log_platform_action(
+                    request.user, "platform.academic_template.activated",
+                    record_type="AcademicTemplate", record_id=row.pk,
+                    detail={"code": code, "version": row.version}, request=request,
+                )
+                messages.success(request, f"Version {row.version} is now used for new institutions.")
+            else:
+                messages.info(request, f"Version {row.version} is already published.")
+            return redirect(f"{reverse('platform_admin:academic_templates')}?code={code}")
+        messages.error(request, "Unknown template action.")
+        return redirect(f"{reverse('platform_admin:academic_templates')}?code={code}")
+
+    versions = list(AcademicTemplate.objects.filter(code=code).order_by("-version", "-pk"))
+    current = next((row for row in versions if row.is_active), versions[0] if versions else None)
+    data = current.data if current else builtin_template(code)
+    return render(
+        request,
+        "platform_admin/academic_templates.html",
+        {
+            "types": types,
+            "code": code,
+            "name": current.name if current else dict(types)[code],
+            "current": current,
+            "versions": versions,
+            "all_versions": AcademicTemplate.objects.select_related("updated_by")
+                            .order_by("code", "-version", "-pk"),
+            "data_json": json.dumps(data, indent=2, sort_keys=True),
             "staff": request.platform_staff,
         },
     )

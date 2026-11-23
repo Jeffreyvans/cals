@@ -1,6 +1,6 @@
 """The setup wizard screens.
 
-A new institution is set up in six short steps. The answers are kept in the
+A new institution is set up in eight short steps. The answers are kept in the
 session until the last step, where they become real rows. Only somebody who
 may create institutions can open the wizard.
 """
@@ -38,8 +38,8 @@ def _state(request):
 
 def _merged_values(state, values, step):
     """What the form should show: the saved answers, with any new ones on top."""
-    saved = {"details": state.get("details"), "year": state.get("year"),
-             "admin": state.get("admin")}
+    saved = {"details": state.get("details"), "academic_type": state.get("academic_type"),
+             "year": state.get("year"), "admin": state.get("admin")}
     merged = dict(saved.get(step) or {})
     if step == "admin":
         merged.pop("password", None)
@@ -52,6 +52,59 @@ def _merged_values(state, values, step):
             if value != "" or key not in merged:
                 merged[key] = value
     return merged
+
+
+def _structure_context(state, values=None):
+    """Rows and tick boxes for the structure step."""
+    from academics.hierarchy import LEVEL_SETS, TERM_SCHEMES, template_for
+
+    details = state.get("details") or {}
+    academic_type = state.get("academic_type") or {}
+    level_set = academic_type.get("level_set") or ""
+    institution_type = details.get("type") or "college"
+    template = template_for(institution_type, level_set=level_set or None)
+    stored = state.get("structure") or {}
+    if values and values.get("structure") is not None:
+        stored = values["structure"]
+    selected = stored.get("selected") or {}
+    renames = stored.get("renames") or {}
+
+    def row(raw, group, extra=None):
+        change = (renames.get(group) or {}).get(raw["code"]) or {}
+        item = {
+            "code": raw["code"],
+            "name": change.get("name") or raw["name"],
+            "new_code": change.get("code") or raw["code"],
+            "description": change.get("description") or raw.get("description", ""),
+            "checked": group not in selected or raw["code"] in selected[group],
+            "group": group,
+        }
+        item.update(extra or {})
+        return item
+
+    schools = []
+    top_departments = []
+    for raw in template.get("schools") or []:
+        schools.append(row(raw, "schools", {
+            "departments": [row(d, "departments") for d in raw.get("departments") or []],
+        }))
+    top_departments = [row(d, "departments") for d in template.get("departments") or []]
+    levels = [row(r, "levels") for r in template.get("levels") or []]
+    return {
+        "structure_schools": schools,
+        "structure_departments": top_departments,
+        "structure_levels": levels,
+        "structure_streams": template.get("streams") or [],
+        "structure_terms": template.get("terms") or [],
+        "show_schools": institution_type not in wizard.SCHOOL_TYPES,
+        "level_set_choices": [(key, value["label"]) for key, value in LEVEL_SETS.items()],
+        "term_scheme_choices": [(key, ", ".join(names))
+                                for key, names in TERM_SCHEMES.items()],
+        "selected_level_set": level_set,
+        "selected_term_scheme": academic_type.get("term_scheme") or "",
+        "template_version": template.get("version"),
+        "structure_additions": stored.get("additions") or {},
+    }
 
 
 def _step_context(request, state, step, errors=None, values=None):
@@ -102,6 +155,7 @@ def _step_context(request, state, step, errors=None, values=None):
         "demo": demo,
         "details": details,
         "logo_preview": logo_preview,
+        **_structure_context(state, values),
     }
 
 
@@ -122,6 +176,49 @@ def _read_details(request):
         "primary_color": request.POST.get("primary_color", ""),
         "accent_color": request.POST.get("accent_color", ""),
     }
+
+
+def _read_academic_type(request):
+    from core.terminology import FIELDS
+
+    data = {"level_set": request.POST.get("level_set", ""),
+            "term_scheme": request.POST.get("term_scheme", "")}
+    for field, _label in FIELDS:
+        data[field] = request.POST.get(field, "")
+    return data
+
+
+def _read_structure(request):
+    from academics.hierarchy import template_for
+
+    details = wizard.get_state(request).get("details") or {}
+    academic_type = wizard.get_state(request).get("academic_type") or {}
+    template = template_for(details.get("type") or "college",
+                            level_set=academic_type.get("level_set") or None)
+    groups = {
+        "schools": list(template.get("schools") or []),
+        "departments": list(template.get("departments") or []),
+        "levels": list(template.get("levels") or []),
+    }
+    for school in template.get("schools") or []:
+        groups["departments"].extend(school.get("departments") or [])
+    data = {}
+    for group, rows in groups.items():
+        data[group] = request.POST.getlist(group)
+        for raw in rows:
+            code = raw["code"]
+            data[f"{group}_name_{code}"] = request.POST.get(
+                f"{group}_name_{code}", "")
+            data[f"{group}_code_{code}"] = request.POST.get(
+                f"{group}_code_{code}", "")
+            if group != "levels":
+                data[f"{group}_description_{code}"] = request.POST.get(
+                    f"{group}_description_{code}", "")
+    for singular in ("school", "department", "level"):
+        for suffix in ("name", "code", "description", "school"):
+            data[f"new_{singular}_{suffix}"] = request.POST.get(
+                f"new_{singular}_{suffix}", "")
+    return data
 
 
 def _read_year(request):
@@ -169,7 +266,7 @@ def _read_demo(request):
 
 @login_required
 def setup_wizard(request):
-    """Walk through the six steps and create the institution at the end."""
+    """Walk through the eight steps and create the institution at the end."""
     if not may_create_institutions(request.user):
         raise PermissionDenied("Only a platform administrator may create institutions.")
 
@@ -187,6 +284,8 @@ def setup_wizard(request):
 
         values = {
             "details": _read_details(request),
+            "academic_type": _read_academic_type(request),
+            "structure": _read_structure(request),
             "year": _read_year(request),
             "modules": request.POST.getlist("modules"),
             "grading": _read_grading(request),
@@ -207,6 +306,13 @@ def setup_wizard(request):
             # Keep the logo (a re-encoded PNG in the session) even when another
             # field still needs fixing, because a file input cannot be refilled.
             wizard.set_state(request, state)
+        elif step == "academic_type":
+            clean, errors = wizard.clean_academic_type(
+                values["academic_type"], (state.get("details") or {}).get("type"))
+        elif step == "structure":
+            clean, errors = wizard.clean_structure(
+                values["structure"], (state.get("details") or {}).get("type"),
+                (state.get("academic_type") or {}).get("level_set"))
         elif step == "year":
             clean, errors = wizard.clean_year(values["year"])
         elif step == "modules":

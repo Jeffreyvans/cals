@@ -1,0 +1,58 @@
+{% extends "platform_admin/base_platform.html" %}
+{% block platform_title %}Academic templates{% endblock %}
+{% block platform_heading %}Academic templates{% endblock %}
+{% block platform_content %}
+<p class="muted">These are starting points for new institutions. Publishing a version never changes a school that is already running: each institution keeps the version it copied at setup.</p>
+
+<p>
+  {% for type_code, type_label in types %}
+    <a class="btn ghost btn-sm" href="?code={{ type_code }}" {% if type_code == code %}aria-current="page"{% endif %}>{{ type_label }}</a>
+  {% endfor %}
+</p>
+
+<div class="cols">
+  <form method="post" class="inline wide">
+    {% csrf_token %}
+    <input type="hidden" name="code" value="{{ code }}">
+    <h2>{% if current %}Editing version {{ current.version }}{% else %}New template{% endif %}</h2>
+    <p><label>Name <input name="name" value="{{ name }}" maxlength="120" required></label></p>
+    <p class="full"><label>Template body (JSON)
+      <textarea name="data" rows="22" spellcheck="false" required>{{ data_json }}</textarea></label></p>
+    <p class="muted">The body holds <code>levels</code>, <code>schools</code> (with their departments), <code>departments</code>, <code>streams</code> and <code>terms</code>. Codes identify rows; names can be changed later inside the institution.</p>
+    <p><button class="btn" name="action" value="publish">Publish a new version</button></p>
+  </form>
+
+  <div>
+    <h3>Versions</h3>
+    <table class="tbl">
+      <tr><th>Version</th><th>Updated</th><th>Status</th><th></th></tr>
+      {% for row in versions %}<tr>
+        <td>{{ row.version }}</td>
+        <td>{{ row.updated|date:"Y-m-d H:i" }}{% if row.updated_by %}<br><span class="muted">{{ row.updated_by.username }}</span>{% endif %}</td>
+        <td>{% if row.is_active %}<strong>Published</strong>{% else %}Archive{% endif %}</td>
+        <td>
+          {% if not row.is_active %}
+          <form method="post" class="inline">{% csrf_token %}
+            <input type="hidden" name="code" value="{{ code }}">
+            <input type="hidden" name="version" value="{{ row.pk }}">
+            <button class="btn ghost btn-sm" name="action" value="activate">Use for new institutions</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>{% empty %}<tr><td colspan="4" class="muted">No stored version yet. New institutions use the built-in defaults.</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+
+<h2>All stored templates</h2>
+<div class="tbl-wrap">
+<table class="tbl">
+  <tr><th>Type</th><th>Name</th><th>Version</th><th>Levels</th><th>Status</th></tr>
+  {% for row in all_versions %}<tr>
+    <td>{{ row.code }}</td><td>{{ row.name }}</td><td>{{ row.version }}</td>
+    <td>{{ row.level_count }}</td>
+    <td>{% if row.is_active %}Published{% else %}Archive{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="5" class="muted">No stored templates.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

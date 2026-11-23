@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{% if school %}Edit {{ school.name }}{% else %}Add {{ labels.unit_label|lower }}{% endif %}{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{% if school %}Edit {{ school.name }}{% else %}Add {{ labels.unit_label|lower }}{% endif %}</h1>
+    <p class="muted">{{ request.institution.name }}</p>
+  </div>
+  <a class="btn ghost" href="{% url 'school_list' %}">Back</a>
+</div>
+<form method="post" class="inline wide">{% csrf_token %}
+  {{ form.as_p }}
+  <button class="btn">Save</button>
+</form>
+{% endblock %}

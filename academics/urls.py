@@ -1,5 +1,6 @@
 from django.urls import path
 
+from . import structure as s
 from . import views as v
 
 urlpatterns = [
@@ -15,7 +16,13 @@ urlpatterns = [
     path("me/registration/", v.course_registration, name="my_registration"),
     path("students/<int:pk>/activity/", v.add_activity, name="add_activity"),
     path("years/", v.academic_years, name="academic_years"),
-    path("levels/", v.grade_levels, name="grade_levels"),
+    path("settings/structure/", s.setup_home, name="academic_structure"),
+    path("settings/structure/schools/", s.school_list, name="school_list"),
+    path("settings/structure/schools/new/", s.school_form, name="school_create"),
+    path("settings/structure/schools/<int:pk>/", s.school_form, name="school_edit"),
+    path("settings/structure/schools/<int:pk>/delete/", s.school_delete, name="school_delete"),
+    path("settings/structure/grades-classes/", s.grades_and_classes, name="grades_classes"),
+    path("levels/", s.grade_levels, name="grade_levels"),
     path("promotion/", v.promotion, name="promotion"),
     path("classes/", v.class_list, name="class_list"),
     path("classes/<int:pk>/", v.class_detail, name="class_detail"),

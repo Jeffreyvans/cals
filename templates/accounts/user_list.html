@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load hierarchy_tags %}
 {% block title %}Users{% endblock %}
 {% block content %}
 <div class="head">
@@ -21,6 +21,7 @@
 {% endif %}
 
 <form method="get" class="filters">
+  {% hierarchy_filters hide_department=True %}
   <label>Search<input type="search" name="q" value="{{ query }}" placeholder="Name, username, email, student or staff number"></label>
   <label>Type
     <select name="type">

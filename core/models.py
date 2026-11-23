@@ -76,7 +76,8 @@ class Institution(models.Model):
     class Type(models.TextChoices):
         PRIMARY = "primary", "Primary school"
         SECONDARY = "secondary", "Secondary school"
-        COLLEGE = "college", "College / university"
+        COLLEGE = "college", "College"
+        UNIVERSITY = "university", "University"
         VOCATIONAL = "vocational", "Vocational institute"
 
     class VatStatus(models.TextChoices):
@@ -318,6 +319,8 @@ class Terminology(models.Model):
     pupil_label = models.CharField(max_length=30, default="Student")
     teacher_label = models.CharField(max_length=30, default="Teacher")
     programme_label = models.CharField(max_length=30, default="Programme")
+    unit_label = models.CharField(max_length=30, default="Faculty")
+    term_label = models.CharField(max_length=30, default="Term")
 
     def __str__(self):
         return f"Terminology for {self.institution}"
@@ -379,6 +382,12 @@ class Department(TenantModel):
         on_delete=models.SET_NULL,
         related_name="departments_headed",
     )
+    school = models.ForeignKey(
+        "academics.AcademicSchool", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="departments")
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ("institution", "code")
@@ -561,6 +570,10 @@ class ImportBatch(TenantModel):
         COURSES = "courses", "Courses"
         SUBJECTS = "subjects", "Subjects"
         FEE_STRUCTURES = "fee_structures", "Fee structures"
+        SCHOOLS = "schools", "Schools or Faculties"
+        DEPARTMENTS = "departments", "Departments"
+        GRADE_LEVELS = "grade_levels", "Grade levels"
+        CLASSES = "classes", "Classes"
 
     class Status(models.TextChoices):
         UPLOADED = "uploaded", "Uploaded"

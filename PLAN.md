@@ -467,3 +467,71 @@ without changing any internal identifier that a live deployment depends on.
   templates compile, `python manage.py makemigrations --check --dry-run`
   reports no changes and `python manage.py check` shows only the expected
   console-email warning.
+
+## PHASE 16 - Configurable academic hierarchy (session 38, 2026-11-23)
+Status: complete.
+
+Institutions can now use one editable School/Faculty > Department > Programme >
+Course hierarchy, with their own grades/classes, terminology and defaults. All
+of the new configuration is tenant-scoped, permission-gated and audited, and
+existing institutions are never rewritten by a platform-level change.
+
+- [x] Added `university` as an institution type and `academics.AcademicSchool`
+  (migration `academics/0024`), plus `core.Department.school`,
+  `Programme.school`/`department`, `SchoolClass.school`/`department`/
+  `capacity`/`room`/`is_active`, `Student.school`/`department` and
+  `GradeLevel.promotion_to`. Departments may exist without a school and
+  programmes may belong to a department or directly to a school.
+- [x] Added `academics/hierarchy.py` as the single source for institution-type
+  defaults, level sets (including Grade 8-13, combined primary+secondary and
+  Year 1-4/5-6), term schemes (Term/Semester), stream suggestions, editable
+  templates, validation, template application, hierarchy labels/context,
+  breadcrumb helpers, filter helpers and tenant-safe filter application.
+  `code_for()` preserves digits and only expands short alpha codes, so the
+  built-in level codes stay unique.
+- [x] Added versioned `platform_admin.AcademicTemplate` rows, seeded by
+  `platform_admin/0007_seed_academic_templates.py`. Platform staff can edit and
+  publish a new version, activate an older version or roll back; only new
+  institutions copy the current template, and `apply_template()` writes an
+  institution-attributed `academic.template_applied` audit entry.
+- [x] Extended the setup wizard from six to eight steps with an Academic type
+  step and a Structure step. Checkboxes select the default schools/departments/
+  levels, each can be renamed or recoded, and new rows can be added. The
+  School/Faculty controls are hidden for primary and secondary; those types
+  keep one Term unless an alternative level set or Semester scheme is chosen.
+  Terminology (Pupil/Student, Class/Form, Teacher/Lecturer, Term/Semester,
+  School/Faculty) is stored per institution and editable afterwards in
+  `core/terminology.py`.
+- [x] Added dedicated Academic structure and Grades and classes screens
+  (`academics/structure.py`) linked from the navigation. Grades/classes can be
+  renamed, reordered, deactivated or given a promotion target; deletion is
+  refused while a student, enrolment, timetable, mark or other record uses the
+  row. Classes also carry a class teacher, capacity, room and bulk streams.
+  Reads use admin/registrar roles; every write requires
+  `academics.manage_structure`, logs a permission denial on refusal and writes
+  an audit entry on success.
+- [x] Extended the bulk academic setup import with `Schools or Faculties`,
+  `Departments`, `Grade levels` and `Classes` sheets, code-then-name matching,
+  no deletions, a downloadable Excel template and the same
+  `academics.manage_structure` gate and audit trail.
+- [x] Added hierarchy filters to student search, staff lists, courses,
+  programmes, dashboards, timetables, marks/results, debtors, collections,
+  fee structures and finance exports. A shared template partial and template
+  tags render the filters and breadcrumbs. Dashboards bypass cached global
+  figures when a filter is active, so filtered numbers are not masked.
+- [x] Added the hierarchy to breadcrumbs and to on-screen report cards,
+  transcripts and their PDF headers, with school and department columns on the
+  student table.
+- [x] Added `academics/tests/test_hierarchy.py`,
+  `academics/tests/test_hierarchy_filters.py`,
+  `core/tests/test_wizard_hierarchy.py`,
+  `core/tests/test_academic_import.py` and
+  `platform_admin/tests/test_academic_templates.py` covering defaults, wizard
+  tick/rename/add, rename propagation, reorder/deactivate/promotion, blocked
+  deletion, hierarchy/filters, import sheets, template versioning, permissions,
+  tenant isolation and audit.
+- [x] Verification: full suite **1,736 passed**, `ruff check .` clean,
+  `python manage.py check` shows only the expected console-email warning and
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected". The staff-list query guard was updated from 17 to 21 to account
+  for the four hierarchy filter choice lists; it still fails on any N+1.

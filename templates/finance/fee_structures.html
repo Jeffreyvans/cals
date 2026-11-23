@@ -1,5 +1,6 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% load hierarchy_tags %}{% block content %}
 <h1>Fee structures</h1>
+<form method="get">{% hierarchy_filters %}</form>
 <p><a class="btn" href="{% url 'fee_structure_create' %}">New fee structure</a>
 <a class="btn ghost" href="{% url 'generate_invoices' %}">Generate invoices</a></p>
 <table class="tbl">

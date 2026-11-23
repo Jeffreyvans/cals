@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load hierarchy_tags %}
 {% block title %}Staff{% endblock %}
 {% block content %}
 <div class="head">
@@ -10,6 +10,7 @@
 </div>
 
 <form method="get" class="filters">
+  {% hierarchy_filters %}
   <input name="q" value="{{ query }}" placeholder="Name, employee number or job title" aria-label="Search staff">
   <button class="btn ghost">Search</button>
   {% if query %}<a class="btn ghost" href="{% url 'staff_list' %}">Clear</a>{% endif %}

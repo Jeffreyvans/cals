@@ -1,7 +1,8 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% load hierarchy_tags %}{% block content %}
 <div class="noprint"><button class="btn" onclick="window.print()">Print</button> <a class="btn ghost" href="{{ back }}">Back</a> <a class="btn ghost" href="{% url 'attendance_register' kind item.pk %}">Attendance register</a> <a class="btn ghost" href="{% url 'results_workflow' kind item.pk %}">Results workflow</a>{% if can_configure %} <a class="btn ghost" href="{% url 'assessment_components' kind item.pk %}">Assessment setup</a>{% endif %}</div>
 <h1>Mark sheet</h1>
 <h2>{{ item }}</h2>
+<form method="get" class="noprint">{% hierarchy_filters %}</form>
 <p class="muted">Students: {{ rows|length }} · Marked: {{ marked }} · Average: {{ average|default:"—" }}</p>
 <table class="tbl"><tr><th>#</th><th>Student</th>
 {% if components %}{% for c in components %}<th class="r">{{ c.name }} <span class="muted">({{ c.weight }}%)</span></th>{% endfor %}<th class="r">Final</th>{% else %}<th class="r">Mark</th>{% endif %}<th>Grade</th><th class="r">Position</th></tr>

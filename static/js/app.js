@@ -3,7 +3,12 @@ function initSearch(){
   if(!q||!body)return;
   let t;
   async function run(){
-    const r=await fetch(q.dataset.url+"?q="+encodeURIComponent(q.value));
+    const url=new URL(q.dataset.url,location.origin);
+    new URLSearchParams(location.search).forEach((value,key)=>{
+      if(["school","department","level","school_class"].includes(key))url.searchParams.set(key,value);
+    });
+    url.searchParams.set("q",q.value);
+    const r=await fetch(url);
     const {results}=await r.json();
     body.innerHTML="";empty.hidden=results.length>0;
     results.forEach(s=>{

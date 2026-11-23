@@ -1,8 +1,10 @@
 from django import forms
 
 from accounts.models import User
+from core.models import Department
 
 from .models import (
+    AcademicSchool,
     AcademicYear,
     Activity,
     Announcement,
@@ -209,7 +211,16 @@ class CalendarEventForm(forms.ModelForm):
 class SchoolClassForm(forms.ModelForm):
     class Meta:
         model = SchoolClass
-        fields = ["name", "level"]
+        fields = ["name", "level", "grade_level", "school", "department",
+                  "capacity", "room", "is_active"]
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["grade_level"].queryset = GradeLevel.objects.all()
+        self.fields["school"].queryset = AcademicSchool.objects.all()
+        self.fields["department"].queryset = Department.objects.all()
+        for name in ("grade_level", "school", "department"):
+            self.fields[name].required = False
 
 
 class StreamForm(forms.ModelForm):
@@ -246,12 +257,32 @@ class SubjectForm(forms.ModelForm):
 class GradeLevelForm(forms.ModelForm):
     class Meta:
         model = GradeLevel
-        fields = ["name", "kind", "order"]
+        fields = ["name", "code", "kind", "order", "is_active", "promotion_to"]
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         self.fields["order"].help_text = "The step on the way up. Higher numbers come later."
         self.fields["name"].help_text = "For example Grade 3 or Form 2."
+        self.fields["code"].required = False
+        self.fields["is_active"].required = False
+        self.fields["promotion_to"].required = False
+        self.fields["promotion_to"].queryset = GradeLevel.objects.all()
+        self.fields["promotion_to"].label = "Promote to"
+
+
+class AcademicSchoolForm(forms.ModelForm):
+    class Meta:
+        model = AcademicSchool
+        fields = ["name", "code", "description", "head", "is_active", "sort_order", "parent"]
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields["head"].queryset = User.tenant_objects.filter(
+            role__in=("lecturer", "admin", "registrar"), is_active=True)
+        self.fields["head"].required = False
+        self.fields["parent"].queryset = AcademicSchool.objects.all()
+        self.fields["parent"].required = False
+        self.fields["is_active"].required = False
 
 
 class ClassSubjectAllocationForm(forms.ModelForm):

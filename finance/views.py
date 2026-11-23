@@ -418,13 +418,19 @@ def email_receipt(request, pk):
 
 
 # ---------- reports ----------
-def _debtors_data(show):
+def _debtors_data(show, request=None):
     """Rows (students annotated with amounts) and totals for the given filter."""
+    from academics.hierarchy import filter_hierarchy
+
     billed, paid, waived = balances_by_student()
+    students = Student.objects.select_related("user", "programme", "school_class") \
+        .filter(pk__in=billed.keys())
+    if request is not None:
+        students = filter_hierarchy(
+            students, request, school_field="school", department_field="department",
+            level_field="school_class__grade_level", class_field="school_class")
     rows = []
-    for s in Student.objects.select_related("user", "programme", "school_class") \
-            .filter(pk__in=billed.keys()) \
-            .order_by("user__last_name", "user__first_name"):
+    for s in students.order_by("user__last_name", "user__first_name"):
         s.billed_amt = billed.get(s.pk, ZERO)
         s.paid_amt = paid.get(s.pk, ZERO)
         s.waived_amt = waived.get(s.pk, ZERO)
@@ -471,17 +477,18 @@ def _clean_show(raw):
 def report_debtors(request):
     """Who owes what, how overdue it is, printable for the office wall."""
     show = _clean_show(request.GET.get("show", "owing"))
-    rows, totals = _debtors_data(show)
+    rows, totals = _debtors_data(show, request)
     return render(request, "finance/debtors.html", {
         "rows": rows, "show": show, "totals": totals,
-        "aging": _aging_data(), "export_query": f"?show={show}&"})
+        "aging": _aging_data(),
+        "export_query": ("?" + request.GET.urlencode() + "&") if request.GET else "?"})
 
 
 @module_required("finance")
 @role_required("bursar", "registrar")
 def export_debtors(request):
     show = _clean_show(request.GET.get("show", "owing"))
-    rows, totals = _debtors_data(show)
+    rows, totals = _debtors_data(show, request)
     data = [[s.name, s.student_no, s.programme.name,
              s.class_label if s.school_class_id else "",
              f"{s.billed_amt:.2f}", f"{s.paid_amt:.2f}",
@@ -511,9 +518,17 @@ def _date_filters(request):
     return date_from, date_to, raw_from, raw_to
 
 
-def _collections_data(date_from, date_to):
+def _collections_data(date_from, date_to, request=None):
+    from academics.hierarchy import filter_hierarchy
+
     payments = Payment.objects.select_related("invoice__student__user",
                                               "received_by")
+    if request is not None:
+        payments = filter_hierarchy(
+            payments, request, school_field="invoice__student__school",
+            department_field="invoice__student__department",
+            level_field="invoice__student__school_class__grade_level",
+            class_field="invoice__student__school_class")
     if date_from:
         payments = payments.filter(paid_on__date__gte=date_from)
     if date_to:
@@ -534,18 +549,18 @@ def report_collections(request):
     """Money received in a period, broken down by payment method."""
     date_from, date_to, raw_from, raw_to = _date_filters(request)
     payments, total, student_count, methods = _collections_data(date_from,
-                                                                date_to)
+                                                                date_to, request)
     return render(request, "finance/collections.html", {
         "payments": payments, "total": total, "student_count": student_count,
         "methods": methods, "raw_from": raw_from, "raw_to": raw_to,
-        "export_query": f"?from={raw_from}&to={raw_to}&"})
+        "export_query": ("?" + request.GET.urlencode() + "&") if request.GET else "?"})
 
 
 @module_required("finance")
 @role_required("bursar", "registrar")
 def export_collections(request):
     date_from, date_to, _, _ = _date_filters(request)
-    payments, total, _, methods = _collections_data(date_from, date_to)
+    payments, total, _, methods = _collections_data(date_from, date_to, request)
     data = [[p.receipt_no, p.paid_on.strftime("%Y-%m-%d %H:%M"),
              p.invoice.student.name, p.invoice.student.student_no,
              p.invoice.description, p.get_method_display(),
@@ -635,7 +650,13 @@ def export_audit(request):
 @module_required("finance")
 @permission_required_code("finance.manage_fee_structures")
 def fee_structures(request):
+    from academics.hierarchy import filter_hierarchy
+
     structures = FeeStructure.objects.prefetch_related("items")
+    structures = filter_hierarchy(
+        structures, request, school_field="programme__school",
+        department_field="programme__department",
+        level_field="school_class__grade_level", class_field="school_class")
     return render(request, "finance/fee_structures.html", {"structures": structures})
 
 
@@ -795,7 +816,7 @@ def income_statement(request):
     start, end, raw_from, raw_to = _date_filters(request)
     data = services.income_statement(start, end)
     data.update({"raw_from": raw_from, "raw_to": raw_to,
-                 "export_query": f"?from={raw_from}&to={raw_to}&"})
+                 "export_query": ("?" + request.GET.urlencode() + "&") if request.GET else "?"})
     return render(request, "finance/income_statement.html", data)
 
 
@@ -1063,7 +1084,7 @@ def report_income_by_item(request):
     return render(request, "finance/income_by_item.html", {
         "rows": services.income_by_fee_item(start, end),
         "raw_from": raw_from, "raw_to": raw_to,
-        "export_query": f"?from={raw_from}&to={raw_to}&"})
+        "export_query": ("?" + request.GET.urlencode() + "&") if request.GET else "?"})
 
 
 @module_required("finance")

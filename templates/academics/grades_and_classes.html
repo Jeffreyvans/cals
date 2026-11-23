@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ labels.grade_label }} levels and {{ labels.class_label|lower }}es{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ labels.grade_label }} levels and {{ labels.class_label|lower }}es</h1>
+    <p class="muted">Rename, reorder and deactivate levels. Deactivated rows stay in old results and reports. Classes keep their history too.</p>
+  </div>
+  <p>
+    <a class="btn ghost" href="{% url 'academic_structure' %}">Academic structure</a>
+    <a class="btn ghost" href="{% url 'promotion' %}">Promote students</a>
+  </p>
+</div>
+
+<h2>{{ labels.grade_label }} levels</h2>
+<table class="tbl">
+  <tr><th>Order / name</th><th>Promote to</th><th>{{ labels.class_label|lower }}es</th><th>Actions</th></tr>
+  {% for level in levels %}<tr>
+    <td>
+      <form method="post" class="inline">{% csrf_token %}
+        <input type="hidden" name="level_pk" value="{{ level.pk }}">
+        <input type="hidden" name="action" value="rename_level">
+        <input name="name" value="{{ level.name }}" maxlength="60" aria-label="Name">
+        <input name="code" value="{{ level.code }}" maxlength="20" aria-label="Code">
+        <button class="btn ghost">Rename</button>
+      </form>
+      <span class="muted">{{ level.get_kind_display }} · step {{ level.order }}{% if not level.is_active %} · inactive{% endif %}</span>
+    </td>
+    <td>
+      <form method="post" class="inline">{% csrf_token %}
+        <input type="hidden" name="level_pk" value="{{ level.pk }}">
+        <input type="hidden" name="action" value="set_promotion">
+        <select name="promotion_to">
+          <option value="">Next by order</option>
+          {% for target in levels %}<option value="{{ target.pk }}" {% if level.promotion_to_id == target.pk %}selected{% endif %}>{{ target.name }}</option>{% endfor %}
+        </select>
+        <button class="btn ghost">Set</button>
+      </form>
+    </td>
+    <td>{% for c in level.classes.all %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">None</span>{% endfor %}</td>
+    <td>
+      <form method="post" class="inline">{% csrf_token %}
+        <input type="hidden" name="level_pk" value="{{ level.pk }}">
+        <input type="hidden" name="action" value="move_level">
+        <button class="btn ghost" name="direction" value="up" title="Move up">↑</button>
+        <button class="btn ghost" name="direction" value="down" title="Move down">↓</button>
+      </form>
+      <form method="post" class="inline">{% csrf_token %}
+        <input type="hidden" name="level_pk" value="{{ level.pk }}">
+        <button class="link" name="action" value="{% if level.is_active %}deactivate_level{% else %}activate_level{% endif %}">
+          {% if level.is_active %}Deactivate{% else %}Activate{% endif %}
+        </button>
+      </form>
+      <form method="post" class="inline">{% csrf_token %}
+        <input type="hidden" name="level_pk" value="{{ level.pk }}">
+        <button class="link" name="action" value="delete_level">Delete</button>
+      </form>
+    </td>
+  </tr>{% empty %}<tr><td colspan="4" class="muted">No levels yet. Add one below or apply a template.</td></tr>{% endfor %}
+</table>
+
+<div class="cols">
+  <form method="post" class="inline wide">{% csrf_token %}
+    <input type="hidden" name="action" value="add_level">
+    <h3>Add a {{ labels.grade_label|lower }} level</h3>
+    {{ level_form.as_p }}
+    <button class="btn">Add level</button>
+  </form>
+</div>
+
+<h2>{{ labels.class_label }}es and streams</h2>
+<form method="post" class="inline wide">{% csrf_token %}
+  <input type="hidden" name="action" value="bulk_streams">
+  <h3>Add streams in bulk</h3>
+  <p>
+    {% for c in classes %}<label><input type="checkbox" name="class_ids" value="{{ c.pk }}"> {{ c.name }}</label>{% endfor %}
+  </p>
+  <p>
+    {% for name in stream_suggestions %}<label><input type="checkbox" name="stream_names" value="{{ name }}"> {{ name }}</label>{% endfor %}
+  </p>
+  <p><label>Other streams<textarea name="new_streams" rows="2" placeholder="One per line or comma separated"></textarea></label></p>
+  <button class="btn">Add streams</button>
+</form>
+
+<table class="tbl">
+  <tr><th>{{ labels.class_label }}</th><th>Level</th><th>{{ labels.unit_label }} / department</th><th>Streams</th><th>Actions</th></tr>
+  {% for c, form in class_forms %}<tr>
+    <td><a href="{% url 'class_detail' c.pk %}">{{ c.name }}</a>{% if not c.is_active %}<br><span class="muted">inactive</span>{% endif %}</td>
+    <td>{{ c.grade_level|default:'—' }}</td>
+    <td>{{ c.school|default:'—' }}{% if c.department %} / {{ c.department.name }}{% endif %}</td>
+    <td>{% for s in c.streams.all %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">None</span>{% endfor %}</td>
+    <td>
+      <details>
+        <summary>Edit</summary>
+        <form method="post">{% csrf_token %}
+          <input type="hidden" name="action" value="update_class">
+          <input type="hidden" name="class_pk" value="{{ c.pk }}">
+          {{ form.as_p }}
+          <button class="btn">Save</button>
+        </form>
+      </details>
+      <form method="post" class="inline">{% csrf_token %}
+        <input type="hidden" name="class_pk" value="{{ c.pk }}">
+        <button class="link" name="action" value="{% if c.is_active %}deactivate_class{% else %}activate_class{% endif %}">
+          {% if c.is_active %}Deactivate{% else %}Activate{% endif %}
+        </button>
+      </form>
+      <form method="post" class="inline">{% csrf_token %}
+        <input type="hidden" name="class_pk" value="{{ c.pk }}">
+        <button class="link" name="action" value="delete_class">Delete</button>
+      </form>
+    </td>
+  </tr>{% empty %}<tr><td colspan="5" class="muted">No classes yet.</td></tr>{% endfor %}
+</table>
+
+<div class="cols">
+  <form method="post" class="inline wide">{% csrf_token %}
+    <input type="hidden" name="action" value="add_class">
+    <h3>Add a {{ labels.class_label|lower }}</h3>
+    {{ class_form.as_p }}
+    <p class="muted">Set the class teacher and subject allocations from the class page after saving.</p>
+    <button class="btn">Add class</button>
+  </form>
+</div>
+{% endblock %}

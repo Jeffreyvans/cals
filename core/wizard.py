@@ -1,8 +1,9 @@
 """The setup wizard.
 
-A new institution is configured in six short steps: who they are, their
-academic year and term, the modules they use, the grading scale, the first
-administrator and, if they want it, demo data.
+A new institution is configured in eight short steps: who they are, the
+academic level names and structure, their academic year and term, the modules
+they use, the grading scale, the first administrator and, if they want it,
+demo data.
 
 The answers live in the session until the last step, where they are turned
 into real rows. Everything created belongs to the new institution, so a
@@ -24,6 +25,8 @@ SESSION_KEY = "setup_wizard"
 
 STEPS = [
     ("details", "Institution details"),
+    ("academic_type", "Academic type"),
+    ("structure", "Structure"),
     ("year", "Academic year and term"),
     ("modules", "Modules"),
     ("grading", "Grading template"),
@@ -122,6 +125,8 @@ def default_state():
     return {
         "step": STEP_NAMES[0],
         "details": {},
+        "academic_type": {},
+        "structure": {"selected": {}, "renames": {}, "additions": {}},
         "year": {},
         "modules": [],
         "grading": [dict(row) for row in DEFAULT_GRADES],
@@ -209,6 +214,93 @@ def clean_details(data):
     if clean["contact_email"] and "@" not in clean["contact_email"]:
         errors.append("The contact email does not look like an email address.")
     return clean, errors
+
+
+def clean_academic_type(data, institution_type=None):
+    """Level names, term names and the words this institution uses."""
+    from academics.hierarchy import DEFAULT_LEVEL_SET, DEFAULT_TERM_SCHEME, LEVEL_SETS, TERM_SCHEMES
+    from core.terminology import DEFAULTS, FIELDS
+
+    errors = []
+    institution_type = institution_type or Institution.Type.COLLEGE
+    level_set = _clean(data.get("level_set")) or DEFAULT_LEVEL_SET.get(
+        institution_type, "college")
+    term_scheme = _clean(data.get("term_scheme")) or DEFAULT_TERM_SCHEME.get(
+        institution_type, "terms")
+    if level_set not in LEVEL_SETS:
+        errors.append("Choose one of the academic level sets.")
+    if term_scheme not in TERM_SCHEMES:
+        errors.append("Choose term or semester names.")
+    labels = {}
+    defaults = DEFAULTS.get(institution_type, DEFAULTS["college"])
+    for field, _label in FIELDS:
+        value = _clean(data.get(field))[:30]
+        labels[field] = value or defaults[field]
+    return {
+        "level_set": level_set,
+        "term_scheme": term_scheme,
+        **labels,
+    }, errors
+
+
+def clean_structure(data, institution_type=None, level_set=None):
+    """Which template rows the administrator kept, renamed or added."""
+    from academics.hierarchy import template_for
+
+    errors = []
+    institution_type = institution_type or Institution.Type.COLLEGE
+    template = template_for(institution_type, level_set=level_set)
+    allowed = {
+        "schools": {row["code"] for row in template.get("schools") or []},
+        "departments": {
+            row["code"] for row in template.get("departments") or []
+        },
+        "levels": {row["code"] for row in template.get("levels") or []},
+    }
+    for school in template.get("schools") or []:
+        allowed["departments"].update(
+            row["code"] for row in school.get("departments") or [])
+    if institution_type in SCHOOL_TYPES:
+        allowed["schools"] = set()
+
+    selected = {}
+    renames = {}
+    for group, codes in allowed.items():
+        posted = data.get(group) or []
+        if isinstance(posted, str):
+            posted = [posted]
+        selected[group] = [code for code in posted if code in codes]
+        for code in sorted(codes):
+            name = _clean(data.get(f"{group}_name_{code}"))
+            new_code = _clean(data.get(f"{group}_code_{code}"))
+            description = _clean(data.get(f"{group}_description_{code}"))
+            if not (name or new_code or description):
+                continue
+            renames.setdefault(group, {})[code] = {
+                "name": name,
+                "code": new_code,
+                "description": description,
+            }
+
+    additions = {}
+    for group, singular in (("schools", "school"), ("departments", "department"),
+                            ("levels", "level")):
+        if group == "schools" and institution_type in SCHOOL_TYPES:
+            continue
+        name = _clean(data.get(f"new_{singular}_name"))
+        if not name:
+            continue
+        additions[group] = [{
+            "name": name[:120] if group != "levels" else name[:60],
+            "code": _clean(data.get(f"new_{singular}_code"))[:20],
+            "description": _clean(data.get(f"new_{singular}_description")),
+            "school": _clean(data.get(f"new_{singular}_school")),
+        }]
+    return {
+        "selected": selected,
+        "renames": renames,
+        "additions": additions,
+    }, errors
 
 
 def clean_year(data):
@@ -340,6 +432,7 @@ def build_institution(state):
     """Create the institution and everything the answers asked for."""
     from django.db import transaction
 
+    from academics.hierarchy import apply_template
     from academics.models import AcademicYear, GradeBand, SchoolSettings, Term
     from accounts.models import User
     from core.audit import log_action
@@ -348,6 +441,8 @@ def build_institution(state):
     from core.terminology import save_terminology
 
     details = state["details"]
+    academic_type = state.get("academic_type") or {}
+    structure = state.get("structure") or {}
     year = state["year"]
     admin = state["admin"]
     demo = state.get("demo") or {}
@@ -383,7 +478,7 @@ def build_institution(state):
                     institution=institution, code=code, enabled=code in chosen
                 )
 
-            save_terminology(institution, {})
+            save_terminology(institution, academic_type)
 
             academic_year = AcademicYear.objects.create(
                 institution=institution,
@@ -433,6 +528,18 @@ def build_institution(state):
                 user.primary_role = admin_role
                 user.save(update_fields=["primary_role"])
 
+            apply_template(
+                institution,
+                details["type"],
+                level_set=academic_type.get("level_set"),
+                term_scheme=academic_type.get("term_scheme"),
+                selected=structure.get("selected"),
+                renames=structure.get("renames"),
+                additions=structure.get("additions"),
+                actor=user,
+                create_terms=details["type"] not in SCHOOL_TYPES,
+            )
+
             demo_logins = []
             if demo.get("enabled"):
                 from academics.demo import DEMO_PASSWORD, seed_demo
@@ -459,6 +566,9 @@ def validate_state(state):
     errors = []
     for name, cleaner, extra in (
         ("details", clean_details, ()),
+        ("academic_type", clean_academic_type, (state["details"].get("type"),)),
+        ("structure", clean_structure, (state["details"].get("type"),
+                                         (state.get("academic_type") or {}).get("level_set"))),
         ("year", clean_year, ()),
         ("modules", clean_modules, (state["details"].get("type"),)),
         ("grading", clean_grading, ()),

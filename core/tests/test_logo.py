@@ -457,6 +457,13 @@ class WizardLogoTests(MediaTestCase):
         if logo is not None:
             details["logo"] = logo
         self.client.post(reverse("setup_wizard"), details)
+        self.client.post(reverse("setup_wizard"), {
+            "level_set": "primary", "term_scheme": "terms",
+            "class_label": "Class", "grade_label": "Grade", "pupil_label": "Pupil",
+            "teacher_label": "Teacher", "unit_label": "School", "term_label": "Term",
+        })
+        self.client.post(reverse("setup_wizard"), {"schools": [], "departments": [],
+                                                    "levels": []})
         self.client.post(reverse("setup_wizard"), YEAR)
         self.client.post(reverse("setup_wizard"), {"modules": ["core_academics"]})
         self.client.post(reverse("setup_wizard"), {

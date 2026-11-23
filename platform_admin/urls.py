@@ -71,6 +71,8 @@ urlpatterns = [
     path("platform/audit/export/", views.audit_export, name="audit_export"),
     path("platform/announcements/", views.announcements, name="announcements"),
     path("platform/settings/", views.settings_view, name="settings"),
+    path("platform/academic-templates/", views.academic_templates,
+         name="academic_templates"),
     # Consent requests and grants (platform side).
     path("platform/access/", views.access_requests, name="access_requests"),
     path("platform/access/new/", views.access_request_create, name="access_request_create"),

@@ -1,12 +1,13 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% load hierarchy_tags %}{% block content %}
 <div class="head">
   <div><h1>{{ page_title }}</h1>
     <p class="muted">{% if term %}Showing {{ term }}.{% else %}No current term is set, so all terms are shown.{% endif %}</p></div>
-  <a class="btn ghost" href="{% url 'timetable_pdf' %}{% if filter_class %}?class={{ filter_class }}{% endif %}{% if filter_lecturer %}{% if filter_class %}&amp;{% else %}?{% endif %}lecturer={{ filter_lecturer }}{% endif %}">Printable PDF</a>
+  <a class="btn ghost" href="{% url 'timetable_pdf' %}{% if filter_query %}?{{ filter_query }}{% endif %}">Printable PDF</a>
 </div>
 
 {% if form %}
 <form method="get" class="filters">
+  {% hierarchy_filters %}
   <select name="class" onchange="this.form.submit()" aria-label="Filter by class">
     <option value="">All classes</option>
     {% for c in classes %}<option value="{{ c.pk }}" {% if filter_class == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}

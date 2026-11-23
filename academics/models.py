@@ -185,12 +185,40 @@ class Term(TenantModel):
     def __str__(self): return f"{self.name} ({self.academic_year.name})"
 
 
+class AcademicSchool(TenantModel):
+    """The top level of the academic hierarchy: a School, Faculty or Division.
+
+    The label is terminology, not data: an institution chooses what to call
+    this level. Departments, programmes, staff, courses and reports can all be
+    filtered by it. A small institute may leave this level unused altogether.
+    """
+
+    name = models.CharField(max_length=120)
+    code = models.CharField(max_length=20)
+    description = models.TextField(blank=True)
+    head = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="academic_schools_headed")
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    parent = models.ForeignKey("self", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="child_schools")
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        constraints = [
+            models.UniqueConstraint(fields=["institution", "code"], name="uniq_academic_school_code")
+        ]
+
+    def __str__(self): return self.name
+
+
 class GradeLevel(TenantModel):
     """One step on the way through the school: Grade 3, Form 2, Year 1.
 
     Classes hang off a grade level, so the promotion tool knows which class
     comes next. The order decides the way up: the level with the next higher
-    number in the same kind is the next one.
+    number in the same kind is the next one, unless an administrator has set an
+    explicit promotion target.
     """
 
     class Kind(models.TextChoices):
@@ -204,6 +232,9 @@ class GradeLevel(TenantModel):
     order = models.PositiveIntegerField(default=0,
         help_text="The step on the way up. Higher numbers come later.")
     is_active = models.BooleanField(default=True)
+    promotion_to = models.ForeignKey("self", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="promoted_from",
+        help_text="Leave empty to use the next active level in order.")
 
     class Meta:
         ordering = ["kind", "order", "name"]
@@ -216,6 +247,8 @@ class GradeLevel(TenantModel):
     @property
     def next_level(self):
         """The level a student moves to after this one, if there is one."""
+        if self.promotion_to_id:
+            return self.promotion_to
         return GradeLevel.all_objects.filter(
             institution=self.institution, kind=self.kind, is_active=True, order__gt=self.order
         ).order_by("order", "name").first()
@@ -230,11 +263,28 @@ class SchoolClass(TenantModel):
     grade_level = models.ForeignKey(GradeLevel, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="classes",
         help_text="The step this class belongs to. Used by the promotion tool.")
+    school = models.ForeignKey(AcademicSchool, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="classes")
+    department = models.ForeignKey("core.Department", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="classes")
+    capacity = models.PositiveIntegerField(default=0, help_text="0 means no limit.")
+    room = models.CharField(max_length=60, blank=True)
+    is_active = models.BooleanField(default=True,
+        help_text="Switch off a class that is no longer in use without deleting its history.")
+
     class Meta:
         ordering = ["name"]
         constraints = [
             models.UniqueConstraint(fields=["institution", "name"], name="uniq_class_name")
         ]
+
+    def save(self, *a, **kw):
+        if self.grade_level_id and not self.level:
+            self.level = self.grade_level.kind
+        if not self.school_id and self.department_id and self.department.school_id:
+            self.school_id = self.department.school_id
+        super().save(*a, **kw)
+
     def __str__(self): return self.name
 
 
@@ -430,10 +480,21 @@ class Programme(TenantModel):
     level = models.CharField(max_length=20, choices=Level.choices)
     duration_months = models.PositiveIntegerField(default=12)
     tuition_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    school = models.ForeignKey(AcademicSchool, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="programmes")
+    department = models.ForeignKey("core.Department", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="programmes")
+
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["institution", "code"], name="uniq_programme_code")
         ]
+
+    def save(self, *a, **kw):
+        if not self.school_id and self.department_id and self.department.school_id:
+            self.school_id = self.department.school_id
+        super().save(*a, **kw)
+
     def __str__(self): return f"{self.name} ({self.get_level_display()})"
 
 
@@ -444,11 +505,21 @@ class Course(TenantModel):
     credits = models.PositiveSmallIntegerField(default=3)
     lecturer = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, limit_choices_to={"role": "lecturer"}, related_name="courses")
+
     class Meta:
         ordering = ["code"]
         constraints = [
             models.UniqueConstraint(fields=["institution", "code"], name="uniq_course_code")
         ]
+
+    @property
+    def school(self):
+        return self.programme.school if self.programme_id else None
+
+    @property
+    def department(self):
+        return self.programme.department if self.programme_id else None
+
     def __str__(self): return f"{self.code} – {self.title}"
 
 
@@ -586,6 +657,10 @@ class Student(TenantModel):
         on_delete=models.SET_NULL, related_name="students")
     stream = models.ForeignKey(Stream, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="students")
+    school = models.ForeignKey(AcademicSchool, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="students")
+    department = models.ForeignKey("core.Department", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="students")
     year_or_grade = models.CharField("Year / Grade", max_length=20, default="1")
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(
@@ -619,6 +694,15 @@ class Student(TenantModel):
     def save(self, *a, **kw):
         adding = self._state.adding
         shrink_image_field(self, "photo")
+        if not self.department_id and self.programme_id and self.programme.department_id:
+            self.department_id = self.programme.department_id
+        if not self.school_id:
+            if self.programme_id and self.programme.school_id:
+                self.school_id = self.programme.school_id
+            elif self.department_id and self.department.school_id:
+                self.school_id = self.department.school_id
+            elif self.school_class_id and self.school_class.school_id:
+                self.school_id = self.school_class.school_id
         with transaction.atomic():
             if adding and not self.student_no:
                 from core.numbering import next_number

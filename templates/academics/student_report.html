@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% block content %}
+{% extends "base.html" %}{% load hierarchy_tags %}{% block content %}
 <div class="noprint">
   <button class="btn" onclick="window.print()">Print report</button>
   {% if user.role == 'student' %}<a class="btn ghost" href="{% url 'my_report_pdf' %}">Download PDF</a> <a class="btn ghost" href="{% url 'my_transcript_pdf' %}">Transcript PDF</a>
@@ -9,6 +9,7 @@
 <h1>Report card</h1>
 <div class="head"><div><h2>{{ s.name }}</h2>
 <p class="muted">{{ s.student_no }} · {{ s.programme.name }} · {% if s.school_class %}Class {{ s.class_label }}{% else %}Year {{ s.year_or_grade }}{% endif %}</p>
+{% hierarchy_label_for s as hierarchy %}{% if hierarchy %}<p class="muted">{{ hierarchy }}</p>{% endif %}
 <p class="muted">Guardian: {{ s.guardian_name|default:"—" }} {{ s.guardian_phone }}</p></div>
 <div class="bal clear"><small>Average mark</small><b>{{ average|default:"—" }}</b><small>GPA: {{ gpa|default:"—" }}</small>{% if award %}<small>Projected award: {{ award }}</small>{% endif %}<small>{{ marked }} of {{ total }} results in</small>
 <small>Attendance: {{ attendance_present }} of {{ attendance_sessions }} sessions{% if attendance_pct %} ({{ attendance_pct }}%){% endif %}</small></div></div>

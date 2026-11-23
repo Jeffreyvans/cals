@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Academic structure{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>Academic structure</h1>
+    <p class="muted">The shape of this institution: {{ labels.unit_label }}s, departments, {{ labels.grade_label|lower }} levels and {{ labels.class_label|lower }}es. Applying a template copies rows once; existing rows are never rewritten.</p>
+  </div>
+  <p>
+    <a class="btn ghost" href="{% url 'school_list' %}">{{ labels.unit_label }}s and departments</a>
+    <a class="btn" href="{% url 'grades_classes' %}">{{ labels.grade_label }} levels and {{ labels.class_label|lower }}es</a>
+  </p>
+</div>
+
+<div class="cols">
+  <div>
+    <h2>Platform templates</h2>
+    {% if applied %}
+    <p class="muted">Current template: <strong>{{ applied.level_set|default:'custom' }}</strong>, version {{ applied.version }}, applied {{ applied.applied_on }}.</p>
+    {% else %}
+    <p class="muted">No template has been applied to this institution yet.</p>
+    {% endif %}
+    <table class="tbl">
+      <tr><th>Template</th><th>Version</th><th>Levels</th><th>Updated</th><th></th></tr>
+      {% for template in templates %}<tr>
+        <td><strong>{{ template.name }}</strong><br><span class="muted">{{ template.code }}</span></td>
+        <td>{{ template.version }}</td>
+        <td>{{ template.level_count }}</td>
+        <td>{{ template.updated|date:"Y-m-d H:i" }}</td>
+        <td>
+          {% if can_manage %}
+          <form method="post" class="inline">{% csrf_token %}
+            <input type="hidden" name="template" value="{{ template.pk }}">
+            <button class="btn ghost" name="action" value="preview">Preview</button>
+            <button class="btn" name="action" value="apply">Apply copy</button>
+          </form>
+          {% else %}<span class="muted">Read only</span>{% endif %}
+        </td>
+      </tr>{% empty %}<tr><td colspan="5" class="muted">The platform has no published templates.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div>
+    <h2>Departments</h2>
+    <table class="tbl">
+      <tr><th>Department</th><th>{{ labels.unit_label }}</th></tr>
+      {% for d in departments %}<tr>
+        <td>{{ d.name }}</td><td>{{ d.school|default:'—' }}</td>
+      </tr>{% empty %}<tr><td colspan="2" class="muted">No departments yet.</td></tr>{% endfor %}
+    </table>
+    <p class="muted">Changes to a platform template affect only institutions set up after the change.</p>
+  </div>
+</div>
+{% endblock %}

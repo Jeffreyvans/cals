@@ -868,3 +868,65 @@ class DataConsentLog(models.Model):
                 self.statement_text.encode("utf-8")
             ).hexdigest()
         return super().save(*args, **kwargs)
+
+
+class AcademicTemplate(models.Model):
+    """A versioned platform starting point for one institution type.
+
+    Editing a template creates a new version and makes it current. The JSON
+    body is copied into an institution when it is set up, so a later version
+    never rewrites the levels and departments of an existing school.
+    """
+
+    code = models.CharField(max_length=20, db_index=True)
+    name = models.CharField(max_length=120)
+    version = models.PositiveIntegerField(default=1)
+    data = models.JSONField(default=dict, blank=True)
+    body_hash = models.CharField(max_length=64, blank=True)
+    is_active = models.BooleanField(default=True)
+    updated = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="academic_templates_changed",
+    )
+
+    class Meta:
+        ordering = ["code", "-version"]
+        constraints = [
+            models.UniqueConstraint(fields=["code", "version"], name="uniq_academic_template_version")
+        ]
+
+    def __str__(self):
+        return f"{self.name} v{self.version}"
+
+    def save(self, *args, **kwargs):
+        if not self.version:
+            latest = AcademicTemplate.objects.filter(code=self.code) \
+                .order_by("-version").first()
+            self.version = (latest.version if latest else 0) + 1
+        self.body_hash = hashlib.sha256(
+            json.dumps(self.data, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+        if self.is_active:
+            AcademicTemplate.objects.filter(code=self.code, is_active=True) \
+                .exclude(pk=self.pk).update(is_active=False)
+        return super().save(*args, **kwargs)
+
+    def level_count(self):
+        """How many academic steps this template contains."""
+        return len(self.data.get("levels") or [])
+
+    @classmethod
+    def current(cls, code):
+        return cls.objects.filter(code=code, is_active=True).order_by("-version").first()
+
+    @classmethod
+    def publish(cls, code, name, data, actor=None):
+        """Save a new version and deactivate the old one."""
+        with transaction.atomic():
+            latest = cls.objects.filter(code=code).order_by("-version").first()
+            return cls.objects.create(
+                code=code, name=name, version=(latest.version if latest else 0) + 1,
+                data=data,
+                updated_by=actor if getattr(actor, "is_authenticated", False) else None,
+            )

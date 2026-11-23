@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ labels.unit_label }}s and departments{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    <h1>{{ labels.unit_label }}s and departments</h1>
+    <p class="muted">A {{ labels.unit_label|lower }} (faculty or division) groups departments. A department can also stand on its own.</p>
+  </div>
+  <p>
+    <a class="btn ghost" href="{% url 'academic_structure' %}">Academic structure</a>
+    {% if can_manage %}<a class="btn" href="{% url 'school_create' %}">Add {{ labels.unit_label|lower }}</a>{% endif %}
+  </p>
+</div>
+<div class="cols">
+  <div>
+    <table class="tbl">
+      <tr><th>Name</th><th>Code</th><th>Under</th><th>Head</th><th>Active</th><th></th></tr>
+      {% for school in schools %}<tr>
+        <td>{{ school.name }}</td>
+        <td>{{ school.code }}</td>
+        <td>{{ school.parent|default:'—' }}</td>
+        <td>{{ school.head|default:'—' }}</td>
+        <td>{{ school.is_active|yesno:"Yes,No" }}</td>
+        <td>
+          {% if can_manage %}
+          <a href="{% url 'school_edit' school.pk %}">Edit</a>
+          <form method="post" action="{% url 'school_delete' school.pk %}" class="inline">{% csrf_token %}
+            <button class="link">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>{% empty %}<tr><td colspan="6" class="muted">No {{ labels.unit_label|lower }}s yet. Add one or apply a template.</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div>
+    <h2>Departments</h2>
+    <table class="tbl">
+      <tr><th>Department</th><th>Code</th><th>{{ labels.unit_label }}</th><th>Active</th></tr>
+      {% for d in departments %}<tr>
+        <td>{{ d.name }}</td><td>{{ d.code }}</td><td>{{ d.school|default:'—' }}</td>
+        <td>{{ d.is_active|yesno:"Yes,No" }}</td>
+      </tr>{% empty %}<tr><td colspan="4" class="muted">No departments yet.</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

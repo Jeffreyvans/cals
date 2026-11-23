@@ -13,6 +13,8 @@ DEFAULTS = {
         "pupil_label": "Pupil",
         "teacher_label": "Teacher",
         "programme_label": "Stream",
+        "unit_label": "School",
+        "term_label": "Term",
     },
     "secondary": {
         "class_label": "Form",
@@ -20,6 +22,8 @@ DEFAULTS = {
         "pupil_label": "Learner",
         "teacher_label": "Teacher",
         "programme_label": "Programme",
+        "unit_label": "School",
+        "term_label": "Term",
     },
     "college": {
         "class_label": "Class",
@@ -27,6 +31,17 @@ DEFAULTS = {
         "pupil_label": "Student",
         "teacher_label": "Lecturer",
         "programme_label": "Programme",
+        "unit_label": "Faculty",
+        "term_label": "Semester",
+    },
+    "university": {
+        "class_label": "Class",
+        "grade_label": "Year",
+        "pupil_label": "Student",
+        "teacher_label": "Lecturer",
+        "programme_label": "Programme",
+        "unit_label": "Faculty",
+        "term_label": "Semester",
     },
     "vocational": {
         "class_label": "Class",
@@ -34,6 +49,8 @@ DEFAULTS = {
         "pupil_label": "Student",
         "teacher_label": "Instructor",
         "programme_label": "Programme",
+        "unit_label": "School",
+        "term_label": "Term",
     },
 }
 
@@ -43,7 +60,12 @@ FIELDS = (
     ("pupil_label", "Learner label"),
     ("teacher_label", "Teacher label"),
     ("programme_label", "Programme label"),
+    ("unit_label", "School / Faculty label"),
+    ("term_label", "Term / Semester label"),
 )
+
+UNIT_LABELS = ("School", "Faculty", "Division")
+TERM_LABELS = ("Term", "Semester")
 
 
 def default_labels(institution_type):
@@ -65,6 +87,8 @@ def terminology_for(institution):
             "pupil_label": record.pupil_label,
             "teacher_label": record.teacher_label,
             "programme_label": record.programme_label,
+            "unit_label": record.unit_label,
+            "term_label": record.term_label,
         }
     return default_labels(institution.type)
 
@@ -110,6 +134,8 @@ def preset_labels(preset, institution_type="college"):
             "pupil_label": "Student",
             "teacher_label": "Teacher",
             "programme_label": "Programme",
+            "unit_label": "School",
+            "term_label": "Term",
         }
     if preset == TerminologyLabels.LOCAL:
         return {field: "" for field, _label in FIELDS}
