@@ -88,6 +88,9 @@ PERMISSIONS = [
     ("reports.view_dashboards", "View role dashboards", "reports"),
     ("reports.view_at_risk", "View at-risk students", "reports"),
     ("messages.send", "Send messages", "messages"),
+    ("ai.use", "Use the AI features switched on for this institution", "ai"),
+    ("ai.manage", "Switch AI features on or off and set usage limits", "ai"),
+    ("ai.view_usage", "See AI usage for this institution", "ai"),
     ("errors.view_details", "See technical details on error pages", "admin"),
 ]
 

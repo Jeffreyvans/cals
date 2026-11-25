@@ -58,6 +58,7 @@
       <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 4H5a1.5 1.5 0 0 0-1.5 1.5v13A1.5 1.5 0 0 0 5 20h4"/><path d="M16 8l4 4-4 4"/><path d="M20 12H9"/></symbol>
       <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
       <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10" width="15" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v3"/></symbol>
+      <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="M18.5 17.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z"/></symbol>
     </svg>
 
     {% institution_logo INSTITUTION_OBJECT 64 as sidebar_logo %}
@@ -83,6 +84,7 @@
         <a href="{% url 'platform_admin:grants' %}"><svg class="ico"><use href="#i-key"/></svg><span>Consent grants</span></a>
         <a href="{% url 'platform_admin:audit_log' %}"><svg class="ico"><use href="#i-shield"/></svg><span>Platform audit</span></a>
         <a href="{% url 'platform_admin:security' %}"><svg class="ico"><use href="#i-lock"/></svg><span>Security and 2FA</span></a>
+        <a href="{% url 'platform_admin:platform_ai_settings' %}"><svg class="ico"><use href="#i-spark"/></svg><span>AI switch</span></a>
       {% elif user.role == 'student' %}
         <p class="nav-label">My workspace</p>
         <a href="{% url 'student_portal' %}"><svg class="ico"><use href="#i-grid"/></svg><span>My account</span></a>
@@ -114,6 +116,8 @@
         <a href="{% url 'module_directory' %}"><svg class="ico"><use href="#i-apps"/></svg><span>School services</span></a>
         {% if "reports.view_dashboards" in my_perms or "admin.dashboard_school" in my_perms %}<a href="{% url 'role_dashboard' %}"><svg class="ico"><use href="#i-chart"/></svg><span>Role dashboard</span></a>{% endif %}
         {% if "search.global" in my_perms %}<a href="{% url 'global_search' %}"><svg class="ico"><use href="#i-search"/></svg><span>Search</span></a>{% endif %}
+        {% has_perm request "ai.use" as can_use_ai %}
+        {% if can_use_ai %}<a href="{% url 'ai:home' %}"><svg class="ico"><use href="#i-spark"/></svg><span>AI assistance</span></a>{% endif %}
         {% if user.role == 'registrar' or user.role == 'bursar' or user.role == 'admin' %}<a href="{% url 'student_search' %}"><svg class="ico"><use href="#i-users"/></svg><span>Find a student</span></a>{% endif %}
         {% if user.role == 'registrar' or user.role == 'bursar' or user.role == 'admin' %}<a href="{% url 'notices' %}"><svg class="ico"><use href="#i-megaphone"/></svg><span>Notices</span></a>{% endif %}
         {% if "exams" in on %}{% if user.role == 'registrar' or user.role == 'bursar' or user.role == 'admin' %}<a href="{% url 'exams' %}"><svg class="ico"><use href="#i-file"/></svg><span>Exams</span></a>{% endif %}{% endif %}

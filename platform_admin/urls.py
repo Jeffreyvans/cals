@@ -2,6 +2,8 @@
 
 from django.urls import path
 
+from ai import platform_views as ai_platform_views
+
 from . import views
 
 app_name = "platform_admin"
@@ -71,6 +73,8 @@ urlpatterns = [
     path("platform/audit/export/", views.audit_export, name="audit_export"),
     path("platform/announcements/", views.announcements, name="announcements"),
     path("platform/settings/", views.settings_view, name="settings"),
+    path("platform/ai/", ai_platform_views.platform_settings, name="platform_ai_settings"),
+    path("platform/ai/close/", ai_platform_views.platform_close, name="platform_ai_close"),
     path("platform/academic-templates/", views.academic_templates,
          name="academic_templates"),
     # Consent requests and grants (platform side).

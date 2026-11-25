@@ -554,8 +554,20 @@ feature changes an existing screen or record when it is switched off.
   with the new app **1,754 passed**, `ruff check .` clean, `python manage.py
   check` shows only the expected console-email warning, and
   `makemigrations --check --dry-run` reports "No changes detected".
-- [ ] Part 2, controls: institution feature switches, consent records, platform
-  kill switch, daily/monthly limits and a usage page.
+- [x] Part 2, controls: a platform kill switch that starts closed, per-institution
+  switches for all five features, a named consent record with a data disclosure
+  snapshot and withdrawal, four daily/monthly limits, a permission-gated settings
+  page and an institution-scoped usage page with a redacted log. Every blocked
+  call is logged with zero tokens and never reaches the provider.
+- [x] Part 2 tests: 13 new tests cover default-off behaviour, kill-switch
+  precedence, per-feature and per-school switches, consent evidence and
+  withdrawal, permissions, institution/user limits, redacted usage logging and
+  estimated cost, settings and usage screens, unknown features and the closed
+  platform default.
+- [x] Verification after part 2: full suite **1,767 passed** (221 warnings),
+  focused `ai` suite **31 passed**, `ruff check .` clean, `python manage.py
+  check` shows only the expected console-email warning, and
+  `makemigrations --check --dry-run` reports "No changes detected".
 - [ ] Part 3, privacy: redaction, protected-category rule, permission and tenant
   isolation tests.
 - [ ] Part 4, features in order: help assistant, drafts, translation,

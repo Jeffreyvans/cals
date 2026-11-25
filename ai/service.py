@@ -9,12 +9,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .access import check_access, resolve_institution
 from .providers import (
     AIError,
     AIProvider,
     CompletionRequest,
     provider_for,
 )
+from .redaction import safe_summary
+from .usage import limit_error, record_usage, usage_counts
 
 
 @dataclass(frozen=True)
@@ -63,3 +66,48 @@ def ask_ai(request: AIRequest, provider: AIProvider | None = None) -> AIResult:
         input_tokens=completion.input_tokens,
         output_tokens=completion.output_tokens,
     )
+
+
+def ask_ai_for_user(
+    request: AIRequest,
+    user,
+    institution=None,
+    *,
+    provider: AIProvider | None = None,
+    names=(),
+) -> AIResult:
+    """Check every control, then call the provider and log the outcome.
+
+    Views must use this function rather than :func:`ask_ai`. A blocked call
+    writes a zero-token log row for monitoring, but never reaches the provider.
+    """
+    inst = resolve_institution(user, institution)
+    decision = check_access(user, request.feature, inst)
+    summary = safe_summary(request.user_prompt, names)
+    if not decision.allowed:
+        record_usage(
+            user, inst, request.feature,
+            status="blocked", tier=request.tier, prompt_summary=summary,
+        )
+        return AIResult(ok=False, error=decision.reason)
+    error = limit_error(decision.setting, usage_counts(inst, user))
+    if error:
+        record_usage(
+            user, inst, request.feature,
+            status="blocked", tier=request.tier, prompt_summary=summary,
+        )
+        return AIResult(ok=False, error=error)
+
+    result = ask_ai(request, provider=provider)
+    record_usage(
+        user,
+        inst,
+        request.feature,
+        status="success" if result.ok else "failure",
+        model_name=result.model,
+        tier=request.tier,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        prompt_summary=summary,
+    )
+    return result

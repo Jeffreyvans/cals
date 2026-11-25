@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}AI platform switch — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap narrow">
+    <div class="head"><div><h1>AI platform switch</h1>
+      <p class="muted">This switch overrides every institution setting. It is closed unless a main administrator opens it.</p>
+    </div></div>
+
+    <p>Current state: <strong>{% if setting.enabled %}Open{% else %}Closed{% endif %}</strong></p>
+    <form method="post" class="form">
+      {% csrf_token %}
+      <label><input type="checkbox" name="enabled" value="on" {% if setting.enabled %}checked{% endif %}> Allow AI assistance across the platform</label>
+      <label for="note">Reason / note</label>
+      <input id="note" name="note" maxlength="255" value="{{ setting.note }}">
+      <button class="btn" type="submit">Save platform switch</button>
+    </form>
+    <form method="post" action="{% url 'platform_admin:platform_ai_close' %}" class="form">
+      {% csrf_token %}
+      <button class="btn danger" type="submit">Close AI immediately</button>
+    </form>
+    <p class="muted">Last changed {{ setting.updated_at }}{% if setting.updated_by %} by {{ setting.updated_by }}{% endif %}.</p>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}AI feature switches — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap">
+    <div class="head"><div><h1>AI feature switches</h1>
+      <p class="muted">All features start off. Limits are per day and per calendar month; enter 0 to stop a feature completely.</p>
+    </div></div>
+
+    <table class="tbl">
+      <tr><th>Feature</th><th>Switch</th><th>Institution daily / monthly</th><th>Per user daily / monthly</th></tr>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="toggle">
+            <input type="hidden" name="feature" value="{{ row.code }}">
+            <input type="checkbox" name="enabled" value="on" {% if row.setting and row.setting.enabled %}checked{% endif %}
+                   onchange="this.form.submit()">
+          </form>
+        </td>
+        <td>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="limits">
+            <input type="hidden" name="feature" value="{{ row.code }}">
+            <input type="number" min="0" name="institution_daily_limit" value="{% if row.setting %}{{ row.setting.institution_daily_limit }}{% else %}100{% endif %}">
+            /
+            <input type="number" min="0" name="institution_monthly_limit" value="{% if row.setting %}{{ row.setting.institution_monthly_limit }}{% else %}1000{% endif %}">
+            <button class="btn ghost" type="submit">Save</button>
+          </form>
+        </td>
+        <td>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="limits">
+            <input type="hidden" name="feature" value="{{ row.code }}">
+            <input type="number" min="0" name="user_daily_limit" value="{% if row.setting %}{{ row.setting.user_daily_limit }}{% else %}20{% endif %}">
+            /
+            <input type="number" min="0" name="user_monthly_limit" value="{% if row.setting %}{{ row.setting.user_monthly_limit }}{% else %}200{% endif %}">
+            <button class="btn ghost" type="submit">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="muted">Consent version {{ consent_version }}. A feature also needs the platform-wide switch and a consent acceptance from each person.</p>
+  </div>
+</section>
+{% endblock %}

@@ -55,6 +55,7 @@ urlpatterns = [
     path("research/", include("research.urls")),
     path("labs/", include("labs.urls")),
     path("ict/", include("ict_helpdesk.urls")),
+    path("ai/", include("ai.urls")),
     path("", include("academics.urls")),
 ]
 

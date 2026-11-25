@@ -828,3 +828,51 @@ it establishes one narrow, testable boundary to the model provider.
   check` shows only the expected console-email warning, and
   `python manage.py makemigrations --check --dry-run` reports "No changes
   detected".
+
+## Session 39 - Optional AI assistance, part 2: controls (2026-11-25)
+
+- [x] Added the tenant-scoped models `AIFeatureSetting`, `AIConsent` and
+  `AIUsageLog`, plus a singleton `AIPlatformSetting` whose row 1 starts
+  **disabled**. Migrations `ai/0001_initial` and `ai/0002_seed_ai_permissions`
+  add the tables and grant `ai.use`, `ai.manage` and `ai.view_usage` only to
+  the institution administrator role.
+- [x] `ai/access.py` resolves the institution and applies one ordered decision:
+  signed-in user, institution, platform kill switch, valid feature code,
+  institution switch, `ai.use` permission, then active consent for that feature
+  or all features. A missing row always means off.
+- [x] `ai/service.py` gained `ask_ai_for_user()`. It checks every gate and all
+  four limits before the provider call, records a zero-token `blocked` row on a
+  refusal, and records status, model, tier, tokens, estimated cost and a
+  redacted prompt summary on success or provider failure. No full prompt or
+  answer is stored.
+- [x] `/ai/consent/` shows the provider, the exact categories shared for each
+  feature, what is recorded, the consent version, who accepted and when. It
+  stores a snapshot of the disclosure, accepts "all features", and supports
+  immediate withdrawal without deleting the historic record. The `/ai/home/`
+  landing page links the controls a person may use.
+- [x] `/ai/settings/` lets only `ai.manage` switch a feature on or off and set
+  the institution/user daily and monthly limits, with an audit entry for every
+  change. `/ai/usage/` shows counts beside the limits and a redacted log;
+  administrators see their own institution's rows and other users see only
+  their own.
+- [x] Platform staff get `/platform/ai/` and a one-click `/platform/ai/close/`,
+  both behind `platform.manage_settings`, so every AI feature can be shut off
+  without waiting for individual schools.
+- [x] `ai/redaction.py` now removes caller-supplied names, emails, URLs, phone
+  numbers, ID-like numbers, address lines and labelled personal fields before a
+  prompt is sent or summarised in the log. Protected-category refusals and
+  tenant-isolation proofs are part 3.
+- [x] Added 13 tests in `ai/tests/test_controls.py`: default-off behaviour,
+  the kill switch overriding institution switches, per-feature and per-school
+  switches, consent acceptance/withdrawal and its stored evidence, the
+  permission gate, institution and user limits blocking before a call,
+  redacted log summaries and cost estimates, the settings and usage screens,
+  unknown features and the default platform state.
+- [x] Documented the switches, consent disclosure, per-feature categories,
+  usage log and cost-rate variables in `docs/AI.md`, `.env.example` and
+  `render.yaml`.
+- [x] Verification after part 2: focused `ai` suite **31 passed**; full suite
+  **1,767 passed** (221 warnings); `ruff check .` clean; `python manage.py
+  check` shows only the expected console-email warning; and
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected".

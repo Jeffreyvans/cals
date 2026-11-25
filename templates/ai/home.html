@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}AI assistance — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap narrow">
+    <div class="head"><div><h1>AI assistance</h1>
+      <p class="muted">Optional help for your school. Every feature is off until it is switched on here and consent is accepted.</p>
+    </div></div>
+
+    <p><a class="btn" href="{% url 'ai:consent' %}">Review or accept consent</a>
+       {% if can_manage %}<a class="btn ghost" href="{% url 'ai:settings' %}">Feature switches and limits</a>{% endif %}
+       <a class="btn ghost" href="{% url 'ai:usage' %}">Usage</a></p>
+
+    <table class="tbl">
+      <tr><th>Feature</th><th>Institution switch</th></tr>
+      {% for row in rows %}
+      <tr><td>{{ row.label }}</td>
+        <td>{% if row.setting and row.setting.enabled %}<strong>On</strong>{% else %}Off{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+    <p class="muted">Consent version {{ consent_version }}. Health and counselling information is never sent to an AI service.</p>
+  </div>
+</section>
+{% endblock %}

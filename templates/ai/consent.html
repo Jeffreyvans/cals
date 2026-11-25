@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}AI consent — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap narrow">
+    <div class="head"><div><h1>AI consent (version {{ version }})</h1>
+      <p class="muted">Read this before using AI assistance. You may withdraw consent at any time.</p>
+    </div></div>
+
+    <p>Assistance is provided by {{ provider_name }} on servers outside your school. The model has no access to the database, email, files or messaging. It receives only the text described below, after redaction.</p>
+
+    <form method="get" class="form">
+      <label for="feature">Feature</label>
+      <select id="feature" name="feature" onchange="this.form.submit()">
+        {% for code, label in targets %}
+          <option value="{{ code }}" {% if code == feature %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+
+    <h2>{{ disclosure.purpose }}</h2>
+    <h3>What is shared</h3>
+    <ul>{% for item in disclosure.shared %}<li>{{ item }}</li>{% endfor %}</ul>
+    <h3>What is recorded in Vanpere</h3>
+    <ul>{% for item in recorded %}<li>{{ item }}</li>{% endfor %}</ul>
+
+    <p><strong>Accepted by:</strong> {{ accepted_by.get_full_name|default:accepted_by.username }}
+       {% if acceptance and acceptance.is_active %}<br><strong>When:</strong> {{ acceptance.accepted_at }}{% endif %}</p>
+
+    <form method="post" class="form">
+      {% csrf_token %}
+      <input type="hidden" name="feature" value="{{ feature }}">
+      <label><input type="checkbox" name="accept" value="yes" required>
+        I have read this disclosure and agree to the sharing and recording described above.</label>
+      <button class="btn" type="submit">Accept and continue</button>
+    </form>
+
+    {% if acceptance and acceptance.is_active %}
+    <form method="post" class="form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="withdraw">
+      <input type="hidden" name="feature" value="{{ feature }}">
+      <button class="btn ghost" type="submit">Withdraw consent</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
