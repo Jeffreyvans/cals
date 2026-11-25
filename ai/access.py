@@ -26,6 +26,16 @@ def resolve_institution(user, institution=None):
     return getattr(user, "institution", None)
 
 
+def institution_mismatch(user, institution):
+    """True when a caller tries to act for a school they do not belong to."""
+    if institution is None:
+        return False
+    own = getattr(user, "institution", None)
+    own_id = getattr(own, "pk", own)
+    supplied_id = getattr(institution, "pk", institution)
+    return own is None or own_id != supplied_id
+
+
 def platform_ai_enabled():
     """The platform kill switch. Missing configuration means closed."""
     return AIPlatformSetting.load().enabled
@@ -38,6 +48,12 @@ def check_access(user, feature, institution=None):
     inst = resolve_institution(user, institution)
     if inst is None:
         return AccessDecision(False, "Your account is not linked to an institution.")
+    if institution_mismatch(user, institution):
+        return AccessDecision(
+            False,
+            "You may only use AI assistance for your own institution. "
+            "Nothing was sent.",
+        )
     if not platform_ai_enabled():
         return AccessDecision(
             False,

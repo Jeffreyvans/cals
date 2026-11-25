@@ -876,3 +876,39 @@ it establishes one narrow, testable boundary to the model provider.
   check` shows only the expected console-email warning; and
   `python manage.py makemigrations --check --dry-run` reports "No changes
   detected".
+
+## Session 39 - Optional AI assistance, part 3: privacy (2026-11-25)
+
+- [x] `ask_ai_for_user()` now redacts both prompts before a provider call. The
+  provider receives `[name]`, `[id]`, `[phone]`, `[email]`, `[address]` and
+  `[link]` placeholders instead of the original values. Redaction runs on
+  structured values before caller-supplied names so an email containing a name
+  stays an email placeholder.
+- [x] Added `ai/privacy.py`. It refuses a prompt when health, medical,
+  medication, diagnosis, clinic, counselling, therapy or related sensitive
+  words appear, or when another institution's name or slug appears. The check
+  runs on the exact redacted text that would be sent, including system prompts.
+- [x] Fixed a tenant-isolation gap: `check_access()` now refuses a call when a
+  caller supplies an institution other than the signed-in person's own.
+  `ask_ai_for_user()` always writes the log row against the person's own school,
+  so a foreign institution never receives a blocked row either.
+- [x] Blocked rows now use a generic summary ("Blocked before sending; nothing
+  was shared."), so a refused health, counselling or cross-school prompt is
+  not copied into the usage log.
+- [x] `ai/tests/helpers.py` shares the control setup between the control and
+  privacy tests. Added seven tests in `ai/tests/test_privacy.py`: all personal
+  categories removed from the provider request, health/counselling refusal,
+  health terms in a system prompt, another school's name and slug refusal,
+  explicit foreign institution denial and own-school logging, own school name
+  still allowed, and a bounded redacted summary.
+- [x] Two redaction bugs were found and fixed: an email containing a known
+  name stopped matching the email pattern, and a generic label rewrite replaced
+  already-safe placeholders. Structured values now redact first, and labelled
+  values that already contain a placeholder are left alone.
+- [x] Updated `docs/AI.md` with the enforced privacy rules and the deliberate
+  consequence that even a question about the health module is refused.
+- [x] Verification after part 3: focused `ai` suite **38 passed**; full suite
+  **1,774 passed** (221 warnings); `ruff check .` clean; `python manage.py
+  check` shows only the expected console-email warning; and
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected".

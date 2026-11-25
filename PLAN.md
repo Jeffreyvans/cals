@@ -568,8 +568,13 @@ feature changes an existing screen or record when it is switched off.
   focused `ai` suite **31 passed**, `ruff check .` clean, `python manage.py
   check` shows only the expected console-email warning, and
   `makemigrations --check --dry-run` reports "No changes detected".
-- [ ] Part 3, privacy: redaction, protected-category rule, permission and tenant
-  isolation tests.
+- [x] Part 3, privacy: redaction runs before any provider call, health and
+  counselling prompts are refused locally, another institution's name, slug or
+  object can never be sent, and blocked calls are logged against the caller's
+  own school with a generic summary. Seven new tests cover all of these rules.
+- [x] Verification after part 3: full suite **1,774 passed** (221 warnings),
+  focused `ai` suite **38 passed**, `ruff check .` clean, and
+  `makemigrations --check --dry-run` reports "No changes detected".
 - [ ] Part 4, features in order: help assistant, drafts, translation,
   plain-language insights, natural-language search.
 - [ ] Part 5, safety: prompt-injection defences, output checks, rate limiting

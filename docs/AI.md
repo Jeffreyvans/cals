@@ -115,14 +115,35 @@ already stored on the consent record and shown on the consent screen:
 
 "All features" discloses only the minimum redacted text each enabled feature
 needs, and states that health and counselling information and records from
-another school are never eligible. Part 3 adds the enforced protected-category
-and tenant-isolation rule and its tests. Until then, the rule for callers is
-that only the minimum redacted text needed for a feature is sent; record ids,
-tokens, counts, names, contact details, addresses, health data and counselling
-data are not sent as free text.
+another school are never eligible.
 
-Basic redaction in `ai/redaction.py` removes names explicitly supplied by the
-caller, email addresses, URLs, phone numbers, ID-like numbers, address lines
-and labelled personal fields before a prompt is sent or summarised for the
-usage log. It is deliberately conservative: an over-reduced prompt is safer
-than a leaked detail.
+## Privacy enforcement
+
+`ask_ai_for_user()` redacts the system and user prompts **before** the provider
+sees them. `ai/redaction.py` removes names explicitly supplied by the caller,
+email addresses, URLs, phone numbers, ID-like numbers, address lines and
+labelled personal fields. The same redacted text is used for the short usage
+summary. The patterns are conservative: an over-reduced prompt is safer than a
+leaked detail.
+
+After redaction, `ai/privacy.py` checks the exact text about to be sent:
+
+- Any mention of health, medical treatment, medication, diagnosis, a clinic,
+  counselling, therapy, a case/session note or related sensitive terms stops
+  the call. It does not matter whether the mention is in the user prompt or in
+  a system prompt assembled by a feature.
+- Any other institution's name or slug appearing in the prompt stops the call.
+  A caller cannot choose another institution by passing it to
+  `ask_ai_for_user()` either: the access check refuses the request, and the
+  blocked row is written only against the signed-in person's own school.
+
+A privacy refusal writes a zero-token `blocked` row with a generic summary such
+as "Blocked before sending; nothing was shared." It never copies the refused
+text into the log. This means a question such as "how do I open the health
+module?" is also refused; that is intentional for an optional assistant.
+
+Tests in `ai/tests/test_privacy.py` prove that names, ID numbers, phone
+numbers, emails and addresses are absent from the provider request; that
+health and counselling prompts never reach a provider; that another school's
+name, slug or institution object is refused; and that the usage log holds no
+full personal content.
