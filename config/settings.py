@@ -122,6 +122,10 @@ if TESTING:
 # A provider call is capped at 15 seconds by default and never uses Celery.
 AI_PROVIDER = env_str("AI_PROVIDER", "anthropic")
 AI_TIMEOUT_SECONDS = env_int("AI_TIMEOUT_SECONDS", 15)
+# Short-window burst limits, separate from the daily/monthly log limits.
+AI_RATE_LIMIT = env_int("AI_RATE_LIMIT", 10)
+AI_RATE_IP_LIMIT = env_int("AI_RATE_IP_LIMIT", 30)
+AI_RATE_WINDOW_SECONDS = env_int("AI_RATE_WINDOW_SECONDS", 60)
 AI_PROVIDER_INSTANCE = None  # test injection point; never configured in production
 
 INSTALLED_APPS = [

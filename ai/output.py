@@ -1,13 +1,15 @@
 """Clean up model output before it is shown to a person.
 
-Model text is treated as untrusted data. This module removes links, command-like
-lines and control characters and caps the length. Later safety work adds
-injection, profanity and harm checks on top of this shared boundary.
+Model text is treated as untrusted data. Links, HTML, command-like lines,
+instruction-like lines and control characters are removed, and the length is
+capped for every feature.
 """
 
 from __future__ import annotations
 
 import re
+
+from .safety import strip_output_instructions
 
 URL_RE = re.compile(r"\b(?:https?://|www\.)\S+", re.I)
 MARKDOWN_LINK_RE = re.compile(r"\[([^\]]{0,120})\]\([^)]{0,500}\)")
@@ -28,9 +30,10 @@ def strip_links(text: str) -> str:
 
 
 def strip_commands(text: str) -> str:
-    """Drop lines that try to issue a command rather than answer the request."""
+    """Drop lines that try to issue a command or change the instructions."""
     result = CODE_FENCE_RE.sub("", text or "")
-    return COMMAND_LINE_RE.sub("", result)
+    result = COMMAND_LINE_RE.sub("", result)
+    return strip_output_instructions(result)
 
 
 def sanitize_output(text, limit: int = 1200) -> str:

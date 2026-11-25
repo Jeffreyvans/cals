@@ -18,6 +18,12 @@ from core.search import SEARCH_CODES, SEARCH_TYPES, search_groups
 from .features import Feature
 from .output import sanitize_output
 from .privacy import protected_categories
+from .safety import (
+    DRAFT_UNSAFE_MESSAGE,
+    names_for,
+    output_has_injection,
+    unsafe_draft,
+)
 from .service import AIRequest, ask_ai_for_user
 
 DRAFT_LABEL = "AI draft, please review"
@@ -57,6 +63,7 @@ class HelpAnswer:
     text: str = ""
     error: str = ""
     sources: tuple = ()
+    log_id: int = 0
 
 
 @dataclass(frozen=True)
@@ -65,6 +72,7 @@ class DraftAnswer:
     text: str = ""
     error: str = ""
     kind: str = ""
+    log_id: int = 0
 
 
 @dataclass(frozen=True)
@@ -74,6 +82,7 @@ class TranslationAnswer:
     error: str = ""
     source: str = ""
     target: str = ""
+    log_id: int = 0
 
 
 @dataclass(frozen=True)
@@ -83,6 +92,7 @@ class InsightAnswer:
     error: str = ""
     figures: tuple = ()
     reviewed: bool = True
+    log_id: int = 0
 
 
 @dataclass(frozen=True)
@@ -92,21 +102,7 @@ class SearchAnswer:
     error: str = ""
     chosen: tuple = ()
     groups: tuple = ()
-
-
-def _names(user, institution=None):
-    """Values a feature already knows, so redaction can replace them exactly."""
-    inst = institution or getattr(user, "institution", None)
-    values = [
-        getattr(user, "first_name", ""),
-        getattr(user, "last_name", ""),
-        getattr(user, "username", ""),
-        inst.name if inst is not None else "",
-    ]
-    get_full_name = getattr(user, "get_full_name", None)
-    if callable(get_full_name):
-        values.append(get_full_name())
-    return tuple(str(value).strip() for value in values if str(value).strip())
+    log_id: int = 0
 
 
 def _keywords(text):
@@ -138,7 +134,7 @@ def _help_sources(user):
     return guide["title"], sources
 
 
-def help_answer(user, question, *, institution=None, provider=None):
+def help_answer(user, question, *, institution=None, provider=None, http_request=None):
     """Answer only from the signed-in person's in-app guide, with local links."""
     question = str(question or "").strip()[:MAX_INPUT]
     if len(question) < 3:
@@ -166,20 +162,24 @@ def help_answer(user, question, *, institution=None, provider=None):
         user,
         institution,
         provider=provider,
-        names=_names(user, institution),
+        names=names_for(user, institution),
+        http_request=http_request,
     )
     if not result.ok:
-        return HelpAnswer(False, error=result.error)
+        return HelpAnswer(False, error=result.error, log_id=result.log_id)
     text = sanitize_output(result.text, limit=700)
     supported = _keywords(text) & set().union(
         *(_keywords(item["label"]) for item in matches)
     )
-    if not text or not supported:
-        return HelpAnswer(True, text=DONT_KNOW)
-    return HelpAnswer(True, text=text, sources=tuple(matches))
+    if not text or not supported or output_has_injection(result.text):
+        return HelpAnswer(True, text=DONT_KNOW, log_id=result.log_id)
+    return HelpAnswer(
+        True, text=text, sources=tuple(matches), log_id=result.log_id
+    )
 
 
-def make_draft(user, kind, instructions, *, institution=None, provider=None):
+def make_draft(user, kind, instructions, *, institution=None, provider=None,
+               http_request=None):
     """Return a preview-only draft. No record is written and nothing is sent."""
     if kind not in DRAFT_KINDS:
         return DraftAnswer(False, error="Choose a valid document type.")
@@ -201,17 +201,31 @@ def make_draft(user, kind, instructions, *, institution=None, provider=None):
         user,
         institution,
         provider=provider,
-        names=_names(user, institution),
+        names=names_for(user, institution),
+        http_request=http_request,
     )
     if not result.ok:
-        return DraftAnswer(False, error=result.error)
+        return DraftAnswer(False, error=result.error, log_id=result.log_id)
+    if output_has_injection(result.text):
+        return DraftAnswer(
+            False,
+            error="The AI response included instructions, so nothing was shown. Please try again.",
+            log_id=result.log_id,
+        )
     text = sanitize_output(result.text, limit=2000)
     if not text:
-        return DraftAnswer(False, error="The AI service returned no usable draft.")
-    return DraftAnswer(True, text=text, kind=kind)
+        return DraftAnswer(
+            False, error="The AI service returned no usable draft.", log_id=result.log_id
+        )
+    if unsafe_draft(text):
+        return DraftAnswer(
+            False, error=DRAFT_UNSAFE_MESSAGE, log_id=result.log_id
+        )
+    return DraftAnswer(True, text=text, kind=kind, log_id=result.log_id)
 
 
-def translate_text(user, source, target, text, *, institution=None, provider=None):
+def translate_text(user, source, target, text, *, institution=None, provider=None,
+                   http_request=None):
     """Translate a short passage between the three supported languages."""
     if source not in LANGUAGES or target not in LANGUAGES:
         return TranslationAnswer(False, error="Choose a supported language.")
@@ -233,15 +247,24 @@ def translate_text(user, source, target, text, *, institution=None, provider=Non
         user,
         institution,
         provider=provider,
-        names=_names(user, institution),
+        names=names_for(user, institution),
+        http_request=http_request,
     )
     if not result.ok:
-        return TranslationAnswer(False, error=result.error)
+        return TranslationAnswer(False, error=result.error, log_id=result.log_id)
+    if output_has_injection(result.text):
+        return TranslationAnswer(
+            False,
+            error="The AI response included instructions, so nothing was shown. Please try again.",
+            log_id=result.log_id,
+        )
     translated = sanitize_output(result.text, limit=MAX_INPUT)
     if not translated:
-        return TranslationAnswer(False, error="The AI service returned no translation.")
+        return TranslationAnswer(
+            False, error="The AI service returned no translation.", log_id=result.log_id
+        )
     return TranslationAnswer(
-        True, text=translated, source=source, target=target
+        True, text=translated, source=source, target=target, log_id=result.log_id
     )
 
 
@@ -306,17 +329,23 @@ def insights_for_user(request, *, provider=None):
         user,
         getattr(request, "institution", None),
         provider=provider,
-        names=_names(user, getattr(request, "institution", None)),
+        names=names_for(user, getattr(request, "institution", None)),
+        http_request=request,
     )
     if not result.ok:
-        return InsightAnswer(False, error=result.error)
+        return InsightAnswer(False, error=result.error, log_id=result.log_id)
     text = sanitize_output(result.text, limit=1200)
     expected = [number for item in figures for number in _figure_numbers(item["value"])]
     normalized = text.replace(",", "")
-    if not text or any(number not in normalized for number in expected):
+    if (not text or output_has_injection(result.text)
+            or any(number not in normalized for number in expected)):
         text = "Here are the current figures:\n" + "\n".join(lines)
-        return InsightAnswer(True, text=text, figures=figures, reviewed=False)
-    return InsightAnswer(True, text=text, figures=figures, reviewed=True)
+        return InsightAnswer(
+            True, text=text, figures=figures, reviewed=False, log_id=result.log_id
+        )
+    return InsightAnswer(
+        True, text=text, figures=figures, reviewed=True, log_id=result.log_id
+    )
 
 
 def natural_search(user, query, request=None, *, provider=None):
@@ -344,20 +373,30 @@ def natural_search(user, query, request=None, *, provider=None):
         user,
         getattr(request, "institution", None) if request is not None else None,
         provider=provider,
-        names=_names(user, getattr(request, "institution", None) if request is not None else None),
+        names=names_for(user, getattr(request, "institution", None) if request is not None else None),
+        http_request=request,
     )
     if not result.ok:
-        return SearchAnswer(False, error=result.error)
+        return SearchAnswer(False, error=result.error, log_id=result.log_id)
+    if output_has_injection(result.text):
+        return SearchAnswer(
+            False,
+            error="Name a record type to search: student, staff, course, receipt or application.",
+            log_id=result.log_id,
+        )
     tokens = set(re.findall(r"[a-z]+", sanitize_output(result.text, limit=200).lower()))
     chosen = tuple(code for code in SEARCH_CODES if code in tokens)
     if not chosen:
         return SearchAnswer(
             False,
             error="Name a record type to search: student, staff, course, receipt or application.",
+            log_id=result.log_id,
         )
     groups = search_groups(
         user, query,
         institution=getattr(request, "institution", None) if request is not None else None,
         codes=chosen,
     )
-    return SearchAnswer(True, chosen=chosen, groups=tuple(groups))
+    return SearchAnswer(
+        True, chosen=chosen, groups=tuple(groups), log_id=result.log_id
+    )

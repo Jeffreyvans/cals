@@ -1,9 +1,11 @@
 """Screens for AI consent, institution switches and usage."""
 
 from django.contrib import messages
-from django.http import Http404
+from django.http import Http404, HttpResponseNotAllowed
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from core.access import user_has_code
 from core.audit import log_action
@@ -19,7 +21,10 @@ from .features import (
     RECORDED_ALWAYS,
     disclosure_for,
 )
-from .models import AIConsent, AIFeatureSetting, AIUsageLog
+from .models import AIConsent, AIFeatureSetting, AIFeedback, AIUsageLog
+from .output import sanitize_output
+from .redaction import redact_text
+from .safety import names_for
 from .usage import feature_rows, usage_counts
 
 
@@ -35,6 +40,18 @@ def _client_ip(request):
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.META.get("REMOTE_ADDR") or None
+
+
+def _safe_next(request):
+    """Only return to a same-site page after a feedback POST."""
+    target = request.POST.get("next") or request.GET.get("next") or reverse("ai:home")
+    if not url_has_allowed_host_and_scheme(
+        target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return reverse("ai:home")
+    return target
 
 
 def _valid_feature(value, default=None):
@@ -210,3 +227,58 @@ def usage(request):
             "can_manage": can_manage,
         },
     )
+
+
+@permission_required_code("ai.use")
+def submit_feedback(request):
+    """Record a redacted bad-answer report. Nothing is sent to a provider."""
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    inst = _institution(request)
+    if inst is None:
+        raise Http404("No institution is linked to this account.")
+    feature = request.POST.get("feature", "")
+    if feature not in FEATURE_LABELS:
+        messages.error(request, "Choose a valid AI feature.")
+        return redirect(_safe_next(request))
+    category = request.POST.get("category", "")
+    if category not in {code for code, _label in AIFeedback.Category.choices}:
+        category = AIFeedback.Category.WRONG
+    comment = sanitize_output(
+        redact_text(request.POST.get("comment", ""), names_for(request.user, inst)),
+        limit=500,
+    )
+    log = None
+    raw_id = str(request.POST.get("usage_log", "")).strip()
+    if raw_id.isdigit():
+        log = AIUsageLog.all_objects.filter(
+            pk=int(raw_id), institution=inst, user=request.user
+        ).first()
+    row = AIFeedback.all_objects.create(
+        institution=inst,
+        user=request.user,
+        usage_log=log,
+        feature=feature,
+        category=category,
+        comment=comment,
+    )
+    log_action(
+        request.user, "ai.feedback_submitted", instance=row,
+        institution=inst,
+        after={"feature": feature, "category": category, "usage_log_id": log.pk if log else None},
+        request=request,
+    )
+    messages.success(request, "Thank you. Your feedback was recorded.")
+    return redirect(_safe_next(request))
+
+
+@permission_required_code("ai.view_usage")
+def feedback_review(request):
+    """Let school administrators, or platform staff, read bad-answer reports."""
+    inst = _institution(request)
+    if inst is None and not user_has_code(request.user, "platform.manage_settings"):
+        raise Http404("No institution is linked to this account.")
+    rows = AIFeedback.all_objects.select_related("user", "usage_log").order_by("-created")
+    if inst is not None:
+        rows = rows.filter(institution=inst)
+    return render(request, "ai/feedback.html", {"rows": list(rows[:100])})

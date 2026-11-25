@@ -16,4 +16,6 @@ urlpatterns = [
     path("translation/", feature_views.translation_view, name="translation"),
     path("insights/", feature_views.insights_view, name="insights"),
     path("search/", feature_views.search_view, name="search"),
+    path("feedback/", views.submit_feedback, name="feedback"),
+    path("feedback/review/", views.feedback_review, name="feedback_review"),
 ]

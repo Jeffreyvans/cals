@@ -27,6 +27,7 @@
           {% if not answer.reviewed %}
             <p class="muted">The wording did not preserve the figures, so the calculated figures are shown directly instead.</p>
           {% endif %}
+          {% include "ai/_feedback.html" %}
         {% endif %}
       </div>
     {% endif %}

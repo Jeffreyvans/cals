@@ -601,6 +601,21 @@ feature changes an existing screen or record when it is switched off.
   **1,793 passed** (221 warnings); `ruff check .` clean, `python manage.py
   check` shows only the expected console-email warning, and
   `makemigrations --check --dry-run` reports "No changes detected".
-- [ ] Part 5, safety: prompt-injection defences, output checks, rate limiting
-  and bad-answer feedback.
+- [x] Part 5, safety: caller text is wrapped as untrusted data with a standing
+  data rule; override attempts, hidden role tags and labelled instructions are
+  refused before a provider call and logged as zero-token blocked rows. Model
+  output is checked for the same patterns and cleaned by `ai/output.py`; drafts
+  also get local profanity and harm checks before they can be shown. Added
+  cache-backed per-user and per-school/IP burst limits (`AI_RATE_LIMIT`,
+  `AI_RATE_IP_LIMIT`, `AI_RATE_WINDOW_SECONDS`) that count blocked attempts too.
+  Added redacted, POST-only "Report a bad answer" feedback linked only to the
+  person's own `AIUsageLog`, with an institution-scoped review page.
+- [x] Part 5 tests: 14 new tests in `ai/tests/test_safety.py` cover injection
+  refusal before a call, data wrapping, output instruction removal, draft
+  profanity/harm refusal, per-user and per-IP burst limits, feedback redaction,
+  foreign-log rejection, GET/unknown-feature rejection and tenant-scoped review.
+- [x] Verification after part 5: focused `ai` suite **71 passed**; full suite
+  **1,807 passed** (221 warnings); `ruff check .` clean, `python manage.py
+  check` shows only the expected console-email warning, and
+  `makemigrations --check --dry-run` reports "No changes detected".
 - [ ] Part 6, documentation and final verification.

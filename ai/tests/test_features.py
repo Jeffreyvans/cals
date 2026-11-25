@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -69,6 +70,7 @@ class FeatureBase(TestCase):
                 year_or_grade="1", programme=foreign_programme)
 
     def setUp(self):
+        cache.clear()
         open_platform()
         for feature in Feature.values:
             switch_on(self.school, feature)

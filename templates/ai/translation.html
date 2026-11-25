@@ -33,6 +33,7 @@
           <h2>Translation — {{ review_label }}</h2>
           <p>{{ answer.text|linebreaks }}</p>
           <p class="muted">A person must review this wording before it is used.</p>
+          {% include "ai/_feedback.html" %}
         {% endif %}
       </div>
     {% endif %}

@@ -28,6 +28,7 @@
               <a class="card link-card" href="{{ item.url }}"><b>{{ item.label }}</b><span class="muted">{{ item.meta }}</span></a>
             {% endfor %}
           {% endfor %}
+          {% include "ai/_feedback.html" %}
         {% endif %}
       </div>
     {% endif %}

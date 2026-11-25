@@ -29,6 +29,7 @@
           <label for="draft-text">Edit the draft before copying it anywhere</label>
           <textarea id="draft-text" rows="10">{{ answer.text }}</textarea>
           <p class="muted">Nothing was saved or sent. A named person must review and approve this text.</p>
+          {% include "ai/_feedback.html" %}
         {% endif %}
       </div>
     {% endif %}

@@ -21,6 +21,7 @@ from .assistance import (
     natural_search,
     translate_text,
 )
+from .features import Feature
 
 
 def _institution(request):
@@ -42,9 +43,12 @@ def help_assistant(request):
     answer = None
     if request.method == "POST":
         answer = help_answer(
-            request.user, request.POST.get("question", ""), institution=inst
+            request.user, request.POST.get("question", ""),
+            institution=inst, http_request=request,
         )
-    return render(request, "ai/help.html", {"answer": answer})
+    return render(request, "ai/help.html", {
+        "answer": answer, "feedback_feature": Feature.HELP,
+    })
 
 
 @permission_required_code("ai.use")
@@ -56,10 +60,12 @@ def draft_view(request):
     kind = request.POST.get("kind", "report_card")
     if request.method == "POST":
         answer = make_draft(
-            request.user, kind, request.POST.get("instructions", ""), institution=inst
+            request.user, kind, request.POST.get("instructions", ""),
+            institution=inst, http_request=request,
         )
     return render(request, "ai/draft.html", {
         "answer": answer, "kinds": kinds, "kind": kind, "draft_label": DRAFT_LABEL,
+        "feedback_feature": Feature.DRAFT,
     })
 
 
@@ -73,11 +79,12 @@ def translation_view(request):
     if request.method == "POST":
         answer = translate_text(
             request.user, source, target, request.POST.get("text", ""),
-            institution=inst,
+            institution=inst, http_request=request,
         )
     return render(request, "ai/translation.html", {
         "answer": answer, "languages": LANGUAGES.items(),
         "source": source, "target": target, "review_label": REVIEW_LABEL,
+        "feedback_feature": Feature.TRANSLATION,
     })
 
 
@@ -88,7 +95,9 @@ def insights_view(request):
     answer = None
     if request.method == "POST":
         answer = insights_for_user(request)
-    return render(request, "ai/insights.html", {"answer": answer})
+    return render(request, "ai/insights.html", {
+        "answer": answer, "feedback_feature": Feature.INSIGHTS,
+    })
 
 
 @permission_required_code("ai.use")
@@ -102,4 +111,5 @@ def search_view(request):
     return render(request, "ai/search.html", {
         "answer": answer, "query": query,
         "can_search": user_has_code(request.user, "search.global"),
+        "feedback_feature": Feature.SEARCH,
     })

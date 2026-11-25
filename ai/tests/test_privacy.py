@@ -1,5 +1,6 @@
 """Privacy boundary tests: nothing protected or foreign reaches a provider."""
 
+from django.core.cache import cache
 from django.test import TestCase
 
 from ai.features import Feature
@@ -16,6 +17,7 @@ class PrivacyTests(TestCase):
         cls.other, cls.foreign_admin = make_school("Foreign School", "foreign-school")
 
     def setUp(self):
+        cache.clear()
         open_platform()
         switch_on(self.school)
         accept(self.admin, self.school, Feature.HELP)

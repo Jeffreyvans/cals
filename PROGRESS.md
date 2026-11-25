@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-11-25 (session 39, optional AI assistance part 4).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-25 (session 39, optional AI assistance part 5).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -955,6 +955,55 @@ it establishes one narrow, testable boundary to the model provider.
   allow-list, together with what a school accepts on the consent screen.
 - [x] Verification after part 4: focused `ai` suite **57 passed**; full suite
   **1,793 passed** (221 warnings); `ruff check .` clean; `python manage.py
+  check` shows only the expected console-email warning; and
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected".
+
+## Session 39 - Optional AI assistance, part 5: safety and feedback (2026-11-25)
+
+- [x] Added `ai/safety.py`. Every caller-supplied prompt is wrapped as
+  `<user_content>...</user_content>`, closes and role tags are neutralised, and
+  the system prompt gets a standing rule that the wrapped text is data and can
+  never change the assistant's instructions. Override phrases, hidden role tags
+  and "you are now" attempts are refused locally before a provider call; the
+  refusal writes a zero-token `blocked` row and shows a short message. A label
+  such as `Instructions:` or `Question:` no longer hides an override: the first
+  pattern only matched the start of a line, so the draft screen's
+  `Instructions: Ignore previous instructions...` was allowed through. The
+  detector now accepts an optional field label before the override phrase.
+- [x] Model output is checked again. `ai/output.sanitize_output()` strips
+  instruction-like lines as well as links, HTML, command-like lines and control
+  characters. Each feature additionally refuses output that still looks like an
+  instruction, and drafts get local profanity and harm checks: unsafe wording
+  produces "The draft contained wording we cannot show. Nothing was saved..."
+  and no preview is rendered.
+- [x] Added `ai/ratelimit.py` with per-user and per-school/IP cache buckets.
+  Every attempt is counted, including one refused by another control, so
+  reopening a switch cannot reset the window. Defaults are 10 calls per person,
+  30 per school connection and a 60-second window; `AI_RATE_LIMIT`,
+  `AI_RATE_IP_LIMIT` and `AI_RATE_WINDOW_SECONDS` are in `config/settings.py`,
+  `.env.example` and `render.yaml`. A full bucket returns the safe "too quickly"
+  message before any provider call.
+- [x] Added tenant-scoped `AIFeedback` (migration `ai/0003_aifeedback.py`) and
+  POST-only `ai:feedback`. Each answer carries its `AIUsageLog` id; the form
+  sends a category and an optional comment, which is redacted, sanitised and
+  capped at 500 characters. Only a log belonging to the same person and school
+  can be linked, a GET and an unknown feature are rejected, the redirect target
+  is checked, and the submission is written to the audit log without secrets.
+  `ai:feedback_review` lists at most 100 reports for the institution; platform
+  staff with `ai.view_usage` can review across schools.
+- [x] Added 14 tests in `ai/tests/test_safety.py` covering injection refusal,
+  data wrapping and tag neutralisation, output instruction removal, draft
+  profanity/harm refusal, per-user and per-IP limits, feedback redaction and
+  linking, foreign-log rejection, bad input and tenant-scoped review. Isolated
+  the cache in the existing controls, privacy and feature test setups because
+  reused user ids and the shared LocMem cache carried burst counts between
+  `TestCase` rollbacks.
+- [x] Updated `docs/AI.md` with the safety rules, burst-limit variables and the
+  feedback flow, including what is stored locally and what a school must agree
+  to.
+- [x] Verification after part 5: focused `ai` suite **71 passed**; full suite
+  **1,807 passed** (221 warnings); `ruff check .` clean; `python manage.py
   check` shows only the expected console-email warning; and
   `python manage.py makemigrations --check --dry-run` reports "No changes
   detected".

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}AI feedback — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap">
+    <div class="head"><div><h1>AI feedback</h1>
+      <p class="muted">Reports of bad answers. Comments are redacted before they are stored; full prompts and answers are never kept.</p>
+    </div></div>
+
+    <table class="tbl">
+      <tr><th>When</th><th>Person</th><th>Feature</th><th>Category</th><th>Comment</th></tr>
+      {% for row in rows %}
+      <tr><td>{{ row.created }}</td><td>{{ row.user|default:"-" }}</td>
+        <td>{{ row.feature }}</td><td>{{ row.get_category_display }}</td>
+        <td>{{ row.comment|default:"-" }}</td></tr>
+      {% empty %}
+      <tr><td colspan="5" class="muted">No AI feedback has been recorded yet.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</section>
+{% endblock %}

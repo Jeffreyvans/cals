@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
@@ -19,6 +20,9 @@ User = get_user_model()
 
 
 class ControlTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
     @classmethod
     def setUpTestData(cls):
         cls.school, cls.admin = make_school("Control School", "control-school")

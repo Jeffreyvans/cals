@@ -136,3 +136,41 @@ class AIUsageLog(TenantModel):
 
     def __str__(self):
         return f"AI {self.feature} for {self.user_id}: {self.status} at {self.created:%Y-%m-%d}"
+
+
+class AIFeedback(TenantModel):
+    """A person's report of a bad answer. Never stores a full prompt or answer."""
+
+    class Category(models.TextChoices):
+        WRONG = "wrong", "Wrong or misleading"
+        UNHELPFUL = "unhelpful", "Not helpful"
+        UNSAFE = "unsafe", "Unsafe or inappropriate"
+        OTHER = "other", "Something else"
+
+    institution = models.ForeignKey(
+        "core.Institution", on_delete=models.CASCADE, related_name="ai_feedback"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="ai_feedback",
+    )
+    usage_log = models.ForeignKey(
+        AIUsageLog, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="feedback",
+    )
+    feature = models.CharField(max_length=20, choices=Feature.choices)
+    category = models.CharField(
+        max_length=12, choices=Category.choices, default=Category.WRONG
+    )
+    comment = models.TextField(blank=True)
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+        indexes = [
+            models.Index(fields=["institution", "created"]),
+            models.Index(fields=["user", "created"]),
+        ]
+
+    def __str__(self):
+        return f"AI {self.feature} feedback from {self.user_id}: {self.category}"

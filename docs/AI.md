@@ -95,6 +95,8 @@ token counts, a cost estimate, the time and a short **redacted** prompt
 summary. It never stores a full prompt or answer. The `/ai/usage/` page shows
 today's and this month's counts beside the limits; administrators can see all
 rows for their own institution, while other users see only their own rows.
+Bad-answer reports are also stored locally for school review, with only a
+redacted optional comment and a link to the person's own log row.
 
 The cost estimate is informational. Set `AI_COST_PER_MILLION_INPUT` and
 `AI_COST_PER_MILLION_OUTPUT` to the operator's own rates; both default to `0`,
@@ -173,8 +175,64 @@ The prompt is capped at 160 characters. If no valid code is chosen the person
 is asked to name a record type; no query is run on a free-form AI condition.
 
 Every returned answer passes through `ai/output.sanitize_output()`, which
-strips links, HTML tags, command-like lines and control characters and caps the
-length before the screen renders it.
+strips links, HTML tags, instruction-like and command-like lines, and control
+characters and caps the length before the screen renders it.
+
+## Safety rules
+
+`ai/safety.py` is the local guard around everything untrusted:
+
+- Caller text is wrapped in `<user_content>...</user_content>` and the system
+  prompt gets a standing rule that everything inside those tags is data, not
+  instructions. A closing tag or a hidden role tag in caller text is neutralised
+  before the wrapper is built.
+- Override attempts such as "ignore previous instructions", role tags and
+  "you are now" are refused **locally**, before any provider call. A label such
+  as `Instructions:` or `Question:` does not hide them. The person sees "That
+  request tries to change the assistant's instructions. Nothing was sent..."
+  and a zero-token `blocked` row is recorded.
+- Model output is checked again. Instruction-like lines are stripped by
+  `sanitize_output()`; if a feature still sees one, it returns a safe fallback
+  or refuses to show the text.
+- Drafts get one extra check because they may be copied into a school message.
+  Profanity or harmful wording makes the draft disappear with "The draft
+  contained wording we cannot show. Nothing was saved..."; the draft is still
+  preview-only and no business record is written.
+
+Short bursts are limited in addition to the daily and monthly caps in
+`ai/usage.py`. These cache-backed buckets count every attempt, including one
+that another control refuses, so switching a feature back on cannot reset the
+window:
+
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `AI_RATE_LIMIT` | Attempts per person per window. | `10` |
+| `AI_RATE_IP_LIMIT` | Attempts per school connection per window. | `30` |
+| `AI_RATE_WINDOW_SECONDS` | Length of the burst window. | `60` |
+
+When a bucket is full, nothing is sent and the person sees "You are sending AI
+requests too quickly. Nothing was sent; please wait a moment and try again."
+The variables are listed in `.env.example` and `render.yaml` alongside the
+provider settings.
+
+## Report a bad answer
+
+Each successful answer carries its usage-log id, so every feature screen has a
+**Report a bad answer** form. It is a POST-only, permission-gated endpoint at
+`/ai/feedback/`. The person chooses "Wrong or misleading", "Not helpful",
+"Unsafe or inappropriate" or "Something else" and may add an optional comment
+of at most 500 characters. That comment goes through the same redaction and
+output cleaning as a prompt, so names, contact details and links are removed
+before it is stored. No prompt, answer or feedback comment is sent to the
+provider.
+
+Feedback is stored as a tenant-scoped `AIFeedback` row with the person,
+feature, category, redacted comment and, when it belongs to the same person and
+school, the linked `AIUsageLog`. A foreign log id is ignored. The submission is
+written to the audit log without secret material and the person returns to the
+same screen. School administrators with `ai.view_usage`, and platform staff,
+can review their own institution's reports at `/ai/feedback/review/`; there is
+no cross-school listing for an institution account.
 
 ## Privacy enforcement
 

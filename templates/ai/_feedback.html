@@ -1,0 +1,18 @@
+{% if answer.ok %}
+  <form method="post" action="{% url 'ai:feedback' %}" class="form compact">
+    {% csrf_token %}
+    <input type="hidden" name="feature" value="{{ feedback_feature }}">
+    <input type="hidden" name="usage_log" value="{{ answer.log_id|default:'' }}">
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <label for="feedback-category-{{ feedback_feature }}">Report a bad answer</label>
+    <select id="feedback-category-{{ feedback_feature }}" name="category">
+      <option value="wrong">Wrong or misleading</option>
+      <option value="unhelpful">Not helpful</option>
+      <option value="unsafe">Unsafe or inappropriate</option>
+      <option value="other">Something else</option>
+    </select>
+    <label for="feedback-comment-{{ feedback_feature }}">Optional detail</label>
+    <textarea id="feedback-comment-{{ feedback_feature }}" name="comment" rows="2" maxlength="500" placeholder="Do not include names or contact details."></textarea>
+    <button class="btn ghost" type="submit">Send feedback</button>
+  </form>
+{% endif %}

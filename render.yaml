@@ -134,6 +134,13 @@ services:
         sync: false
       - key: AI_TIMEOUT_SECONDS
         value: "15"
+      # Short-window burst limits; daily/monthly caps are set per feature in the app.
+      - key: AI_RATE_LIMIT
+        value: "10"
+      - key: AI_RATE_IP_LIMIT
+        value: "30"
+      - key: AI_RATE_WINDOW_SECONDS
+        value: "60"
       # Optional usage-estimate rates per one million tokens; 0 when unset.
       - key: AI_COST_PER_MILLION_INPUT
         value: "0"

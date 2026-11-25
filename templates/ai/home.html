@@ -9,7 +9,8 @@
 
     <p><a class="btn" href="{% url 'ai:consent' %}">Review or accept consent</a>
        {% if can_manage %}<a class="btn ghost" href="{% url 'ai:settings' %}">Feature switches and limits</a>{% endif %}
-       <a class="btn ghost" href="{% url 'ai:usage' %}">Usage</a></p>
+       <a class="btn ghost" href="{% url 'ai:usage' %}">Usage</a>
+       {% if can_manage %}<a class="btn ghost" href="{% url 'ai:feedback_review' %}">Feedback</a>{% endif %}</p>
 
     <h2>Assistants</h2>
     <ul>

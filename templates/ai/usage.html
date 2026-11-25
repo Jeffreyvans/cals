@@ -5,7 +5,9 @@
   <div class="wrap">
     <div class="head"><div><h1>AI usage</h1>
       <p class="muted">Figures come from the local usage log. Prompts are redacted; full text is never stored.</p>
-    </div></div>
+    </div>
+    {% if can_manage %}<a class="btn ghost" href="{% url 'ai:feedback_review' %}">Review bad-answer feedback</a>{% endif %}
+    </div>
 
     <table class="tbl">
       <tr><th>Period</th><th>Your calls</th><th>Institution calls</th></tr>
