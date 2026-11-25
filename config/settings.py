@@ -117,6 +117,13 @@ TESTING = (
 if TESTING:
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
+# Optional AI assistance. Model names and the key are read from the environment
+# at call time in ai/providers.py; no model name or secret lives in the codebase.
+# A provider call is capped at 15 seconds by default and never uses Celery.
+AI_PROVIDER = env_str("AI_PROVIDER", "anthropic")
+AI_TIMEOUT_SECONDS = env_int("AI_TIMEOUT_SECONDS", 15)
+AI_PROVIDER_INSTANCE = None  # test injection point; never configured in production
+
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
@@ -129,6 +136,9 @@ INSTALLED_APPS = [
     "core",
     "platform_admin",
     "fiscalisation",
+    # Optional AI assistance. Every feature is off until switches, consent and
+    # the platform kill switch are explicitly enabled; see docs/AI.md.
+    "ai",
     "rest_framework", "drf_spectacular", "anymail", "api",
 ]
 MIDDLEWARE = [

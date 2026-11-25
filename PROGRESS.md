@@ -788,3 +788,43 @@ with empty hierarchy fields, then layer the new structure on top.
   `python manage.py check` shows only the expected console-email warning and
   `python manage.py makemigrations --check --dry-run` reports "No changes
   detected". Manual scenarios are in `MANUAL_TESTING.md` section 11.
+
+## Session 39 - Optional AI assistance, part 1: provider layer (2026-11-25)
+
+The brief was to add useful AI assistance without changing any existing
+feature when it is off. The first part deliberately touches no screens or data:
+it establishes one narrow, testable boundary to the model provider.
+
+- [x] Added the `ai` Django app and registered it in settings, pytest paths,
+  coverage and ruff's first-party list. No URL, model or navigation entry was
+  added in this part.
+- [x] `ai/providers.py` defines `CompletionRequest`, `Completion`, a small
+  provider protocol, `AnthropicProvider` and `MockProvider`. The production
+  provider posts to the Anthropic Messages API with `urllib.request`; it has no
+  third-party SDK, no Celery import and no database access. The key and both
+  model names come from `AI_API_KEY`, `AI_MODEL_FAST` and `AI_MODEL_SMART` at
+  call time. A missing value fails before any network call.
+- [x] The default timeout is 15 seconds (`AI_TIMEOUT_SECONDS`). Timeouts,
+  network failures, rejected keys, HTTP errors and malformed responses each
+  raise a typed error with a short user-facing message. Provider exception
+  text, headers and keys are never returned to a caller.
+- [x] `ai/service.py` owns `ask_ai()`. It clamps `max_tokens`, converts any
+  provider failure into a safe `AIResult`, and exposes token counts for the
+  later usage log. Tests can inject a `MockProvider` through
+  `settings.AI_PROVIDER_INSTANCE`.
+- [x] Documented the environment variables and provider boundary in
+  `docs/AI.md`, `.env.example` and `render.yaml`. Render variables are
+  `sync: false`, so neither a key nor a model name is stored in the repo.
+- [x] Added 18 tests in `ai/tests/test_providers.py`. They verify environment
+  configuration for both tiers, the exact request payload and timeout,
+  endpoint overrides, every failure class, safe error messages, mock request
+  recording, token accounting, the output cap and no Celery import.
+- [x] Two failures were found and fixed while writing the tests: `_urlopen`
+  is an instance attribute and cannot be patched at class level, and the
+  no-Celery scan matched the module docstring. The tests now patch
+  `urllib.request.urlopen` and check only import statements.
+- [x] Verification: baseline **1,736 passed**; after part 1 the full suite is
+  **1,754 passed** (221 warnings), `ruff check .` clean, `python manage.py
+  check` shows only the expected console-email warning, and
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected".

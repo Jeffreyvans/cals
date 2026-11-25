@@ -535,3 +535,31 @@ existing institutions are never rewritten by a platform-level change.
   `python manage.py makemigrations --check --dry-run` reports "No changes
   detected". The staff-list query guard was updated from 17 to 21 to account
   for the four hierarchy filter choice lists; it still fails on any N+1.
+
+## PHASE 17 - Optional safe AI assistance (session 39)
+Status: in progress. Every part is independently committed and verified. No AI
+feature changes an existing screen or record when it is switched off.
+
+- [x] Part 1, provider layer: added the `ai` app with a provider interface, an
+  Anthropic implementation using the standard library only, and a deterministic
+  mock provider for tests. Model names (`AI_MODEL_FAST`, `AI_MODEL_SMART`) and
+  the key (`AI_API_KEY`) are read from the environment at call time and never
+  hard-coded. Calls are server-side, capped at 15 seconds, have no Celery
+  dependency, and return clear messages for missing configuration, timeouts and
+  outages. `ask_ai()` is the single entry point and bounds output length.
+- [x] Added 18 provider/service tests covering environment configuration,
+  request payloads, timeout, DNS/HTTP failures, invalid responses, token
+  counts, mock injection, safe error messages and the absence of Celery.
+- [x] Verification after part 1: baseline suite **1,736 passed**; full suite
+  with the new app **1,754 passed**, `ruff check .` clean, `python manage.py
+  check` shows only the expected console-email warning, and
+  `makemigrations --check --dry-run` reports "No changes detected".
+- [ ] Part 2, controls: institution feature switches, consent records, platform
+  kill switch, daily/monthly limits and a usage page.
+- [ ] Part 3, privacy: redaction, protected-category rule, permission and tenant
+  isolation tests.
+- [ ] Part 4, features in order: help assistant, drafts, translation,
+  plain-language insights, natural-language search.
+- [ ] Part 5, safety: prompt-injection defences, output checks, rate limiting
+  and bad-answer feedback.
+- [ ] Part 6, documentation and final verification.

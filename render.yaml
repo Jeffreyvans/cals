@@ -118,3 +118,19 @@ services:
         sync: false
       - key: AWS_LOCATION
         sync: false
+
+      # Optional AI assistance. All values are entered in the Render dashboard:
+      # no key or model name is stored in this repository. With AI_API_KEY blank
+      # every AI feature reports a clear "not configured" message and does not
+      # call a provider. Each feature also needs an institution switch, consent
+      # and the platform kill switch before it can be used (see docs/AI.md).
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL_FAST
+        sync: false
+      - key: AI_MODEL_SMART
+        sync: false
+      - key: AI_API_URL
+        sync: false
+      - key: AI_TIMEOUT_SECONDS
+        value: "15"
