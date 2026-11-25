@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from urllib.parse import urlsplit
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -404,3 +407,40 @@ class TwoFactorForm(forms.Form):
 
 class PasswordConfirmForm(forms.Form):
     password = forms.CharField(widget=forms.PasswordInput, label="Your password")
+
+
+class PilotFeedbackForm(forms.Form):
+    """A short report from a signed-in page to the platform Inbox.
+
+    The page and error reference are hidden fields. Only a local path is
+    accepted, and the reference must look like the one printed on an error
+    page. Neither field is used to look up or reveal another person's data.
+    """
+
+    message = forms.CharField(
+        max_length=500,
+        label="What happened?",
+        widget=forms.Textarea(attrs={"rows": 4, "maxlength": 500}),
+    )
+    error_reference = forms.CharField(max_length=12, required=False, widget=forms.HiddenInput)
+    page = forms.CharField(max_length=500, required=False, widget=forms.HiddenInput)
+
+    def clean_message(self):
+        value = (self.cleaned_data.get("message") or "").strip()
+        if len(value) < 5:
+            raise ValidationError("Please write a few words about what happened.")
+        return value
+
+    def clean_error_reference(self):
+        value = (self.cleaned_data.get("error_reference") or "").strip().upper()
+        if value and not re.fullmatch(r"ERR-[0-9A-F]{6}", value):
+            raise ValidationError("Enter the reference shown on the error page.")
+        return value
+
+    def clean_page(self):
+        value = (self.cleaned_data.get("page") or "").strip()
+        if not value:
+            return ""
+        if not value.startswith("/") or value.startswith("//") or "\\" in value:
+            return ""
+        return urlsplit(value).path[:500]

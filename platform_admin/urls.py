@@ -27,6 +27,8 @@ urlpatterns = [
          views.application_document, name="application_document"),
     path("platform/requests/<int:pk>/", views.platform_request_detail,
          name="platform_request_detail"),
+    # Signed-in institution users send short reports here; they land in the Inbox.
+    path("feedback/pilot/", views.pilot_feedback, name="pilot_feedback"),
     # Institutions.
     path("platform/institutions/", views.institutions, name="institutions"),
     path("platform/institutions/new/", views.institution_create,

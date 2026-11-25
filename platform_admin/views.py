@@ -9,16 +9,20 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from config.brand import PRODUCT_NAME
@@ -50,6 +54,7 @@ from .forms import (
     InstitutionDomainForm,
     InstitutionEditForm,
     PasswordConfirmForm,
+    PilotFeedbackForm,
     PlanForm,
     PlatformInvoiceForm,
     PlatformPaymentForm,
@@ -359,6 +364,73 @@ def inbox(request):
         request,
         "platform_admin/inbox.html",
         {"rows": rows, "status": status, "counts": counts, "staff": request.platform_staff},
+    )
+
+
+def _feedback_rate_key(request):
+    return f"vanpere.pilot.feedback.{request.user.pk}"
+
+
+@login_required
+def pilot_feedback(request):
+    """Send a short report from any signed-in page to the platform Inbox.
+
+    Institution users must be able to reach this page: ``platform_required``
+    would hide it from them with a 404. The page and error reference are
+    captured from the link/context, validated, and stored as metadata only.
+    """
+    source = request.POST if request.method == "POST" else request.GET
+    target = (source.get("page") if request.method == "POST" else source.get("next")) or ""
+    if not url_has_allowed_host_and_scheme(
+        target,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        target = ""
+    record = getattr(request, "_error_record", None)
+    suggested_reference = getattr(record, "reference", "") or ""
+    if request.method == "GET":
+        candidate = request.GET.get("error") or ""
+        if re.fullmatch(r"ERR-[0-9A-F]{6}", candidate):
+            suggested_reference = candidate
+    form = PilotFeedbackForm(
+        request.POST or None,
+        initial={"page": target, "error_reference": suggested_reference},
+    )
+    if request.method == "POST":
+        key = _feedback_rate_key(request)
+        attempts = cache.get(key, 0)
+        if attempts >= 5:
+            form.add_error(
+                None,
+                "You have sent several reports. Please wait a while before sending another.",
+            )
+        elif form.is_valid():
+            page = form.cleaned_data["page"]
+            name = request.user.get_full_name() or request.user.username
+            institution = getattr(request, "institution", None)
+            item = PlatformRequest.objects.create(
+                institution=institution,
+                kind=PlatformRequest.Kind.FEEDBACK,
+                requested_by=request.user,
+                title=f"Pilot feedback from {name}"[:200],
+                detail=form.cleaned_data["message"],
+                reference=form.cleaned_data["error_reference"],
+                payload={"page": page},
+            )
+            cache.set(key, attempts + 1, 3600)
+            services.notify_platform_admins(
+                f"Pilot feedback from {institution.name if institution else name}",
+                form.cleaned_data["message"],
+                link=_platform_url("platform_request_detail", item.pk),
+                category="feedback",
+            )
+            messages.success(request, "Thank you. Your feedback was sent to the platform team.")
+            return redirect(page or "/")
+    return render(
+        request,
+        "platform_admin/pilot_feedback.html",
+        {"form": form, "page": target},
     )
 
 

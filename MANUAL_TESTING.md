@@ -5,6 +5,12 @@ Use a staging copy with a real platform administrator account and working
 `/platform/institutions/`. Do the scenarios in order; later ones reuse the
 institution created in scenario 1.
 
+For the frozen one-school pilot, first read `PILOT_PLAN.md` and
+`PILOT_LIMITATIONS.md`. The pilot acceptance path is
+`core/tests/test_pilot_scenario.py`; the messy sample files are
+`core/samples/pilot_students_messy.csv` and
+`core/samples/pilot_fee_structures_messy.csv`.
+
 ## 1. Create an institution and its first administrator by invitation
 
 1. Sign in as a platform main administrator, open **Institutions → New
@@ -244,9 +250,38 @@ platform account.
    on screen and as PDF and confirm the School/Faculty > Department breadcrumb
    and columns appear.
 
+## 12. Pilot feedback and error references
+
+1. Sign in as an institution user. Confirm **Pilot feedback** is in the top bar
+   on a normal page. Open it: the page field should contain the page you came
+   from, such as `/help/`.
+2. Enter a short message (at least five characters), for example "The report
+   card button did nothing on the first click." Do not enter a student name or
+   number. Submit and confirm the success message and the return to the original
+   page.
+3. Sign in as a platform administrator, open `/platform/inbox/`, and find the
+   **Pilot feedback** item. Open its detail page: the message, institution,
+   sender, page and any error reference must be visible. A platform
+   notification with category `feedback` should also exist.
+4. Sign in as an institution user again, open `/this-page-does-not-exist/`, and
+   copy the `ERR-XXXXXX` reference shown on the error page. Press **Pilot
+   feedback** from that error page; the form must prefill the same reference.
+   Submit and confirm the reference is stored on the Inbox item.
+5. Try to submit a message shorter than five characters, a reference such as
+   `bad-ref-123`, and a feedback URL with `?next=//example.org/steal`. Each is
+   refused or ignored; no offsite redirect occurs and no bad reference is
+   stored.
+6. Send five reports in one hour; the sixth must show "You have sent several
+   reports" and must not create another Inbox item. Wait for the hour window to
+   expire before repeating this check.
+7. Institution users visiting `/platform/inbox/` directly must get **404**, not
+   a platform screen. Anonymous visitors to the feedback page go to the normal
+   login page.
+
 ## Cleanup
 
 Delete the test institution, its test users and any custom DNS records. Remove
 the temporary provider key change from scenario 7. Delete the sample students
 and imported objects created by scenario 10, or undo only the batches that have
-no financial or academic history.
+no financial or academic history. Delete the pilot feedback Inbox items created
+by scenario 12 if they contain staging-only messages.

@@ -5,7 +5,7 @@
 **Scope:** safe code/config fixes plus an evidence-based readiness assessment. No feature was intentionally removed or changed in behaviour except where a bug made the old behaviour unsafe or dishonest (non-delivering notification stubs, anonymous permission bypass, duplicate payment postings, over-refunds).  
 **Severity key:** **blocker** = must be resolved before any production pilot; **high** = must have an owner and a dated plan before go-live; **medium** = should be resolved in the first hardening window; **low** = documentation/polish.
 
-This report is the companion to [DEPLOY.md](DEPLOY.md), [MANUAL_TESTING.md](MANUAL_TESTING.md), [docs/ROLE_GUIDES.md](docs/ROLE_GUIDES.md), [docs/PILOT_ONBOARDING.md](docs/PILOT_ONBOARDING.md), [docs/LOAD_TEST_RESULTS.md](docs/LOAD_TEST_RESULTS.md) and [docs/ERROR_CODES.md](docs/ERROR_CODES.md).
+This report is the companion to [DEPLOY.md](DEPLOY.md), [MANUAL_TESTING.md](MANUAL_TESTING.md), [docs/ROLE_GUIDES.md](docs/ROLE_GUIDES.md), [docs/PILOT_ONBOARDING.md](docs/PILOT_ONBOARDING.md), [PILOT_PLAN.md](PILOT_PLAN.md), [PILOT_LIMITATIONS.md](PILOT_LIMITATIONS.md), [docs/LOAD_TEST_RESULTS.md](docs/LOAD_TEST_RESULTS.md) and [docs/ERROR_CODES.md](docs/ERROR_CODES.md).
 
 ---
 
@@ -170,6 +170,16 @@ This report is the companion to [DEPLOY.md](DEPLOY.md), [MANUAL_TESTING.md](MANU
 | **Changes made** | Added `docs/PILOT_ONBOARDING.md`: 9 stages (approval, first admin/2FA, institution basics, roles, import, finance, tenant spot-check, notifications/help, go-live gate) plus a first-7-days review. Each stage has an owner and a definition of done, including a backup restore dry-run and a full test-suite gate. |
 | **Human/external decisions** | Assign named owners, execute the checklist for the real pilot, record sign-off in the pilot ticket and complete the 7-day review. |
 
+## 17. Pilot freeze, E2E scenario and school-facing limitations
+
+| Item | Assessment |
+| --- | --- |
+| **Existing functionality** | Institution onboarding, imports, finance, academics, results, PDF verification, error references and platform Inbox already existed. |
+| **Gaps** | Before this pass there was no single frozen pilot scope, no in-app feedback path for institution users, no automated journey covering the whole school workflow, and no plain-English limitations note that could be shown to the school without exposing internal caveats. |
+| **Severity** | **medium** — the pilot cannot be honestly signed off without these artefacts. |
+| **Changes made** | Added `PILOT_PLAN.md` (exact in/out scope, 14-day plan, messy sample files, per-role checklists, success measures), `PILOT_LIMITATIONS.md`, `core/tests/test_pilot_scenario.py`, `platform_admin/tests/test_pilot_feedback.py`, `core/samples/pilot_students_messy.csv`, `core/samples/pilot_fee_structures_messy.csv`, and the `feedback` request kind with migration `platform_admin/0008_alter_platformrequest_kind.py`. The feedback button uses `reverse("platform_admin:pilot_feedback")`, `@login_required`, a validated local page path and an `ERR-[0-9A-F]{6}` reference; it writes to the platform Inbox and notifies platform staff. Error pages propagate references through `support_context` and the feedback link. Documentation and checklists were updated in `README.md`, `docs/PILOT_ONBOARDING.md`, `docs/ROLE_GUIDES.md` and `MANUAL_TESTING.md`. |
+| **Decision** | The pilot is **Core academics + Finance and fees only**. Live Paynow, ZIMRA FDMS, SMS/WhatsApp, worker/cron jobs, DSAR and optional modules are explicitly out of scope. The frozen acceptance path is `python -m pytest core/tests/test_pilot_scenario.py -q`; any failure blocks the pilot. |
+
 ---
 
 ## Verification evidence
@@ -184,6 +194,12 @@ This report is the companion to [DEPLOY.md](DEPLOY.md), [MANUAL_TESTING.md](MANU
 | Final `python -m pytest -q > pytest-final.log 2>&1` | **1701 passed, 221 warnings in 515.56s**. |
 | Targeted status/help/health tests | `13 passed`. |
 | Targeted backup/platform fixes | `6 passed`. |
+| Pilot baseline before changes | **1807 passed, 221 warnings in 624.15s**. |
+| Pilot targeted tests (scenario, feedback, fee sample) | **13 passed** (1 scenario + 8 feedback + 4 fee-sample import tests). |
+| Final pilot `python -m ruff check .` | `All checks passed!` |
+| Final pilot `python manage.py makemigrations --check --dry-run` | `No changes detected` (same `core.email.W001` warning). |
+| Final pilot `python manage.py check` | One expected `core.email.W001` console-backend warning. |
+| Final pilot `python -m pytest -q` | **1817 passed, 221 warnings in 675.92s**. |
 | Load test | Two clean local runs, 0 errors; see [docs/LOAD_TEST_RESULTS.md](docs/LOAD_TEST_RESULTS.md) and `pytest-load-results*.json`. |
 
 The `core.email.W001` warning is expected for local development and tests: the console backend does not deliver mail. Production is blocked by `core.email.E001`–`E006` if SMTP/console is selected or required provider keys are missing.
@@ -203,4 +219,4 @@ The `core.email.W001` warning is expected for local development and tests: the c
 9. **high** — Resolve data-protection decisions: DSAR/export/erasure obligations, message-body and audit retention, plaintext TOTP/webhook-secret acceptance, and removal/protection of `--plain` backups in production.
 10. **medium → high at scale** — Run a production-shaped load test with authenticated tenant pages, set SLOs, and turn on Sentry, alert routing, external uptime monitoring and log retention with a named on-call owner.
 
-The final gate is the checklist in [docs/PILOT_ONBOARDING.md](docs/PILOT_ONBOARDING.md): no *Outage* on `/status/`, green full suite on the deployed commit, a completed restore dry-run, a named rollback owner and a signed pilot ticket.
+The final gate is the checklist in [docs/PILOT_ONBOARDING.md](docs/PILOT_ONBOARDING.md) and the measures in [PILOT_PLAN.md](PILOT_PLAN.md#5-success-measures): no *Outage* on `/status/`, green full suite and end-to-end pilot scenario on the deployed commit, a completed restore dry-run, a named rollback owner, school acknowledgement of [PILOT_LIMITATIONS.md](PILOT_LIMITATIONS.md) and a signed pilot ticket.

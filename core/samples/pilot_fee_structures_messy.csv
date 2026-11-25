@@ -1,0 +1,4 @@
+Fee Structure Code,Fee Structure Name,Fee Structure Name,,Fee Item,Amount,Mandatory,Academic year,Notes
+PILOT-2026,Pilot Term 1 fees,2026 term 1,,Tuition,500.00,yes,2026,"Duplicate name column is ignored"
+PILOT-2026,Pilot Term 1 fees,2026 term 1,,Levy,50.00,yes,2026,"Repeated code adds a second item to the same structure"
+PILOT-2026,Pilot Term 1 fees,2026 term 1,,Bad amount,not-a-number,yes,2026,"Reject this row; fix the amount and upload again"

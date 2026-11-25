@@ -7,6 +7,22 @@ this file keeps the full text in one place for training and onboarding.
 > **Rule of thumb:** if a menu item is missing, your role does not hold that
 > permission. Ask an administrator rather than trying to work around it.
 
+## Pilot feedback (all signed-in roles)
+
+The **Pilot feedback** button is in the top bar of every signed-in page. Use it
+to tell the platform team about a broken screen, confusing wording or an error
+you cannot resolve. The form asks for a short message and records the page you
+were on. If an error page showed a reference such as `ERR-A1B2C3`, the button
+carries it across automatically.
+
+- Do not include names, student numbers, health details or other personal information.
+- This is not an emergency channel. For urgent help, use the phone/email on the error page or contact the school office.
+- Five reports per user per hour are accepted; a sixth is refused with a clear message.
+- Platform staff see the report in `/platform/inbox/` and receive a notification.
+
+See [PILOT_PLAN.md](../PILOT_PLAN.md) for the pilot scope and
+[PILOT_LIMITATIONS.md](../PILOT_LIMITATIONS.md) for what is not covered.
+
 ---
 
 ## Platform administrator
@@ -26,12 +42,14 @@ grant explicitly allows it.
 | Review consent requests | `/platform/access/` |
 | Check errors and background jobs | `/platform/errors/`, `/platform/jobs/` |
 | Review the platform audit log | `/platform/audit/` |
+| Review pilot feedback from the school | `/platform/inbox/` |
 | Keep your account secure | `/platform/security/` |
 
 **Good to know**
 
 - Use a staging institution for training before onboarding a real school.
 - Check `/status/` before diagnosing reported outages.
+- Acknowledge pilot feedback in `/platform/inbox/` within one business day; the page and error reference are metadata, not a way to look up another person's data.
 - Every action is written to the tamper-evident platform audit log.
 
 ---

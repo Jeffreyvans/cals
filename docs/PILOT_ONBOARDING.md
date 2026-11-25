@@ -2,6 +2,8 @@
 
 Use this checklist for every pilot institution. Each step has an owner and a
 definition of done. Do not skip a step just because the screen appears to work.
+The day-by-day sequence is in [PILOT_PLAN.md](../PILOT_PLAN.md), and the
+school-facing caveats are in [PILOT_LIMITATIONS.md](../PILOT_LIMITATIONS.md).
 
 The platform-side workflow starts at **Platform dashboard → Institutions → New
 institution** (`/platform/institutions/new/`). The in-app role guides are in
@@ -41,9 +43,9 @@ institution** (`/platform/institutions/new/`). The in-app role guides are in
 
 ## 5. Data import — school admin + registrar
 
-- [ ] Templates downloaded from `/imports/new/` and the messy sample reviewed (`core/samples/messy_students.csv`).
+- [ ] Templates downloaded from `/imports/new/` and the messy samples reviewed: `core/samples/pilot_students_messy.csv` (2 ready, 1 problem), `core/samples/pilot_fee_structures_messy.csv` (2 good lines, 1 bad amount) and `core/samples/messy_students.csv` (mapping practice). Expected results are in [PILOT_PLAN.md](../PILOT_PLAN.md#2-sample-import-files-with-messy-data).
 - [ ] One small CSV (5–10 rows) imported first, preview checked, then undone.
-- [ ] Full import run; duplicate and invalid rows read from the error report.
+- [ ] Full import run; duplicate and invalid rows read from the error report and the result CSVs kept with the pilot ticket.
 - [ ] Student logins are marked as needing a reset before anyone uses them.
 - [ ] Definition of done: student count matches the source file minus documented rejects.
 
@@ -65,9 +67,11 @@ institution** (`/platform/institutions/new/`). The in-app role guides are in
 ## 8. Notifications and help — school admin
 
 - [ ] One test email sent to a real mailbox and delivered (not console backend).
-- [ ] `docs/ERROR_CODES.md` and `/help/` linked from the school's staff onboarding material.
+- [ ] `ERROR_CODES.md`, `/help/` and `PILOT_LIMITATIONS.md` linked from the school's staff onboarding material.
 - [ ] Support contacts on the error page confirmed correct.
-- [ ] Definition of done: a staff member can find the error reference and support contact without help.
+- [ ] **Pilot feedback** button tested from a normal page and from an error page; the platform team can find the item in `/platform/inbox/` with the page and any `ERR-XXXXXX` reference.
+- [ ] Staff told not to put names, student numbers or other personal data in feedback, and that the button is not an emergency channel (five reports per user per hour).
+- [ ] Definition of done: a staff member can find the error reference, support contact and feedback button without help.
 
 ## 9. Go-live gate — platform admin
 
@@ -75,6 +79,7 @@ institution** (`/platform/institutions/new/`). The in-app role guides are in
 - [ ] Full test suite green on the deployed commit (see `PRODUCTION_READINESS.md` for the recorded run).
 - [ ] Backup command run and a restore **dry-run** completed on staging.
 - [ ] Rollback owner and contact number written down.
+- [ ] Payment, report and support-request measures in [PILOT_PLAN.md](../PILOT_PLAN.md#5-success-measures) recorded with evidence.
 - [ ] Definition of done: named person signs off in the pilot ticket.
 
 ---
@@ -82,6 +87,8 @@ institution** (`/platform/institutions/new/`). The in-app role guides are in
 ## Post-pilot review (first 7 days)
 
 - [ ] Platform **Errors** page reviewed daily; repeated codes turned into fixes or docs.
+- [ ] Platform **Inbox** pilot feedback acknowledged within one business day; page, error reference and sender recorded.
 - [ ] Slow-query log (`edusphere.slow`) reviewed for tenant-scoped pages.
 - [ ] Email health checked for bounces and suppressions.
 - [ ] Any money correction traced to a ledger entry and an audit log record.
+- [ ] Success measures from `PILOT_PLAN.md` reviewed with the school; unresolved limitations accepted in writing or assigned an owner.

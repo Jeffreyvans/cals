@@ -719,6 +719,7 @@ class PlatformRequest(models.Model):
         DATA_EXPORT = "data_export", "Data export"
         DELETION = "deletion", "Deletion request"
         STAFF_REGISTRATION = "staff_registration", "Escalated staff registration"
+        FEEDBACK = "feedback", "Pilot feedback"
         OTHER = "other", "Other"
 
     class Status(models.TextChoices):

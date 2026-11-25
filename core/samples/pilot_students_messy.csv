@@ -1,0 +1,4 @@
+Student Number,First Name,First Name,,Last Name,Email,Programme,Class,Date of Birth,Guardian,Guardian Phone,Notes
+PIL-001,Tariro,T.,,Dube,tariro.dube@pilot.example,Pilot Diploma,Form 2,2009-03-04,Mrs Dube,0771000001,"Moved from Rowen; middle initial is in the duplicate column"
+PIL-002,Blessing,,X,Sibanda,blessing.sibanda@pilot.example,Pilot Diploma,Form 2,2008-07-09,Mr Sibanda,0771000002,"Blank header column is ignored; wrong spelling to check"
+PIL-003,Chipo,,,,Nyoni,not-an-email,Pilot Diploma,Form 2,2009-01-02,Mr Nyoni,0771000003,"Reject this row: the email is invalid"

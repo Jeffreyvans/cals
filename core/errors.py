@@ -43,8 +43,16 @@ def support_contacts():
 
 
 def support_context(request):
-    """Template context processor so inline errors can show support details."""
-    return {"support": support_contacts()}
+    """Template context processor for support details and the error reference.
+
+    The reference comes from the error already recorded for this request, so an
+    error page (and the feedback button on it) can quote it without a new lookup.
+    """
+    record = getattr(request, "_error_record", None)
+    return {
+        "support": support_contacts(),
+        "error_reference": getattr(record, "reference", "") or "",
+    }
 
 
 def request_id_for(request):

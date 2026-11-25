@@ -1,13 +1,23 @@
 """Phase 1: the bulk import reads a file, checks it and writes the good rows."""
 
 import io
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import Course, Programme, SchoolClass, Student, Subject
+from academics.models import (
+    AcademicYear,
+    Course,
+    Programme,
+    SchoolClass,
+    Student,
+    Subject,
+)
 from core import importer
 from core.models import ImportBatch, Institution, StaffProfile
 from core.roles import ensure_roles
@@ -436,6 +446,34 @@ class FeeStructureImportTests(ImportFixture):
         results = importer.validate("fee_structures", rows[1:], mapping, self.inst)
         self.assertIn("Fee structure code 'TERM1' is already used.",
                       results[0]["errors"])
+
+    def test_the_pilot_messy_sample_keeps_good_lines_and_reports_the_bad_amount(self):
+        sample = (Path(__file__).resolve().parents[1] / "samples"
+                  / "pilot_fee_structures_messy.csv")
+        with use_institution(self.inst):
+            AcademicYear.objects.create(
+                name="2026", start_date=date(2026, 1, 1),
+                end_date=date(2026, 12, 31), is_current=True)
+        upload = SimpleUploadedFile(
+            sample.name, sample.read_bytes(), content_type="text/csv")
+        rows = importer.read_rows(upload, sample.name)
+        mapping = importer.guess_mapping(
+            list(rows[0].keys()), importer.FEE_STRUCTURE_FIELDS)
+        self.assertEqual(mapping["structure_code"], "Fee Structure Code")
+        self.assertEqual(mapping["structure_name"], "Fee Structure Name")
+        results = importer.validate("fee_structures", rows[1:], mapping, self.inst)
+        self.assertEqual([row["errors"] for row in results[:2]], [[], []])
+        self.assertTrue(any("is not an amount" in problem
+                            for problem in results[2]["errors"]))
+        imported, errors = importer.run_import(
+            "fee_structures", [row for row in results if not row["errors"]],
+            self.inst, self.bursar)
+        self.assertEqual(imported, 2)
+        self.assertEqual(errors, [])
+        with use_institution(self.inst):
+            structure = FeeStructure.objects.get(code="PILOT-2026")
+            self.assertEqual(structure.items.count(), 2)
+            self.assertEqual(structure.total, Decimal("550.00"))
 
 
 class ImportScreenTests(ImportFixture):

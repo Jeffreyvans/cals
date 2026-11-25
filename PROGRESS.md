@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-11-25 (session 39, optional AI assistance complete).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-25 (session 40, one-school pilot freeze and readiness complete).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -1030,3 +1030,43 @@ it establishes one narrow, testable boundary to the model provider.
 - [x] Parts 1-5 were committed separately as `37d656f`, `0e6bea4`, `928e801`,
   `4f21997` and `bc14690`; this documentation and status update is its own
   final commit.
+
+## Session 40 - One-school pilot freeze and pilot readiness (2026-11-25)
+
+- [x] Kept the feature freeze: the only changes are pilot documentation,
+      feedback plumbing, samples, tests and fixes exposed by the end-to-end
+      scenario. No new business feature was added.
+- [x] Added `PILOT_PLAN.md`: exact in/out scope, the frozen ten-step acceptance
+      path, 14-day onboarding plan, messy sample guide, role checklists and
+      success measures for payments, reports and support requests.
+- [x] Added `PILOT_LIMITATIONS.md` in plain English so the school can be told
+      honestly about SMS/WhatsApp, live payments, fiscalisation, backups,
+      storage, imports, money checks, 2FA, monitoring, workers, dependency
+      advisories, DSAR and English-only guides.
+- [x] Added the global **Pilot feedback** button and form. It uses the existing
+      `PlatformRequest` model with a new `feedback` kind (migration
+      `platform_admin/0008_alter_platformrequest_kind.py`), accepts a local page
+      path and `ERR-[0-9A-F]{6}` reference, limits users to five reports per
+      hour, writes to `/platform/inbox/` and notifies platform staff. Error
+      pages propagate the reference through `support_context`.
+- [x] Added `core/tests/test_pilot_scenario.py`: one HTTP-driven journey from
+      institution creation through first admin, setup wizard, structure, messy
+      student import, enrolment, fees, payment, receipt PDF, attendance, marks,
+      results workflow, report card PDF and public verification. Every response
+      and PDF is asserted. Fixed the three issues it exposed: the institution
+      form needed `access_grant_max_hours`, the first admin must be read through
+      `institution.users`, and the rejected import row must be checked through
+      `Student.all_objects`.
+- [x] Added `core/samples/pilot_students_messy.csv` and
+      `core/samples/pilot_fee_structures_messy.csv`. The student sample is used
+      by the scenario; a new fee-sample test proves two good lines join one
+      structure and the bad amount is reported.
+- [x] Updated `README.md`, `docs/PILOT_ONBOARDING.md`, `docs/ROLE_GUIDES.md`,
+      `MANUAL_TESTING.md` and `PRODUCTION_READINESS.md` with the pilot plan,
+      limitations, feedback flow, sample files, error references and final
+      verification evidence.
+- [x] Final verification: focused pilot tests **13 passed**; full suite
+      **1817 passed, 221 warnings in 675.92s**; `ruff check .` clean;
+      `makemigrations --check --dry-run` reports "No changes detected";
+      `manage.py check` shows only the expected console-email warning. No
+      existing feature regressed.

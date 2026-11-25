@@ -222,6 +222,8 @@
         <div class="crumb"><span class="crumb-kicker">Workspace</span><span class="crumb-title">{{ INSTITUTION }}</span>{% hierarchy_crumb as crumb %}{% if crumb %}<span class="crumb-title"> / {{ crumb }}</span>{% endif %}</div>
       </div>
       <div class="topbar-actions">
+        {% url 'platform_admin:pilot_feedback' as feedback_url %}
+        <a class="btn ghost btn-sm" href="{{ feedback_url }}{% if request.path != feedback_url %}?next={{ request.get_full_path|urlencode }}{% if error_reference %}&error={{ error_reference }}{% endif %}{% endif %}">Pilot feedback</a>
         <a class="bell" href="{% url 'notifications' %}"><svg class="ico"><use href="#i-bell"/></svg><span class="bell-text">Notifications</span>{% if UNREAD_COUNT %}<span class="dot">{{ UNREAD_COUNT }}</span>{% endif %}</a>
       </div>
     </header>

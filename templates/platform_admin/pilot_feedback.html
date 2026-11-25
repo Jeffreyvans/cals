@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Pilot feedback — Vanpere{% endblock %}
+{% block content %}
+<h1>Pilot feedback</h1>
+<p class="muted">Tell the platform team what happened. Please do not include names,
+  student numbers or other personal information in your message.</p>
+<form method="post" class="form compact">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <p><label for="feedback-message">{{ form.message.label }}</label>
+    {{ form.message }}
+    {% for error in form.message.errors %}<span class="field-error">{{ error }}</span>{% endfor %}
+  </p>
+  {{ form.error_reference }}
+  {% for error in form.error_reference.errors %}<span class="field-error">{{ error }}</span>{% endfor %}
+  {{ form.page }}
+  <p><button class="btn" type="submit">Send feedback</button>
+    <a class="btn ghost" href="{{ page|default:'/' }}">Cancel</a></p>
+</form>
+<p class="muted">If you saw an error, its reference is attached automatically.
+  You can also find it on the error page.</p>
+{% endblock %}

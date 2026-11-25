@@ -26,3 +26,17 @@ The main platform administrator is created from `PLATFORM_ADMIN_USERNAME`,
 `PLATFORM_ADMIN_EMAIL` and `PLATFORM_ADMIN_PASSWORD` during deploy; see
 [`DEPLOY.md`](DEPLOY.md) for the full Render walkthrough, environment
 variables, object storage, custom domains and password rotation.
+
+## One-school pilot
+
+New features are frozen. The pilot scope, 14-day onboarding plan, sample messy
+imports, role checklists and success measures are in
+[`PILOT_PLAN.md`](PILOT_PLAN.md). Read
+[`PILOT_LIMITATIONS.md`](PILOT_LIMITATIONS.md) before promising anything to the
+school; it states in plain English what is and is not covered. The go-live
+checklist is [`docs/PILOT_ONBOARDING.md`](docs/PILOT_ONBOARDING.md), and the
+role-by-role guides are [`docs/ROLE_GUIDES.md`](docs/ROLE_GUIDES.md).
+
+Signed-in users can press **Pilot feedback** in the top bar. It sends the
+current page, a short message and any `ERR-XXXXXX` error reference to the
+platform team's Inbox. Do not include personal information in the message.
