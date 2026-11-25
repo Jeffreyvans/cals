@@ -4,7 +4,8 @@ All AI assistance in Vanpere is optional and off by default. Nothing calls an
 external AI service until the platform operator configures a key and model,
 the platform kill switch is opened, an institution administrator switches on
 the individual feature, and the person using it has accepted the consent
-screen. Those controls are described below as they are added.
+screen. Those controls, the exact data sent by each feature, the safety rules
+and the feedback flow are all described below.
 
 The guiding rules are:
 
@@ -264,3 +265,13 @@ numbers, emails and addresses are absent from the provider request; that
 health and counselling prompts never reach a provider; that another school's
 name, slug or institution object is refused; and that the usage log holds no
 full personal content.
+
+## Verification
+
+The `ai` tests cover the provider, controls, privacy, five features, safety,
+limits and feedback (71 tests). The final full-suite run passed **1,807 tests**
+with no failures. `ruff check .` is clean and
+`python manage.py makemigrations --check --dry-run` reports "No changes
+detected". `python manage.py check` reports only the expected local
+console-email warning; production deployments configure a real email backend as
+described in `DEPLOY.md`.

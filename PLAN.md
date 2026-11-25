@@ -618,4 +618,14 @@ feature changes an existing screen or record when it is switched off.
   **1,807 passed** (221 warnings); `ruff check .` clean, `python manage.py
   check` shows only the expected console-email warning, and
   `makemigrations --check --dry-run` reports "No changes detected".
-- [ ] Part 6, documentation and final verification.
+- [x] Part 6, documentation and final verification: `docs/AI.md` now covers the
+  provider and environment settings, every gate and limit, the exact data sent
+  by all five features, the local safety rules, the redacted feedback flow and
+  what a school must agree to. Cross-checked every requirement against the code
+  and tests. Final verification: focused `ai` suite **71 passed**; full suite
+  **1,807 passed** (221 warnings); `ruff check .` clean, `python manage.py
+  check` shows only the expected console-email warning, and
+  `makemigrations --check --dry-run` reports "No changes detected".
+  Status: complete. Parts 1-5 were committed separately as `37d656f`,
+  `0e6bea4`, `928e801`, `4f21997` and `bc14690`; this final documentation
+  update is its own commit.

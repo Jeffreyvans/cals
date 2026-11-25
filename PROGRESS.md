@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-11-25 (session 39, optional AI assistance part 5).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-25 (session 39, optional AI assistance complete).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -1007,3 +1007,26 @@ it establishes one narrow, testable boundary to the model provider.
   check` shows only the expected console-email warning; and
   `python manage.py makemigrations --check --dry-run` reports "No changes
   detected".
+
+## Session 39 - Optional AI assistance, part 6: final documentation and verification (2026-11-25)
+
+- [x] Cross-checked the original requirements against the code and tests:
+  server-only Anthropic calls driven only by environment variables with a mock
+  provider for tests; kill switch, per-feature institution switches, consent
+  snapshots and daily/monthly limits; redaction and protected-category refusal
+  with tenant-isolation tests; all five features with their labels and local
+  fallbacks; injection, output and draft safety plus burst limits and feedback.
+- [x] Finished `docs/AI.md` so it documents every feature, the exact categories
+  sent to the provider, the locally calculated figures and fixed search
+  allow-list, the labels shown to users, the data recorded locally, the safety
+  rules, the burst-limit environment variables, the bad-answer feedback flow
+  and what a school must agree to before enabling AI.
+- [x] Final verification on the committed code: focused `ai` suite **71 passed**;
+  full suite **1,807 passed** (221 warnings); `ruff check .` clean;
+  `python manage.py check` shows only the expected console-email warning; and
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected". No existing feature regressed and no business-record write path
+  was added to AI assistance.
+- [x] Parts 1-5 were committed separately as `37d656f`, `0e6bea4`, `928e801`,
+  `4f21997` and `bc14690`; this documentation and status update is its own
+  final commit.
