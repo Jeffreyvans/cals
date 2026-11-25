@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}AI dashboard insights — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap narrow">
+    <div class="head"><div><h1>Dashboard insights</h1>
+      <p class="muted">Vanpere calculates the figures locally. The AI service only puts words around them; it never sees a student record.</p>
+    </div></div>
+
+    <form method="post" class="form">
+      {% csrf_token %}
+      <button class="btn" type="submit">Explain the current figures</button>
+    </form>
+
+    {% if answer %}
+      <div class="card">
+        {% if answer.error %}<p class="muted">{{ answer.error }}</p>{% endif %}
+        {% if answer.ok %}
+          <h2>Plain-language summary — needs review</h2>
+          <p>{{ answer.text|linebreaks }}</p>
+          <h3>Figures supplied from the database</h3>
+          <table class="tbl">
+            {% for figure in answer.figures %}
+              <tr><td>{{ figure.label }}</td><td>{{ figure.value }}</td></tr>
+            {% endfor %}
+          </table>
+          {% if not answer.reviewed %}
+            <p class="muted">The wording did not preserve the figures, so the calculated figures are shown directly instead.</p>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

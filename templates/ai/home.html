@@ -11,6 +11,15 @@
        {% if can_manage %}<a class="btn ghost" href="{% url 'ai:settings' %}">Feature switches and limits</a>{% endif %}
        <a class="btn ghost" href="{% url 'ai:usage' %}">Usage</a></p>
 
+    <h2>Assistants</h2>
+    <ul>
+      <li><a href="{% url 'ai:help' %}">Help assistant</a> — answers from your in-app guide, with source links.</li>
+      <li><a href="{% url 'ai:draft' %}">Draft writing</a> — editable previews that are never saved or sent by Vanpere.</li>
+      <li><a href="{% url 'ai:translation' %}">Translation</a> — English, Shona and Ndebele, always needing review.</li>
+      <li><a href="{% url 'ai:insights' %}">Dashboard insights</a> — plain words around locally calculated figures.</li>
+      <li><a href="{% url 'ai:search' %}">Natural-language search</a> — fixed, permission-checked record types only.</li>
+    </ul>
+
     <table class="tbl">
       <tr><th>Feature</th><th>Institution switch</th></tr>
       {% for row in rows %}

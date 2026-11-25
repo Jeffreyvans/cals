@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}AI help assistant — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap narrow">
+    <div class="head"><div><h1>Help assistant</h1>
+      <p class="muted">Answers come only from the in-app guide for your role. Links are added by Vanpere, not by the AI service.</p>
+    </div></div>
+
+    <form method="post" class="form">
+      {% csrf_token %}
+      <label for="question">Your question</label>
+      <textarea id="question" name="question" rows="3" maxlength="1500" autofocus></textarea>
+      <button class="btn" type="submit">Ask</button>
+    </form>
+
+    {% if answer %}
+      <div class="card">
+        {% if answer.error %}<p class="muted">{{ answer.error }}</p>{% endif %}
+        {% if answer.ok %}
+          <h2>Answer</h2>
+          <p>{{ answer.text|linebreaks }}</p>
+          {% if answer.sources %}
+            <h3>Sources in this guide</h3>
+            <ul>{% for source in answer.sources %}
+              <li><a href="{{ source.url }}">{{ source.label }}</a></li>
+            {% endfor %}</ul>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

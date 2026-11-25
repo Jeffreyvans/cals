@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}AI draft writing — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap narrow">
+    <div class="head"><div><h1>Draft writing</h1>
+      <p class="muted">This produces a preview only. Vanpere does not save or send it; copy it into the ordinary record or message when a person has approved it.</p>
+    </div></div>
+
+    <form method="post" class="form">
+      {% csrf_token %}
+      <label for="kind">Document type</label>
+      <select id="kind" name="kind">
+        {% for code, label in kinds %}
+          <option value="{{ code }}" {% if code == kind %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label for="instructions">What should it say?</label>
+      <textarea id="instructions" name="instructions" rows="5" maxlength="1500" autofocus></textarea>
+      <p class="muted">Do not type names, ID numbers, contact details, health information or another school's details.</p>
+      <button class="btn" type="submit">Create draft</button>
+    </form>
+
+    {% if answer %}
+      <div class="card">
+        {% if answer.error %}<p class="muted">{{ answer.error }}</p>{% endif %}
+        {% if answer.ok %}
+          <h2>{{ draft_label }}</h2>
+          <label for="draft-text">Edit the draft before copying it anywhere</label>
+          <textarea id="draft-text" rows="10">{{ answer.text }}</textarea>
+          <p class="muted">Nothing was saved or sent. A named person must review and approve this text.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

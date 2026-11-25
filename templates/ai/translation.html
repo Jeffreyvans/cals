@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}AI translation — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap narrow">
+    <div class="head"><div><h1>Translation</h1>
+      <p class="muted">Short passages between English, Shona and Ndebele. A person who knows the language should check every result.</p>
+    </div></div>
+
+    <form method="post" class="form">
+      {% csrf_token %}
+      <label for="source">From</label>
+      <select id="source" name="source">
+        {% for code, label in languages %}
+          <option value="{{ code }}" {% if code == source %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label for="target">To</label>
+      <select id="target" name="target">
+        {% for code, label in languages %}
+          <option value="{{ code }}" {% if code == target %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label for="text">Text</label>
+      <textarea id="text" name="text" rows="5" maxlength="1500" autofocus></textarea>
+      <button class="btn" type="submit">Translate</button>
+    </form>
+
+    {% if answer %}
+      <div class="card">
+        {% if answer.error %}<p class="muted">{{ answer.error }}</p>{% endif %}
+        {% if answer.ok %}
+          <h2>Translation — {{ review_label }}</h2>
+          <p>{{ answer.text|linebreaks }}</p>
+          <p class="muted">A person must review this wording before it is used.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

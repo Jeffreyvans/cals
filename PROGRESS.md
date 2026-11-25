@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-11-19 (session 35, dedicated bulk student upload).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-25 (session 39, optional AI assistance part 4).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -909,6 +909,52 @@ it establishes one narrow, testable boundary to the model provider.
   consequence that even a question about the health module is refused.
 - [x] Verification after part 3: focused `ai` suite **38 passed**; full suite
   **1,774 passed** (221 warnings); `ruff check .` clean; `python manage.py
+  check` shows only the expected console-email warning; and
+  `python manage.py makemigrations --check --dry-run` reports "No changes
+  detected".
+
+## Session 39 - Optional AI assistance, part 4: features (2026-11-25)
+
+- [x] Added five permission-gated screens linked from `/ai/home/`:
+  `/ai/help/`, `/ai/draft/`, `/ai/translation/`, `/ai/insights/` and
+  `/ai/search/`. Every screen resolves the institution locally and calls a
+  service in `ai/assistance.py`; none calls a provider directly and none writes
+  a business record.
+- [x] The help assistant resolves the signed-in person's guide from
+  `core.help.GUIDES` and `guide_for(user)`, filters out protected-task titles,
+  and sends only the redacted question, the guide title and matching task
+  titles. URLs are added locally with `reverse()`, never accepted from the
+  model. A missing match or unsupported wording returns "I don't know."
+- [x] Draft writing covers report-card comments, announcements, fee reminders
+  and letters. The result is an editable textarea headed "AI draft, please
+  review"; there is no save or send endpoint, no announcement or other record
+  is created, and the screen tells the person to copy an approved draft into
+  the ordinary workflow.
+- [x] Translation covers English, Shona and Ndebele and labels every result
+  "needs review". Insights require a dashboard permission and send only
+  `Label: value` lines calculated locally by `_staff_dashboard_figures()` and
+  `_role_dashboard_figures()`; the screen always shows those figures and drops
+  the wording if a number is missing.
+- [x] Natural-language search sends only the redacted request and the five
+  fixed code/label options. Tokens are intersected with `SEARCH_CODES` before
+  any query, and `core.search.search_groups()` — extracted from the existing
+  global search and reused by both screens — applies the same per-record
+  permissions, tenant scope, module flags and 20-result cap. The model never
+  supplies SQL, a filter condition or record values.
+- [x] Added `ai/output.py` as the shared output boundary: links, HTML tags,
+  command-like lines and control characters are removed and each feature's
+  text is capped before rendering.
+- [x] Added 19 tests in `ai/tests/test_features.py` covering guide source
+  selection and local links, "I don't know.", draft kinds and preview-only
+  behaviour, translation labels, insight figure preservation and fallback,
+  allow-list search and permission filtering, output cleaning, screen access
+  and the `ai.home` links. One test assertion was corrected because it
+  mistakenly treated the test's own question text as a leaked source phrase.
+- [x] Updated `docs/AI.md` with each feature's exact sent categories, returned
+  labels, local links, preview-only rule, figure fallback and fixed search
+  allow-list, together with what a school accepts on the consent screen.
+- [x] Verification after part 4: focused `ai` suite **57 passed**; full suite
+  **1,793 passed** (221 warnings); `ruff check .` clean; `python manage.py
   check` shows only the expected console-email warning; and
   `python manage.py makemigrations --check --dry-run` reports "No changes
   detected".

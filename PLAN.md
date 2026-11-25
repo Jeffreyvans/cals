@@ -575,8 +575,32 @@ feature changes an existing screen or record when it is switched off.
 - [x] Verification after part 3: full suite **1,774 passed** (221 warnings),
   focused `ai` suite **38 passed**, `ruff check .` clean, and
   `makemigrations --check --dry-run` reports "No changes detected".
-- [ ] Part 4, features in order: help assistant, drafts, translation,
-  plain-language insights, natural-language search.
+- [x] Part 4, features in order: help assistant, drafts, translation,
+  plain-language insights, natural-language search. All five screens live at
+  `/ai/help/`, `/ai/draft/`, `/ai/translation/`, `/ai/insights/` and
+  `/ai/search/`; each calls `ask_ai_for_user()` through `ai/assistance.py`, and
+  none writes a business record. The help assistant sends only the person's
+  role-guide title and matching task titles, with source links added locally
+  and "I don't know." when the titles do not support an answer. Drafts are
+  preview-only textareas labelled "AI draft, please review" with no save or
+  send action; translations are labelled "needs review"; insights wrap only
+  locally calculated labelled figures and fall back to those figures when the
+  wording drops a number.
+- [x] Natural-language search maps the request to fixed codes from
+  `core.search.SEARCH_CODES` and runs `core.search.search_groups()`, the same
+  permission-filtered search service now used by global search. The model never
+  writes SQL or a condition; parsed codes are intersected with the allow-list
+  before any local query, and all record access still obeys the person's
+  permissions and module flags.
+- [x] Added `ai/output.py`, which strips links, HTML, command-like lines and
+  control characters and caps output length for every feature. Added 19 tests
+  in `ai/tests/test_features.py` covering the five services, source linkage,
+  "I don't know.", preview-only drafts, review labels, figure fallbacks,
+  allow-list search, output cleaning and screen permissions.
+- [x] Verification after part 4: focused `ai` suite **57 passed**; full suite
+  **1,793 passed** (221 warnings); `ruff check .` clean, `python manage.py
+  check` shows only the expected console-email warning, and
+  `makemigrations --check --dry-run` reports "No changes detected".
 - [ ] Part 5, safety: prompt-injection defences, output checks, rate limiting
   and bad-answer feedback.
 - [ ] Part 6, documentation and final verification.

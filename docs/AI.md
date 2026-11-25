@@ -102,20 +102,79 @@ which produces a zero estimate rather than inventing a price.
 
 ## Data sent by each feature
 
-The features themselves are added in the next part. The disclosures are
-already stored on the consent record and shown on the consent screen:
+All five screens are linked from `/ai/home/` and pass through the same
+`ask_ai_for_user()` boundary, so the platform switch, the institution switch,
+`ai.use`, active consent and all four limits apply before a prompt is sent.
+The exact categories below are shown on the consent screen and copied into the
+acceptance snapshot. "All features" discloses only the minimum redacted text
+each enabled feature needs, and states that health and counselling information
+and records from another school are never eligible.
 
-| Feature | Categories disclosed as shared |
+| Screen | Categories disclosed as shared |
 | --- | --- |
-| Help assistant | The redacted question and the titles of in-app guides selected locally as possible sources. |
-| Draft writing | Redacted writing instructions and pasted draft text, plus the document type (report-card comment, announcement, fee reminder or letter). |
-| Translation | The redacted text the person asks to translate. |
-| Dashboard insights | Only labelled database totals, percentages and currency amounts; no names, student records, contact details or record-level details. |
-| Natural-language search | The redacted request and the fixed list of field labels it may choose from; no SQL, record values or documents. |
+| Help assistant (`/ai/help/`) | The redacted question and the titles of in-app guides selected locally as possible sources. |
+| Draft writing (`/ai/draft/`) | Redacted writing instructions and pasted draft text, plus the document type. |
+| Translation (`/ai/translation/`) | The redacted text the person asks to translate. |
+| Dashboard insights (`/ai/insights/`) | Only labelled database totals, percentages and currency amounts; no names, student records, contact details or record-level details. |
+| Natural-language search (`/ai/search/`) | The redacted request and the fixed list of field labels it may choose from; no SQL, record values or documents. |
 
-"All features" discloses only the minimum redacted text each enabled feature
-needs, and states that health and counselling information and records from
-another school are never eligible.
+### Help assistant
+
+`core.help.GUIDES` and `guide_for(user)` choose the person's role guide locally.
+Only the guide title and the matching task titles are sent with the redacted
+question; no URLs, guide bodies or other roles' guides are sent. The assistant
+must answer only from those titles or reply exactly "I don't know." Links are
+built locally with `reverse()` and shown under "Sources in this guide"; a model-
+supplied link is never shown, and an answer that does not use a supplied title
+is replaced with "I don't know." Answers are capped at 700 characters.
+
+### Draft writing
+
+The person chooses a report-card comment, announcement, fee reminder or letter
+and types the instructions. The document type and redacted instructions are
+sent; nothing is read from a student, parent or fee record. The result appears
+in an editable textarea headed "AI draft, please review", capped at 2,000
+characters. It is a preview only: there is no save or send endpoint, no business
+record is written, and a named person must review and copy the text into the
+ordinary workflow.
+
+### Translation
+
+The source and target language names (English, Shona or Ndebele) and the
+redacted passage are sent. Input is capped at 1,500 characters and the result
+at the same length. The screen heads the result "Translation — needs review"
+and tells the person that a speaker of the language must check the wording
+before it is used.
+
+### Dashboard insights
+
+A person needs `reports.view_dashboards` or `admin.dashboard_school` to open
+this screen. `_staff_dashboard_figures()` and `_role_dashboard_figures()`
+calculate the figures locally: active students, students with an outstanding
+balance, courses, total billed, paid, waived and outstanding, plus collection
+rate and attendance where available. Only `Label: value` lines are sent; no
+names, student records, contact details or record-level details are included.
+The response is labelled "Plain-language summary — needs review" and is shown
+beside a table of the locally calculated figures. If the returned wording drops
+any number, Vanpere discards it and shows the figures directly instead, so the
+model cannot invent or silently change a figure.
+
+### Natural-language search
+
+A person needs `search.global`. The prompt contains the redacted request and
+five fixed code/label pairs: students, staff, courses, receipts and
+applications. The model may reply only with zero or more of those codes; it is
+told never to write a query, condition, code or SQL. Returned tokens are
+intersected with `SEARCH_CODES` before anything else happens, so unexpected
+words, links and commands are ignored. `core.search.search_groups()` then runs
+the ordinary permission-filtered queries shared with the global search screen,
+with at most 20 results per group and the admissions module flag still applied.
+The prompt is capped at 160 characters. If no valid code is chosen the person
+is asked to name a record type; no query is run on a free-form AI condition.
+
+Every returned answer passes through `ai/output.sanitize_output()`, which
+strips links, HTML tags, command-like lines and control characters and caps the
+length before the screen renders it.
 
 ## Privacy enforcement
 

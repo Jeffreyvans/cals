@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}AI natural-language search — {% endblock %}
+{% block content %}
+<section class="section">
+  <div class="wrap narrow">
+    <div class="head"><div><h1>Natural-language search</h1>
+      <p class="muted">The AI service chooses only from a fixed list of record types. Vanpere builds the query and applies the same permissions as ordinary search.</p>
+    </div></div>
+
+    <form method="post" class="form">
+      {% csrf_token %}
+      <label for="q">What are you looking for?</label>
+      <input id="q" type="search" name="q" value="{{ query }}" maxlength="160" autofocus>
+      <button class="btn" type="submit">Search</button>
+    </form>
+
+    {% if answer %}
+      <div class="card">
+        {% if answer.error %}<p class="muted">{{ answer.error }}</p>{% endif %}
+        {% if answer.ok %}
+          <p class="muted">Chosen record types: {{ answer.chosen|join:", " }}</p>
+          {% if not answer.groups %}
+            <p class="muted">Nothing matched in the records you can see.</p>
+          {% endif %}
+          {% for group in answer.groups %}
+            <h2>{{ group.title }}</h2>
+            {% for item in group.items %}
+              <a class="card link-card" href="{{ item.url }}"><b>{{ item.label }}</b><span class="muted">{{ item.meta }}</span></a>
+            {% endfor %}
+          {% endfor %}
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if not can_search %}<p class="muted">Your role does not have permission to search school records.</p>{% endif %}
+  </div>
+</section>
+{% endblock %}
