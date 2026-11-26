@@ -306,9 +306,24 @@ class InstitutionDomainForm(forms.Form):
         help_text="For example learn.example.org, without https://.",
     )
 
+    def __init__(self, *args, institution=None, **kwargs):
+        self.institution = institution
+        super().__init__(*args, **kwargs)
+
     def clean_custom_domain(self):
         value = (self.cleaned_data.get("custom_domain") or "").strip()
-        return normalize_domain(value) if value else ""
+        domain = normalize_domain(value) if value else ""
+        if domain:
+            from core.models import Institution
+
+            taken = Institution.objects.filter(custom_domain__iexact=domain)
+            if self.institution is not None and self.institution.pk:
+                taken = taken.exclude(pk=self.institution.pk)
+            if taken.exists():
+                raise forms.ValidationError(
+                    "That domain is already configured for another institution."
+                )
+        return domain
 
 
 class PlanForm(forms.ModelForm):

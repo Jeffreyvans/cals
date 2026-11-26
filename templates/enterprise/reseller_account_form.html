@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Add reseller user{% endblock %}
+{% block content %}
+<h1>Add a reseller user</h1>
+<form method="post" class="inline">{% csrf_token %}
+  {{ form.as_p }}
+  <p><button class="btn" type="submit">Create account</button></p>
+</form>
+<p class="muted">The organisation must already exist and have type <strong>Reseller</strong>. Attach its client schools on the organisation page first.</p>
+{% endblock %}

@@ -59,7 +59,11 @@
   <p><label>Address<textarea name="address" rows="2">{{ institution.address }}</textarea></label></p>
   <p><label>Longest consent grant (hours, max 168)<input name="access_grant_max_hours" type="number" min="1" max="168" value="{{ institution.access_grant_max_hours }}"></label></p>
   <p><label><input type="checkbox" name="public_page_enabled" {% if institution.public_page_enabled %}checked{% endif %}> Public page enabled</label></p>
-  <p><label><input type="checkbox" name="show_platform_branding" {% if institution.show_platform_branding %}checked{% endif %}> Show “Powered by {% brand_name %}” attribution</label></p>
+  {% if can_white_label %}
+    <p><label><input type="checkbox" name="show_platform_branding" {% if institution.show_platform_branding %}checked{% endif %}> Show “Powered by {% brand_name %}” attribution</label></p>
+  {% else %}
+    <p class="muted">White-label attribution control needs the <code>white_label</code> plan feature. Attribution stays visible.</p>
+  {% endif %}
   <button class="btn" type="submit">Save details</button>
 </form>
 

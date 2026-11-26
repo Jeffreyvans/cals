@@ -21,6 +21,7 @@ from core.models import (
     record_slug_change,
     resolve_institution_slug,
 )
+from core.modules import set_module
 from core.slugs import (
     MAX_SLUG_LENGTH,
     RESERVED_SLUGS,
@@ -195,6 +196,7 @@ class CustomDomainHostTests(TestCase):
         self.institution = Institution.objects.create(
             name="Alpha College", slug="alpha", type="college"
         )
+        set_module(self.institution, "white_label", True)
 
     def _request_institution(self):
         response = self.client.get("/login/", HTTP_HOST="learn.alpha.example")

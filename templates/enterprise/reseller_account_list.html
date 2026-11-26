@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block title %}Reseller accounts{% endblock %}
+{% block content %}
+<h1>Reseller accounts</h1>
+<p><a class="btn" href="{% url 'enterprise:reseller_account_create' %}">Add a reseller user</a></p>
+<table><thead><tr><th>Organisation</th><th>User</th><th>Role</th><th>Commission</th><th>Active</th></tr></thead><tbody>
+{% for account in accounts %}<tr>
+<td>{{ account.organisation.name }}</td><td>{{ account.user.username }}</td>
+<td>{{ account.get_role_display }}</td><td>{{ account.commission_rate }}%</td>
+<td>{{ account.is_active|yesno }}</td></tr>
+{% empty %}<tr><td colspan="5">No reseller accounts yet.</td></tr>{% endfor %}
+</tbody></table>
+
+<h2>Recent commissions</h2>
+<table><thead><tr><th>Reseller</th><th>Client</th><th>Invoice</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>
+{% for row in commissions %}<tr>
+<td>{{ row.account.organisation.name }}</td><td>{{ row.institution.name }}</td>
+<td>{{ row.platform_invoice.number }}</td><td>{{ row.amount }}</td>
+<td>{{ row.get_status_display }}</td>
+<td>{% if row.status == 'accrued' %}<form method="post" action="{% url 'enterprise:reseller_commission_update' row.pk %}">{% csrf_token %}<input type="hidden" name="action" value="pay"><button class="btn ghost btn-sm" type="submit">Mark paid</button></form>{% endif %}</td>
+</tr>
+{% empty %}<tr><td colspan="6">No commissions yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

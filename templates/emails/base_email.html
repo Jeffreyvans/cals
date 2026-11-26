@@ -1,12 +1,13 @@
 {# Brown HTML email shell. Every colour is one of the defined brown palette
    values, written inline because email clients do not read stylesheets. #}
 {% load branding %}
+{% brand_name_for institution as email_brand %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}{% brand_name %}{% endblock %}</title>
+  <title>{% block title %}{{ email_brand }}{% endblock %}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#faf4ec; color:#2b1a12; font-family:Figtree, 'Segoe UI', Helvetica, Arial, sans-serif;">
   <div style="display:none; max-height:0; overflow:hidden; opacity:0;">{% block preheader %}{% endblock %}</div>
@@ -18,7 +19,7 @@
             <td style="padding:20px 26px; background-color:#3e2723; border-radius:18px 18px 0 0;">
               {% institution_logo user.institution 160 as tag_logo %}
               {% if logo_url or tag_logo %}<img src="{{ logo_url|default:tag_logo }}" alt="" width="44" height="44" style="vertical-align:middle; margin-right:10px; border-radius:10px; background-color:#faf4ec; padding:4px;">{% endif %}
-              <span style="color:#faf4ec; font-size:18px; font-weight:700; letter-spacing:0.2px; vertical-align:middle;">{% brand_name %}</span>
+              <span style="color:#faf4ec; font-size:18px; font-weight:700; letter-spacing:0.2px; vertical-align:middle;">{{ email_brand }}</span>
               {% block brand %}{% endblock %}
             </td>
           </tr>
@@ -30,7 +31,7 @@
           <tr>
             <td style="padding:16px 26px 26px; color:#6f4a36; font-size:13px; line-height:1.5; border-top:1px solid #dcc8b6;">
               {% block footer %}
-                {% if institution %}Sent by {{ institution.name }} via {% brand_via %}.{% else %}This message was sent by {% brand_name %}.{% endif %}
+                {% if institution %}{% if institution.show_platform_branding %}Sent by {{ institution.name }} via {% brand_via %}.{% else %}Sent by {{ institution.name }}.{% endif %}{% else %}This message was sent by {% brand_name %}.{% endif %}
                 If you were not expecting it, you can ignore it.
                 {% include "includes/email_brand_footer.html" %}
               {% endblock %}

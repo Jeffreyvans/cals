@@ -33,15 +33,19 @@ from enterprise.access import (
     log_sponsor_action,
     require_sponsor_sensitive_action,
     require_student_grant,
+    reseller_accounts_for,
+    reseller_required,
     sponsor_required,
     student_level_grant,
 )
 from enterprise.documents import build_sponsor_receipt_pdf
-from enterprise.forms import SponsorAccountForm, SponsorLinkForm
+from enterprise.forms import ResellerAccountForm, SponsorAccountForm, SponsorLinkForm
 from enterprise.models import (
     GroupBilling,
     GroupMembership,
     Organisation,
+    ResellerAccount,
+    ResellerCommission,
     SponsorAccount,
 )
 from enterprise.services import (
@@ -50,14 +54,17 @@ from enterprise.services import (
     attach_institution,
     create_consolidated_invoice,
     create_organisation,
+    create_reseller_account,
     create_sponsor_account,
     create_sponsor_link,
     detach_institution,
     donor_report,
     effective_setting,
     issue_sponsor_credit_note,
+    mark_commission_paid,
     refresh_group_alerts,
     request_group_student_access,
+    reseller_portal_data,
     resend_sponsor_verification,
     revoke_group_role,
     save_campus_override,
@@ -238,11 +245,9 @@ def group_login(request, slug):
     )
 
 
-def feature_enabled_for_organisation(org):
-    """Any attached campus with the group feature enabled allows group sign-in."""
-    from enterprise.access import feature_enabled
-
-    return any(feature_enabled("groups", campus) for campus in org.campuses())
+def feature_enabled_for_organisation(org, code="groups"):
+    """Any attached campus with the feature enabled allows organisation sign-in."""
+    return any(feature_enabled(code, campus) for campus in org.campuses())
 
 
 @group_required(*ALL_GROUP_ROLES)
@@ -1112,3 +1117,127 @@ def sponsor_security(request):
             "secret": account.two_factor_secret if not account.two_factor_enabled else "",
         },
     )
+
+
+# =====================================================================
+# Reseller accounts and portal
+# =====================================================================
+
+
+@platform_required("platform.manage_billing")
+def reseller_account_list(request):
+    accounts = ResellerAccount.objects.select_related("user", "organisation").order_by(
+        "organisation__name", "user__username"
+    )
+    commissions = ResellerCommission.objects.select_related(
+        "account__organisation", "institution"
+    )[:50]
+    return render(
+        request, "enterprise/reseller_account_list.html",
+        {"accounts": accounts, "commissions": commissions},
+    )
+
+
+@platform_required("platform.manage_billing")
+def reseller_account_create(request):
+    form = ResellerAccountForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        try:
+            account = create_reseller_account(
+                user=data["user"], organisation=data["organisation"],
+                role=data["role"], commission_rate=data["commission_rate"],
+                actor=request.user, request=request,
+            )
+        except ValidationError as exc:
+            form.add_error(None, str(exc))
+        else:
+            messages.success(request, f"Reseller account created for {account.user.username}.")
+            return redirect("enterprise:reseller_account_list")
+    return render(
+        request, "enterprise/reseller_account_form.html",
+        {"form": form},
+    )
+
+
+@platform_required("platform.manage_billing")
+def reseller_commission_update(request, pk):
+    if request.method != "POST":
+        raise Http404
+    commission = get_object_or_404(ResellerCommission, pk=pk)
+    if request.POST.get("action") == "pay":
+        mark_commission_paid(commission, actor=request.user, request=request)
+        messages.success(request, "Commission marked as paid.")
+    return redirect("enterprise:reseller_account_list")
+
+
+def reseller_login(request, slug):
+    """Sign in to one reseller organisation at /reseller/<slug>/login/."""
+    org = get_object_or_404(
+        Organisation, slug=slug, status=Organisation.Status.ACTIVE,
+        type=Organisation.Type.RESELLER,
+    )
+    if not feature_enabled_for_organisation(org, "reseller"):
+        raise Http404("Reseller access is not enabled for this organisation.")
+    next_url = _safe_next(request)
+    form = IdentifierAuthenticationForm(request, data=request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        user = form.get_user()
+        account = next(
+            (a for a in reseller_accounts_for(user) if a.organisation_id == org.pk), None
+        )
+        if account is None:
+            logout(request)
+            form.add_error(None, "Use a reseller account for this organisation.")
+        else:
+            login(request, user)
+            request.session["reseller_account_id"] = account.pk
+            request.session.pop("reseller_client_id", None)
+            if next_url:
+                return redirect(next_url)
+            return redirect("enterprise:reseller_dashboard", slug=org.slug)
+    return render(
+        request, "enterprise/reseller_login.html",
+        {"organisation": org, "form": form, "next_url": next_url},
+    )
+
+
+@reseller_required()
+def reseller_dashboard(request, slug):
+    """Client aggregates and commission totals; no student-level data."""
+    account = request.reseller_account
+    client_id = request.GET.get("client") or ""
+    data = reseller_portal_data(account, client_id or None)
+    return render(
+        request, "enterprise/reseller_dashboard.html",
+        {"organisation": request.organisation, "account": account,
+         "data": data, "client_id": client_id},
+    )
+
+
+@reseller_required()
+def reseller_export(request, slug):
+    """CSV export of the same aggregates shown on the reseller dashboard."""
+    import csv
+
+    data = reseller_portal_data(request.reseller_account, request.GET.get("client") or None)
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["Campus", "Enrolment", "Collected", "Subscription"])
+    for row in data["rows"]:
+        writer.writerow([row["campus"], row["enrolment"], row["collected"],
+                         row["subscription"]])
+    response = HttpResponse(out.getvalue(), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="reseller-{slug}-{timezone.localdate().isoformat()}.csv"'
+    )
+    return response
+
+
+@require_POST
+@reseller_required()
+def reseller_logout(request, slug):
+    request.session.pop("reseller_account_id", None)
+    request.session.pop("reseller_client_id", None)
+    logout(request)
+    return redirect("enterprise:reseller_login", slug=slug)

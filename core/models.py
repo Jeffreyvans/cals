@@ -2,6 +2,8 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import models, transaction
+from django.db.models import Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 from core.email_types import EMAIL_TYPES, GENERAL
@@ -192,6 +194,13 @@ class Institution(models.Model):
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("custom_domain"),
+                name="uniq_institution_custom_domain",
+                condition=~Q(custom_domain=""),
+            )
+        ]
 
     def __str__(self):
         return self.name

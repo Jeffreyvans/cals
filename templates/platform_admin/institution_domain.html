@@ -30,13 +30,17 @@
   {# Internal DNS label is kept so existing verification records stay valid. #}
   <li>At your DNS provider add a TXT record for <code>_edusphere.{{ institution.custom_domain }}</code> with the value <code>{{ institution.custom_domain_token }}</code>.</li>
   <li>Point the hostname itself at the {% brand_name %} service (a <code>CNAME</code> or the platform's recommended <code>ALIAS</code> record) and wait for the certificate to be issued.</li>
-  <li>Add the host to the deployment environment (then redeploy):
+  <li>Allow the host in the deployment environment (recommended on Render; the application also registers verified domains at runtime):
     <pre>ALLOWED_HOSTS={{ institution.custom_domain }}
 CSRF_TRUSTED_ORIGINS=https://{{ institution.custom_domain }}</pre>
   </li>
   <li>Open <code>https://{{ institution.custom_domain }}/i/{{ institution.slug }}/login/</code> and check that the page, styles and uploads load.</li>
   <li>Confirm below. Until you do, the domain is ignored by the application.</li>
 </ol>
+<form method="post" class="inline">
+  {% csrf_token %}<input type="hidden" name="action" value="check">
+  <p><button class="btn ghost" type="submit">Check DNS resolution</button></p>
+</form>
 <form method="post" class="inline">
   {% csrf_token %}<input type="hidden" name="action" value="verify">
   <p><label class="check"><input type="checkbox" name="confirm"> I have completed the DNS and host steps above.</label></p>
@@ -45,6 +49,10 @@ CSRF_TRUSTED_ORIGINS=https://{{ institution.custom_domain }}</pre>
 <form method="post" class="inline">
   {% csrf_token %}<input type="hidden" name="action" value="disable">
   <p><button class="btn ghost" type="submit">Disable custom domain</button></p>
+</form>
+<form method="post" class="inline">
+  {% csrf_token %}<input type="hidden" name="action" value="remove">
+  <p><button class="btn ghost" type="submit" onclick="return confirm('Remove this custom domain? Institution data is not deleted.');">Remove custom domain</button></p>
 </form>
 {% endif %}
 {% endblock %}

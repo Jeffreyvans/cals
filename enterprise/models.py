@@ -399,3 +399,90 @@ class GroupAccessRequestLink(models.Model):
 
     def __str__(self):
         return f"Group access request {self.access_request_id}"
+
+
+class ResellerAccount(models.Model):
+    """A named user's access to one reseller organisation.
+
+    A reseller never gets a copy of an institution. Its client list is the
+    existing ``OrganisationMembership`` links, and its commission is derived
+    from existing platform payments.
+    """
+
+    class Role(models.TextChoices):
+        ADMIN = "reseller_admin", "Reseller administrator"
+        VIEWER = "reseller_viewer", "Reseller viewer (read only)"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="reseller_accounts",
+    )
+    organisation = models.ForeignKey(
+        Organisation, on_delete=models.CASCADE, related_name="reseller_accounts"
+    )
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.VIEWER)
+    commission_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("10.00"),
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
+        help_text="Percentage of each client platform payment accrued to this reseller.",
+    )
+    is_active = models.BooleanField(default=True)
+    created = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "organisation"], name="uniq_reseller_account"
+            )
+        ]
+        ordering = ["organisation__name", "user__username"]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.organisation.name}"
+
+    def clean(self):
+        if self.organisation_id and self.organisation.type != Organisation.Type.RESELLER:
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError("A reseller account needs a reseller organisation.")
+
+    def clients(self):
+        return self.organisation.campuses()
+
+
+class ResellerCommission(models.Model):
+    """Commission accrued from one existing platform payment."""
+
+    class Status(models.TextChoices):
+        ACCRUED = "accrued", "Accrued"
+        PAID = "paid", "Paid"
+
+    account = models.ForeignKey(
+        ResellerAccount, on_delete=models.PROTECT, related_name="commissions"
+    )
+    platform_invoice = models.ForeignKey(
+        "platform_admin.PlatformInvoice", on_delete=models.PROTECT,
+        related_name="reseller_commissions",
+    )
+    payment = models.OneToOneField(
+        "platform_admin.PlatformPayment", on_delete=models.PROTECT,
+        related_name="reseller_commission",
+    )
+    institution = models.ForeignKey(
+        "core.Institution", on_delete=models.PROTECT, related_name="reseller_commissions"
+    )
+    rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    status = models.CharField(
+        max_length=12, choices=Status.choices, default=Status.ACCRUED
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["-created", "-pk"]
+
+    def __str__(self):
+        return f"{self.account.organisation.name}: {self.amount}"

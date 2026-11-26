@@ -32,6 +32,18 @@ urlpatterns = [
          name="sponsor_account_detail"),
     path("platform/sponsors/report/", views.sponsor_donor_report,
          name="sponsor_donor_report"),
+    # Platform administration of reseller accounts and commissions.
+    path("platform/resellers/", views.reseller_account_list,
+         name="reseller_account_list"),
+    path("platform/resellers/new/", views.reseller_account_create,
+         name="reseller_account_create"),
+    path("platform/resellers/commissions/<int:pk>/", views.reseller_commission_update,
+         name="reseller_commission_update"),
+    # Reseller portal.
+    path("reseller/<slug:slug>/login/", views.reseller_login, name="reseller_login"),
+    path("reseller/<slug:slug>/", views.reseller_dashboard, name="reseller_dashboard"),
+    path("reseller/<slug:slug>/export/", views.reseller_export, name="reseller_export"),
+    path("reseller/<slug:slug>/logout/", views.reseller_logout, name="reseller_logout"),
     # Sponsor portal.
     path("sponsor/", views.sponsor_login, name="sponsor_login"),
     path("sponsor/select/", views.sponsor_select, name="sponsor_select"),

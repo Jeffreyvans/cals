@@ -38,6 +38,7 @@ from core.models import (
 from core.modules import ALL_MODULES, MODULE_LABELS
 from core.notifications import absolute_url, notify
 from core.slugs import domain_verification_token
+from enterprise.access import feature_enabled
 
 from . import onboarding, services
 from .access import institution_admin_required, platform_required
@@ -689,7 +690,12 @@ def institution_create(request):
 @platform_required("platform.view_institutions")
 def institution_detail(request, pk):
     institution = _institution_or_404(pk)
+    can_white_label = feature_enabled("white_label", institution)
     form = InstitutionEditForm(instance=institution)
+    if not can_white_label:
+        # A lapsed or absent plan cannot change the white-label flag, even if
+        # somebody posts the field directly.
+        form.fields.pop("show_platform_branding", None)
     if request.method == "POST":
         action = request.POST.get("action", "edit")
         if action == "edit":
@@ -705,6 +711,8 @@ def institution_detail(request, pk):
                 "show_platform_branding": institution.show_platform_branding,
             }
             form = InstitutionEditForm(request.POST, instance=institution)
+            if not can_white_label:
+                form.fields.pop("show_platform_branding", None)
             if form.is_valid():
                 form.save()
                 if before["slug"] != institution.slug:
@@ -792,6 +800,7 @@ def institution_detail(request, pk):
         {
             "institution": institution,
             "form": form,
+            "can_white_label": can_white_label,
             "subscription": subscription,
             "invoice_count": institution.platform_invoices.count(),
             "user_count": User.objects.filter(institution=institution).count(),
@@ -1070,13 +1079,19 @@ def institution_signup_link(request, pk):
 def institution_domain(request, pk):
     """Configure and verify an institution's optional custom domain."""
     institution = _institution_or_404(pk)
-    form = InstitutionDomainForm(initial={"custom_domain": institution.custom_domain})
+    if not feature_enabled("white_label", institution):
+        raise Http404("Custom domains are not enabled for this institution.")
+
+    form = InstitutionDomainForm(
+        initial={"custom_domain": institution.custom_domain}, institution=institution
+    )
     if request.method == "POST":
         action = request.POST.get("action", "save")
-        from core.cache import invalidate_institution
+        from core.cache import invalidate_domain, invalidate_institution
+        from core.hosts import invalidate_dynamic_hosts
 
         if action == "save":
-            form = InstitutionDomainForm(request.POST)
+            form = InstitutionDomainForm(request.POST, institution=institution)
             if form.is_valid():
                 domain = form.cleaned_data["custom_domain"]
                 old = institution.custom_domain
@@ -1092,6 +1107,8 @@ def institution_domain(request, pk):
                         "custom_domain_token",
                     ])
                     invalidate_institution(institution)
+                    invalidate_domain(old)
+                    invalidate_dynamic_hosts()
                 services.log_platform_action(
                     request.user, "institution.custom_domain_changed",
                     institution=institution, record_type="Institution",
@@ -1105,6 +1122,19 @@ def institution_domain(request, pk):
                     "ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS, then verify it.",
                 )
                 return redirect("platform_admin:institution_domain", pk=institution.pk)
+        elif action == "check":
+            from core.domains import domain_resolves
+
+            if institution.custom_domain and domain_resolves(institution.custom_domain):
+                messages.success(
+                    request, "DNS resolves. Confirm the TXT token and TLS setup below."
+                )
+            else:
+                messages.error(
+                    request,
+                    "That hostname does not resolve yet. Check the CNAME or ALIAS record.",
+                )
+            return redirect("platform_admin:institution_domain", pk=institution.pk)
         elif action == "verify":
             if not institution.custom_domain:
                 messages.error(request, "Enter a domain first.")
@@ -1119,6 +1149,7 @@ def institution_domain(request, pk):
                     "custom_domain_enabled",
                 ])
                 invalidate_institution(institution)
+                invalidate_dynamic_hosts()
                 services.log_platform_action(
                     request.user, "institution.custom_domain_verified",
                     institution=institution, record_type="Institution",
@@ -1132,12 +1163,36 @@ def institution_domain(request, pk):
             institution.custom_domain_enabled = False
             institution.save(update_fields=["custom_domain_enabled"])
             invalidate_institution(institution)
+            invalidate_dynamic_hosts()
             services.log_platform_action(
                 request.user, "institution.custom_domain_disabled",
                 institution=institution, record_type="Institution",
                 record_id=institution.pk, request=request,
             )
             messages.success(request, "Custom domain disabled. The /i/<slug>/ links still work.")
+            return redirect("platform_admin:institution_domain", pk=institution.pk)
+        elif action == "remove":
+            old = institution.custom_domain
+            institution.custom_domain = ""
+            institution.custom_domain_verified = False
+            institution.custom_domain_verified_at = None
+            institution.custom_domain_enabled = False
+            institution.custom_domain_token = ""
+            institution.save(update_fields=[
+                "custom_domain", "custom_domain_verified", "custom_domain_verified_at",
+                "custom_domain_enabled", "custom_domain_token",
+            ])
+            invalidate_institution(institution)
+            invalidate_domain(old)
+            invalidate_dynamic_hosts()
+            services.log_platform_action(
+                request.user, "institution.custom_domain_removed",
+                institution=institution, record_type="Institution",
+                record_id=institution.pk,
+                before={"custom_domain": old}, after={"custom_domain": ""},
+                request=request,
+            )
+            messages.success(request, "Custom domain removed. No institution data was deleted.")
             return redirect("platform_admin:institution_domain", pk=institution.pk)
     return render(
         request,
@@ -1272,6 +1327,9 @@ def invoice_detail(request, pk):
             payment.invoice = invoice
             payment.recorded_by = request.user
             payment.save()
+            from enterprise.services import accrue_reseller_commissions
+
+            accrue_reseller_commissions(invoice, payment, actor=request.user)
             if invoice.balance <= Decimal("0") and invoice.status != PlatformInvoice.Status.PAID:
                 invoice.status = PlatformInvoice.Status.PAID
                 invoice.paid_on = payment.paid_at.date()

@@ -28,6 +28,8 @@ def _connect():
     Role = apps.get_model("core", "Role")
     RolePermission = apps.get_model("core", "RolePermission")
     User = apps.get_model("accounts", "User")
+    Plan = apps.get_model("platform_admin", "Plan")
+    Subscription = apps.get_model("platform_admin", "Subscription")
 
     for model in (Institution, InstitutionModule, Terminology, SchoolSettings):
         post_save.connect(_clear_institution, sender=model, dispatch_uid=f"cache-{model.__name__}")
@@ -36,6 +38,12 @@ def _connect():
     for model in (Invoice, Payment):
         post_save.connect(_clear_dashboard, sender=model, dispatch_uid=f"cache-{model.__name__}")
         post_delete.connect(_clear_dashboard, sender=model, dispatch_uid=f"cache-del-{model.__name__}")
+
+    # A plan or subscription change can grant or remove the white-label feature
+    # without touching the institution row, so refresh the host list too.
+    for model in (Plan, Subscription):
+        post_save.connect(_clear_feature_hosts, sender=model, dispatch_uid=f"cache-hosts-{model.__name__}")
+        post_delete.connect(_clear_feature_hosts, sender=model, dispatch_uid=f"cache-hosts-del-{model.__name__}")
 
     for model in (Role, RolePermission, User):
         post_save.connect(_bump_permissions, sender=model, dispatch_uid=f"cache-perm-{model.__name__}")
@@ -51,7 +59,24 @@ def _connect():
 
 
 def _clear_institution(sender, instance, **kwargs):
-    invalidate_institution(_institution_id(instance))
+    # An Institution save carries its slug/domain, so clear those cache keys as
+    # well. Related rows only carry an institution id.
+    if hasattr(instance, "slug") or hasattr(instance, "custom_domain"):
+        invalidate_institution(instance)
+        from core.hosts import invalidate_dynamic_hosts
+
+        invalidate_dynamic_hosts()
+    else:
+        invalidate_institution(_institution_id(instance))
+        if getattr(instance, "code", None) == "white_label":
+            _clear_feature_hosts(sender, instance, **kwargs)
+
+
+def _clear_feature_hosts(sender, instance, **kwargs):
+    """Refresh verified hosts after a plan, subscription or module edit."""
+    from core.hosts import invalidate_dynamic_hosts
+
+    invalidate_dynamic_hosts()
 
 
 def _clear_dashboard(sender, instance, **kwargs):

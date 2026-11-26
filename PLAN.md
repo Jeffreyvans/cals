@@ -711,3 +711,46 @@ billing rows stay the single source of truth.
   suite **1,857 passed, 233 warnings in 570.62s**; `ruff check .` clean;
   `makemigrations --check --dry-run` reports "No changes detected".
 
+### Part 3 - White-label domains and resellers
+- [x] Custom domains reuse the existing `Institution` fields and platform
+  screens. A host is lower-cased, trailing dots are removed and duplicates are
+  refused; changing it clears the token and verification state. DNS remains
+  manual: publish the TXT `_edusphere.learn.example.org` token (using the real
+  host), point the host at the service, run the documented reachability check,
+  then let platform staff
+  confirm DNS/TLS explicitly before the host is enabled.
+- [x] `core/domains.py`, `core/hosts.py`, `core/cache.py` and
+  `core/cache_signals.py` resolve verified hosts and register them in runtime
+  `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS` without removing environment hosts.
+  The feature check sits outside the cached lookup, so a lapsed plan stops a
+  host immediately. Domain, module, plan and subscription writes invalidate the
+  cache. The middleware refreshes only an unknown host, so established hosts
+  add no query; the 21-query staff-list guard is unchanged.
+- [x] `HostSessionIsolationMiddleware` binds a session to its host, flushes a
+  session presented to another host and clears group/sponsor/reseller
+  selectors. The binding is written at login through `user_logged_in`, so a
+  normal request does not pay for an extra session save; responses carry
+  `Vary: Host`.
+- [x] White-label suppression hides only the small "Powered by Vanpere" credit
+  in the UI, email footer and PDFs. The institution's own name, copyright and
+  legal wording, the verified sender address and the publisher/legal identity
+  all remain.
+- [x] Reseller accounts link to existing `Organisation` rows of type
+  `reseller`; the client list comes from existing `OrganisationMembership`
+  rows. Commission derives from existing `PlatformPayment` rows, one
+  `ResellerCommission` per payment, with audit rows and an idempotent "mark
+  paid" action. Portal roles, 2FA and feature gating reuse the enterprise
+  access layer; an invalid client filter cannot widen another reseller's data.
+- [x] Part 3 tests: 17 tests in `enterprise/tests/test_white_label.py` cover
+  feature gating and immediate plan loss, DNS/removal/duplicates, dynamic hosts
+  and CSRF, session isolation, legal attribution, reseller isolation,
+  commission accrual/idempotency/payment and slug rules. Existing domain tests
+  now enable the `white_label` feature explicitly.
+- [x] Part 3 documentation: `docs/WHITE_LABEL.md`, an updated custom-domain
+  section in `DEPLOY.md` and section 6c in `docs/PILOT_ONBOARDING.md`.
+- [x] Verification after part 3: focused suite (white-label, onboarding part 2,
+  slugs, brand guard and the performance guard) **84 passed**; full suite
+  **1,874 passed, 233 warnings in 525.95s**; `ruff check .` clean;
+  `manage.py check` shows only the expected console-email warning;
+  `makemigrations --check --dry-run` reports "No changes detected".
+

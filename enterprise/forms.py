@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from enterprise.models import SponsorAccount
+from enterprise.models import Organisation, ResellerAccount, SponsorAccount
 
 
 class SponsorAccountForm(forms.ModelForm):
@@ -34,6 +34,19 @@ class SponsorAccountForm(forms.ModelForm):
             choice for choice in SponsorAccount.SharingLevel.choices
             if choice[0] != SponsorAccount.SharingLevel.WITHDRAWN
         ]
+
+
+class ResellerAccountForm(forms.ModelForm):
+    class Meta:
+        model = ResellerAccount
+        fields = ["user", "organisation", "role", "commission_rate", "is_active"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["user"].queryset = get_user_model().objects.filter(is_active=True)
+        self.fields["organisation"].queryset = Organisation.objects.filter(
+            type=Organisation.Type.RESELLER, status=Organisation.Status.ACTIVE
+        )
 
 
 class SponsorLinkForm(forms.Form):

@@ -114,13 +114,21 @@ def invalidate_institution(institution_or_id):
         _key("institution", pk, "dashboard"),
         _key("institution", pk, "public"),
     ]
-    slug = getattr(institution_or_id, "slug", None)
-    if slug:
-        keys.append(_key("institution", "slug", slug))
-    domain = getattr(institution_or_id, "custom_domain", None)
-    if domain:
-        keys.append(_key("institution", "domain", str(domain).lower()))
     cache.delete_many(keys)
+    invalidate_slug(getattr(institution_or_id, "slug", None))
+    invalidate_domain(getattr(institution_or_id, "custom_domain", None))
+
+
+def invalidate_slug(slug):
+    """Drop one cached slug lookup, including an old slug after a rename."""
+    if slug:
+        cache.delete(_key("institution", "slug", str(slug).lower()))
+
+
+def invalidate_domain(domain):
+    """Drop one cached domain lookup, including a removed or old domain."""
+    if domain:
+        cache.delete(_key("institution", "domain", str(domain).strip().lower().rstrip(".")))
 
 
 def institution_by_slug(slug):
@@ -153,7 +161,16 @@ def institution_by_domain(domain):
             is_active=True,
         ).first()
 
-    return get_or_set(key, build, 300)
+    institution = get_or_set(key, build, 300)
+    if institution is not None:
+        # The feature check is deliberately outside the cached lookup: a lapsed
+        # plan must stop mapping its host immediately, without waiting for the
+        # cache to expire or for a platform admin to press Save again.
+        from enterprise.access import feature_enabled
+
+        if feature_enabled("white_label", institution):
+            return institution
+    return None
 
 
 def invalidate_dashboard(institution_or_id):

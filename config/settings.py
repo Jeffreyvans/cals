@@ -147,6 +147,8 @@ INSTALLED_APPS = [
     "rest_framework", "drf_spectacular", "anymail", "api",
 ]
 MIDDLEWARE = [
+    # Verified custom domains must be registered before get_host() is used.
+    "core.middleware.CustomDomainHostMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # 301 from an old domain to SITE_URL when OLD_SITE_URL is configured.
     "core.middleware.OldDomainRedirectMiddleware",
@@ -161,6 +163,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.HostSessionIsolationMiddleware",
     "accounts.middleware.ForcePasswordChangeMiddleware",
     "core.middleware.FirstSignInSetupMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",

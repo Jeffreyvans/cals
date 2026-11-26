@@ -21,6 +21,7 @@ from core.models import (
     InstitutionSlugRedirect,
     OutboundMessage,
 )
+from core.modules import set_module
 from platform_admin.models import InstitutionOnboarding, PlatformAuditLog
 from platform_admin.onboarding import add_administrator
 
@@ -221,6 +222,8 @@ class PlatformSignupLinkTests(PlatformTestBase):
 class CustomDomainPanelTests(PlatformTestBase):
     def setUp(self):
         super().setUp()
+        # Custom domains are a white-label feature and are off by default.
+        set_module(self.inst, "white_label", True)
         cache.clear()
 
     def test_a_new_institution_has_no_custom_domain(self):

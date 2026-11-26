@@ -78,6 +78,33 @@ institution** (`/platform/institutions/new/`). The in-app role guides are in
 - [ ] Notification choices confirmed opt-in; audit and access logs contain no verification tokens or student names.
 - [ ] Definition of done: a sponsor viewer can read only, and the donor report at `/platform/sponsors/report/` contains totals but no student names.
 
+## 6c. White-label and reseller setup — platform admin
+
+- [ ] Complete this section only when the plan includes `white_label` (and
+      `reseller` if a reseller is involved). Both are off by default.
+- [ ] Custom domain: enable `white_label`, open
+      `/platform/institutions/<pk>/domain/`, save the host, publish the
+      `_edusphere.learn.example.org` TXT token (substitute your own host), plus
+      the CNAME/ALIAS record, and wait for Render to report a valid certificate.
+- [ ] Confirm `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` contain the host (the
+      app also registers verified domains at runtime), run **Check DNS
+      resolution**, confirm the TXT value and TLS yourself, then verify and
+      enable. Test sign-in, a POST, styles and uploads on the new host.
+- [ ] Check the "Powered by" switch on the institution detail screen: it is
+      available only with the feature on, and the copyright and legal wording
+      stay visible either way. Test that disabling/removing the domain keeps
+      `/i/<slug>/login/` working and deletes no school data.
+- [ ] Reseller (if used): create an organisation of type **Reseller**, attach
+      only its own client campuses, enable `reseller` on a client, and create a
+      named account with a role and commission rate at `/platform/resellers/new/`.
+- [ ] Sign in at `/reseller/<slug>/login/`; check the client list, the `?client=`
+      filter and CSV export contain aggregates only. Record one test platform
+      payment, confirm one commission row and mark it paid; check another
+      reseller's portal is refused.
+- [ ] Definition of done: the branded host works with HTTPS and CSRF, attribution
+      and legal text behave as documented, and reseller data is isolated to its
+      own campuses with no student names.
+
 ## 7. Tenant isolation spot-check — platform admin
 
 - [ ] Create a second "dummy" institution with one student.

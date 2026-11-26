@@ -334,3 +334,76 @@ def log_sponsor_action(request, action, account, detail=None, grant=None):
         record_type="SponsorAccount", record_id=account.pk,
         detail=safe, request=request,
     )
+
+
+# ---------- reseller portal ----------
+
+
+class ResellerRole:
+    ADMIN = "reseller_admin"
+    VIEWER = "reseller_viewer"
+
+
+ALL_RESELLER_ROLES = (ResellerRole.ADMIN, ResellerRole.VIEWER)
+
+
+def reseller_accounts_for(user):
+    """Active reseller accounts for a signed-in user."""
+    if not getattr(user, "is_authenticated", False):
+        return []
+    from enterprise.models import Organisation, ResellerAccount
+
+    return list(
+        ResellerAccount.objects.filter(
+            user=user, is_active=True,
+            organisation__status=Organisation.Status.ACTIVE,
+            organisation__type=Organisation.Type.RESELLER,
+        ).select_related("user", "organisation").order_by("pk")
+    )
+
+
+def reseller_feature_enabled(account):
+    """A reseller portal opens only while a client campus still has the plan."""
+    return any(feature_enabled("reseller", campus) for campus in account.organisation.campuses())
+
+
+def active_reseller_accounts_for(user):
+    """Portal accounts, or 404 when a lapsed plan removed the feature."""
+    accounts = reseller_accounts_for(user)
+    eligible = [account for account in accounts if reseller_feature_enabled(account)]
+    if not eligible and accounts:
+        raise Http404("This feature is not enabled for this account.")
+    return eligible
+
+
+def reseller_required(*roles):
+    """Allow a reseller account, scoped to the organisation in the URL."""
+
+    def deco(view):
+        @wraps(view)
+        def wrapper(request, *args, **kwargs):
+            from django.shortcuts import redirect, reverse
+
+            slug = kwargs.get("slug", "")
+            if not getattr(request.user, "is_authenticated", False):
+                login_url = reverse("enterprise:reseller_login", args=[slug])
+                return redirect(f"{login_url}?next={request.get_full_path()}")
+            accounts = active_reseller_accounts_for(request.user)
+            account = next(
+                (a for a in accounts if a.organisation.slug == slug), None
+            )
+            if account is None:
+                from core.audit import log_permission_denied
+
+                log_permission_denied(request, ["reseller_portal.use"])
+                raise PermissionDenied("You do not hold a role with this reseller.")
+            if roles and account.role not in roles:
+                raise PermissionDenied("Your reseller role does not allow this action.")
+            request.reseller_account = account
+            request.organisation = account.organisation
+            request.session["reseller_account_id"] = account.pk
+            return view(request, *args, **kwargs)
+
+        return wrapper
+
+    return deco

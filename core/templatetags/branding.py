@@ -41,6 +41,14 @@ def brand_name():
 
 
 @register.simple_tag
+def brand_name_for(institution=None):
+    """Product name, or the institution's own name for a white-label tenant."""
+    if institution is not None and not getattr(institution, "show_platform_branding", True):
+        return getattr(institution, "name", "") or brand_values()["product_name"]
+    return brand_values()["product_name"]
+
+
+@register.simple_tag
 def brand_company():
     """The publisher name (Vanpere Digital Solutions by default)."""
     return brand_values()["company_name"]

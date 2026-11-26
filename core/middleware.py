@@ -9,6 +9,7 @@ import logging
 import time
 
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.shortcuts import redirect, resolve_url
 
@@ -25,6 +26,37 @@ def _append_vary(response, value):
     if value not in parts:
         parts.append(value)
         response["Vary"] = ", ".join(parts)
+
+
+class CustomDomainHostMiddleware:
+    """Allow only verified custom domains through Django's Host validation.
+
+    This must run before SecurityMiddleware: SSL redirects call
+    ``request.get_host()`` and would otherwise reject a newly verified domain
+    before a later middleware could register it.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        raw_host = request.META.get("HTTP_HOST", "") or request.META.get("SERVER_NAME", "")
+        host = str(raw_host).split(":", 1)[0].strip(".").lower()
+        allowed = {str(value).lower() for value in settings.ALLOWED_HOSTS or []}
+        # Writes to domains, modules, plans and subscriptions refresh the list
+        # through signals. Only an unknown host can be a newly verified domain
+        # that this process has not seen yet, so established hosts skip the
+        # lookup entirely.
+        if host and "*" not in allowed and host not in allowed:
+            try:
+                from core.hosts import refresh_dynamic_hosts
+
+                refresh_dynamic_hosts()
+            except Exception:
+                # Host validation still works from the static environment list.
+                # A database outage here must not take down the whole app.
+                logger.exception("Could not refresh verified custom domains")
+        return self.get_response(request)
 
 
 def institution_from_request(request):
@@ -123,6 +155,62 @@ class FirstSignInSetupMiddleware:
         return self.get_response(request)
 
 
+class HostSessionIsolationMiddleware:
+    """Bind a signed-in session to the host where it was established.
+
+    A session cookie sent to another tenant's host is discarded instead of
+    being allowed to inherit that tenant's data. Enterprise selectors are also
+    cleared, so a group, sponsor or reseller choice can never follow a user to
+    a different domain.
+    """
+
+    SESSION_KEY = "edusphere_bound_host"
+    SELECTOR_KEYS = (
+        "group_campus_id", "group_slug", "sponsor_account_id", "sponsor_next",
+        "reseller_account_id", "reseller_client_id",
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    @staticmethod
+    def _host(request):
+        host = ""
+        try:
+            host = request.get_host()
+        except Exception:
+            host = (
+                request.META.get("HTTP_HOST", "")
+                or request.META.get("SERVER_NAME", "")
+            )
+        host = str(host).split(":", 1)[0].strip(".").lower()
+        if host:
+            return host
+        # A bare HttpRequest (for example the one used by force_login) has no
+        # host header. Use the deployment's first concrete host so the binding
+        # matches the next real request instead of being written twice.
+        for allowed in getattr(settings, "ALLOWED_HOSTS", []) or []:
+            allowed = str(allowed).strip().lower()
+            if allowed and allowed != "*":
+                return allowed.split(":", 1)[0].strip(".")
+        return "localhost"
+
+    def __call__(self, request):
+        session = getattr(request, "session", None)
+        if session is None:
+            return self.get_response(request)
+        host = self._host(request)
+        bound = session.get(self.SESSION_KEY)
+        authenticated = bool(getattr(request.user, "is_authenticated", False))
+        has_selector = any(key in session for key in self.SELECTOR_KEYS)
+        if bound and bound != host and (authenticated or has_selector):
+            session.flush()
+            request.user = AnonymousUser()
+        elif not bound and authenticated:
+            session[self.SESSION_KEY] = host
+        return self.get_response(request)
+
+
 class InstitutionMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
@@ -137,7 +225,10 @@ class InstitutionMiddleware:
             institution if institution is not None else default_institution_id()
         )
         try:
-            return self.get_response(request)
+            response = self.get_response(request)
+            # A response rendered on one host must never be reused for another.
+            _append_vary(response, "Host")
+            return response
         finally:
             reset_current_institution(token)
 

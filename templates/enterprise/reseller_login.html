@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Reseller sign in{% endblock %}
+{% block content %}
+<h1>{{ organisation.name }} reseller portal</h1>
+<form method="post" class="inline">{% csrf_token %}
+  {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+  {{ form.as_p }}
+  <p><button class="btn" type="submit">Sign in</button></p>
+</form>
+{% endblock %}

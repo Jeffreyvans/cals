@@ -20,8 +20,10 @@ from core.tenancy import use_institution
 
 @transaction.atomic
 def create_organisation(*, name, slug, org_type, actor=None, **fields):
+    from core.slugs import validate_slug
     from enterprise.models import Organisation
 
+    slug = validate_slug(slug)
     allowed = {
         "logo", "primary_color", "accent_color", "contact_email", "contact_phone",
         "address", "website", "status",
@@ -1095,6 +1097,150 @@ def donor_report(institution=None, start=None, end=None):
             "credit_note": sum((r["credit_note"] for r in rows), Decimal("0")),
         },
     }
+
+
+# ---------- reseller portal ----------
+
+
+def create_reseller_account(*, user, organisation, role, commission_rate=Decimal("10.00"),
+                            actor=None, request=None):
+    """Invite a user to act for one reseller organisation."""
+    from core.audit import log_action
+    from enterprise.access import ALL_RESELLER_ROLES, reseller_feature_enabled
+    from enterprise.models import Organisation, ResellerAccount
+
+    if organisation.type != Organisation.Type.RESELLER:
+        raise ValidationError("Choose an organisation of type Reseller.")
+    if role not in ALL_RESELLER_ROLES:
+        raise ValidationError("Choose a recognised reseller role.")
+    rate = Decimal(commission_rate)
+    if not Decimal("0") <= rate <= Decimal("100"):
+        raise ValidationError("The commission rate must be between 0 and 100 percent.")
+    if ResellerAccount.objects.filter(user=user, organisation=organisation).exists():
+        raise ValidationError("That user already has an account for this reseller.")
+    account = ResellerAccount.objects.create(
+        user=user, organisation=organisation, role=role, commission_rate=rate,
+    )
+    if not reseller_feature_enabled(account):
+        account.is_active = False
+        account.save(update_fields=["is_active"])
+    log_action(
+        actor, "reseller.account_created", instance=account,
+        after={"organisation_id": organisation.pk, "role": role},
+        request=request,
+    )
+    return account
+
+
+def reseller_portal_data(account, client_id=None):
+    """Client aggregates and commission totals, scoped to this reseller only."""
+    from enterprise.access import feature_enabled
+    from enterprise.models import ResellerCommission
+
+    clients = list(account.organisation.campuses())
+    selected_client = None
+    if client_id:
+        try:
+            selected_client = int(client_id)
+        except (TypeError, ValueError):
+            selected_client = None
+    if selected_client is not None:
+        clients = [campus for campus in clients if campus.pk == selected_client]
+    rows = []
+    for campus in clients:
+        if not feature_enabled("reseller", campus):
+            continue
+        figures = campus_aggregates(campus)
+        rows.append({
+            "institution_id": campus.pk,
+            "campus": campus.name,
+            "label": campus.group_membership.campus_label
+            if hasattr(campus, "group_membership") else campus.name,
+            "enrolment": figures["enrolment"],
+            "collected": figures["collected"],
+            "subscription": figures["subscription"],
+        })
+    commissions = ResellerCommission.objects.filter(account=account)
+    if selected_client is not None:
+        commissions = commissions.filter(institution_id=selected_client)
+    totals = {
+        "clients": len(rows),
+        "enrolment": sum(row["enrolment"] for row in rows),
+        "collected": sum((row["collected"] for row in rows), Decimal("0")),
+        "accrued": sum(
+            (row.amount for row in commissions if row.status == ResellerCommission.Status.ACCRUED),
+            Decimal("0"),
+        ),
+        "paid": sum(
+            (row.amount for row in commissions if row.status == ResellerCommission.Status.PAID),
+            Decimal("0"),
+        ),
+    }
+    return {"rows": rows, "commissions": list(commissions), "totals": totals,
+            "clients_all": account.organisation.campuses()}
+
+
+def accrue_reseller_commissions(invoice, payment, actor=None):
+    """Accrue commission once per platform payment from a reseller's client."""
+    from core.audit import log_action
+    from enterprise.access import feature_enabled
+    from enterprise.models import Organisation, ResellerAccount, ResellerCommission
+
+    if not feature_enabled("reseller", invoice.institution):
+        return []
+    org = Organisation.objects.filter(
+        type=Organisation.Type.RESELLER,
+        memberships__institution=invoice.institution,
+        status=Organisation.Status.ACTIVE,
+    ).first()
+    if org is None:
+        return []
+    account = ResellerAccount.objects.filter(
+        organisation=org, is_active=True, role=ResellerAccount.Role.ADMIN
+    ).first() or ResellerAccount.objects.filter(
+        organisation=org, is_active=True
+    ).first()
+    if account is None:
+        return []
+    amount = (Decimal(payment.amount) * account.commission_rate / Decimal("100")).quantize(
+        Decimal("0.01")
+    )
+    commission, created = ResellerCommission.objects.get_or_create(
+        payment=payment,
+        defaults={
+            "account": account, "platform_invoice": invoice,
+            "institution": invoice.institution, "rate": account.commission_rate,
+            "amount": amount,
+        },
+    )
+    if created:
+        log_action(
+            actor, "reseller.commission_accrued", instance=commission,
+            after={"organisation_id": org.pk, "amount": str(amount)},
+            institution=invoice.institution,
+        )
+    return [commission]
+
+
+def mark_commission_paid(commission, actor=None, request=None):
+    """Record that accrued commission has been paid out."""
+    from django.utils import timezone
+
+    from core.audit import log_action
+    from enterprise.models import ResellerCommission
+
+    if commission.status == ResellerCommission.Status.PAID:
+        return commission
+    commission.status = ResellerCommission.Status.PAID
+    commission.paid_at = timezone.now()
+    commission.note = (commission.note or "")[:160]
+    commission.save(update_fields=["status", "paid_at", "note"])
+    log_action(
+        actor, "reseller.commission_paid", instance=commission,
+        after={"amount": str(commission.amount)},
+        institution=commission.institution, request=request,
+    )
+    return commission
 
 
 def _sponsored_invoice_rows_for_sponsor(sponsor, start=None, end=None):

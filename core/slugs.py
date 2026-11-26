@@ -29,11 +29,11 @@ SLUG_REDIRECT_DAYS = 90
 # institution address. ``www`` and ``app`` are kept clear for future hosts.
 RESERVED_SLUGS = frozenset({
     "admin", "api", "apply", "app", "dashboard", "default", "finance",
-    "fiscalisation", "health", "help", "home", "i", "ict", "imports", "jobs",
-    "join", "learn", "library", "login", "logout", "media", "office",
-    "offline", "platform", "privacy", "register", "reset", "robots", "root",
-    "services", "settings", "setup", "sitemap", "static", "support", "sw",
-    "users", "webhooks", "www",
+    "fiscalisation", "g", "health", "help", "home", "i", "ict", "imports",
+    "jobs", "join", "learn", "library", "login", "logout", "media", "office",
+    "offline", "platform", "privacy", "r", "register", "reset", "reseller",
+    "robots", "root", "services", "settings", "setup", "sitemap", "sponsor",
+    "static", "support", "sw", "users", "webhooks", "www",
 })
 
 _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -87,6 +87,18 @@ def validate_slug(value, *, exclude=None, normalize=True):
             "That web address was used recently and is still redirecting. "
             "Choose another one for now."
         )
+
+    # Organisation pages use the same top-level namespace (/g/, /reseller/).
+    # Import lazily because the enterprise app imports this module.
+    try:
+        from enterprise.models import Organisation
+    except ImportError:
+        return candidate
+    org_qs = Organisation.objects.filter(slug=candidate)
+    if getattr(exclude, "slug", None):
+        org_qs = org_qs.exclude(slug=exclude.slug)
+    if org_qs.exists():
+        raise ValidationError(f"The web name '{candidate}' is already taken.")
     return candidate
 
 

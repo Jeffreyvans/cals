@@ -533,9 +533,12 @@ in `python manage.py check_email`. A source-scan test fails the build if a new
    ```
 
 6. Redeploy. The host and CSRF origin may also inherit
-   `RENDER_EXTERNAL_HOSTNAME`, but list the custom domain explicitly.
+   `RENDER_EXTERNAL_HOSTNAME`, but list the custom domain explicitly. The app
+   also registers verified per-school domains at runtime; see
+   [WHITE_LABEL.md](docs/WHITE_LABEL.md) for the platform-side DNS TXT token,
+   manual confirmation and plan gating.
 7. Sign in through the custom domain and check that static files and uploads
-   still load.
+   still load, and that a POST does not fail CSRF.
 
 HTTPS, secure cookies, the proxy header, SSL redirect and HSTS are enabled
 automatically whenever `DEBUG=false`.

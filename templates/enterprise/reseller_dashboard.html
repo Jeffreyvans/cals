@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}{{ organisation.name }} reseller portal{% endblock %}
+{% block content %}
+<h1>{{ organisation.name }}</h1>
+<p>Signed in as {{ account.user.username }} ({{ account.get_role_display }}).
+  <form method="post" action="{% url 'enterprise:reseller_logout' organisation.slug %}" class="inline">{% csrf_token %}<button class="btn ghost btn-sm" type="submit">Sign out</button></form>
+</p>
+<p>Commission rate: {{ account.commission_rate }}%. Only client campuses attached to this reseller are listed below.</p>
+
+<p><a href="{% url 'enterprise:reseller_export' organisation.slug %}">Download CSV</a></p>
+<form method="get" class="inline"><label>Client<select name="client"><option value="">All clients</option>{% for campus in data.clients_all %}<option value="{{ campus.pk }}" {% if client_id == campus.pk|stringformat:'s' %}selected{% endif %}>{{ campus.name }}</option>{% endfor %}</select></label><button class="btn" type="submit">Filter</button></form>
+
+<h2>Clients</h2>
+<table><thead><tr><th>Campus</th><th>Enrolment</th><th>Collected</th><th>Subscription</th></tr></thead><tbody>
+{% for row in data.rows %}<tr><td>{{ row.label }}</td><td>{{ row.enrolment }}</td><td>{{ row.collected }}</td><td>{{ row.subscription }}</td></tr>
+{% empty %}<tr><td colspan="4">No enabled clients to show.</td></tr>{% endfor %}
+</tbody></table>
+
+<h2>Commission</h2>
+<p>Accrued {{ data.totals.accrued }} · Paid {{ data.totals.paid }}</p>
+<table><thead><tr><th>Client</th><th>Invoice</th><th>Rate</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+{% for row in data.commissions %}<tr><td>{{ row.institution.name }}</td><td>{{ row.platform_invoice.number }}</td><td>{{ row.rate }}%</td><td>{{ row.amount }}</td><td>{{ row.get_status_display }}</td></tr>
+{% empty %}<tr><td colspan="5">No commission rows yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

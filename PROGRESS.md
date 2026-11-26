@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-11-26 (session 43, enterprise sponsor portal complete).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-26 (session 44, enterprise white-label and reseller portal complete).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -1149,4 +1149,50 @@ it establishes one narrow, testable boundary to the model provider.
       suite **1,857 passed, 233 warnings in 570.62s**; `ruff check .` clean;
       `makemigrations --check --dry-run` reports "No changes detected".
       Existing platform, `/i/<slug>/` and school workflows remain unchanged.
+
+## Session 44 - Enterprise part 3: white-label domains and resellers (2026-11-26)
+
+- [x] Reused the existing `Institution` custom-domain fields and platform
+      screens. Saving a host normalises it, refuses duplicates and clears the
+      token/verification state when it changes. DNS verification is still
+      deliberately manual: publish the TXT token from `custom_domain_token`,
+      point the host at the service, run the reachability check, then let
+      platform staff confirm DNS and TLS before enabling the host.
+- [x] Added `core/domains.py`, `core/hosts.py` and supporting cache signals.
+      Verified hosts join runtime `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS` without
+      removing environment entries; the feature check is outside the cached
+      lookup, so a cancelled or suspended plan disables a host at once.
+      Institution, module, plan and subscription writes invalidate the cache.
+      The host middleware only refreshes an unknown host, which preserves the
+      existing 21-query staff-list guard.
+- [x] Added `HostSessionIsolationMiddleware`. A session is bound to its host at
+      login (`user_logged_in`), flushed if presented to another host, and its
+      group/sponsor/reseller selectors are cleared; responses carry
+      `Vary: Host`. The login-time binding avoids an extra session write on
+      every request.
+- [x] White-label mode suppresses only the small “Powered by” attribution in
+      the UI, email footer and PDFs. Legal wording, the institution name, the
+      verified sender address and the publisher identity remain.
+- [x] Added reseller accounts and commission rows (migration `enterprise.0003`)
+      over existing `Organisation` and `PlatformPayment` rows, with portal
+      roles, 2FA, client isolation, one commission per payment, an idempotent
+      payout action and sanitised audit entries.
+- [x] Added 17 focused tests in `enterprise/tests/test_white_label.py` and
+      documentation in `docs/WHITE_LABEL.md`, `DEPLOY.md` and
+      `docs/PILOT_ONBOARDING.md`. Existing domain tests now switch the
+      `white_label` feature on explicitly.
+- [x] Bugs found and fixed while hardening: `Institution.all_objects` does not
+      exist in the platform domain form; a global-state `UnboundLocalError` in
+      `refresh_dynamic_hosts()`; an over-broad “Powered by” assertion that also
+      matched the navigation; a full-page assertion that also matched the
+      reseller client selector; commission audit actions mirrored under a
+      prefixed platform name; a wrong assumption that another school's payment
+      creates no commission; the brand guard's DNS-label example; and the
+      middleware's per-request host lookup/session write that broke the query
+      budget.
+- [x] Verification after part 3: focused white-label/onboarding/slugs/brand/
+      performance suite **84 passed**; full suite **1,874 passed, 233 warnings
+      in 525.95s**; `ruff check .` clean; `manage.py check` shows only the
+      expected console-email warning; `makemigrations --check --dry-run`
+      reports "No changes detected". Parts 1-3 remain separately committed.
 
