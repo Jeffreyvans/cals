@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block title %}Groups · {{ BRAND_NAME }}{% endblock %}
+{% block content %}
+<h1>Groups of schools</h1>
+<p><a class="btn" href="{% url 'enterprise:organisation_create' %}">New organisation</a></p>
+<table><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Campuses</th></tr></thead><tbody>
+{% for org in organisations %}<tr><td><a href="{% url 'enterprise:organisation_detail' org.pk %}">{{ org.name }}</a></td><td>{{ org.get_type_display }}</td><td>{{ org.get_status_display }}</td><td>{{ org.campuses|length }}</td></tr>{% empty %}<tr><td colspan="4">No organisations yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

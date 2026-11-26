@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}New organisation · {{ BRAND_NAME }}{% endblock %}
+{% block content %}
+<h1>New organisation</h1>
+<form method="post" class="card">{% csrf_token %}
+<label>Name <input name="name" required></label>
+<label>Slug <input name="slug" required pattern="[a-z0-9-]+"></label>
+<label>Type <select name="type">{% for value, label in types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+<label>Contact email <input type="email" name="contact_email"></label>
+<label>Contact phone <input name="contact_phone"></label>
+<label>Address <textarea name="address"></textarea></label>
+<label>Website <input name="website"></label>
+<label>Primary colour <input name="primary_color" placeholder="#1E3A8A"></label>
+<label>Accent colour <input name="accent_color" placeholder="#3B82F6"></label>
+<button class="btn" type="submit">Create organisation</button>
+</form>
+{% endblock %}

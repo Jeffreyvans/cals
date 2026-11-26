@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% block title %}{{ organisation.name }} · {{ BRAND_NAME }}{% endblock %}
+{% block content %}
+<h1>{{ organisation.name }}</h1>
+<p>{{ organisation.get_type_display }} · {{ organisation.get_status_display }} · /g/{{ organisation.slug }}/</p>
+
+<h2>Campuses</h2>
+<table><thead><tr><th>Campus</th><th>Label</th><th>Order</th><th>Action</th></tr></thead><tbody>
+{% for m in memberships %}<tr><td>{{ m.institution.name }}</td><td>{{ m.campus_label }}</td><td>{{ m.sort_order }}</td><td>
+<form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="detach"><input type="hidden" name="institution" value="{{ m.institution_id }}"><button class="btn ghost btn-sm" type="submit">Detach</button></form>
+</td></tr>{% empty %}<tr><td colspan="4">No campuses attached.</td></tr>{% endfor %}
+</tbody></table>
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="attach">
+<label>Institution <select name="institution">{% for i in available %}<option value="{{ i.pk }}">{{ i.name }}</option>{% endfor %}</select></label>
+<label>Campus label <input name="campus_label"></label><label>Sort order <input type="number" name="sort_order" value="0"></label>
+<button class="btn" type="submit">Attach campus</button></form>
+<p class="muted">Detaching removes only the group link. No campus data is deleted.</p>
+
+<h2>Group administrators</h2>
+<table><thead><tr><th>User</th><th>Role</th><th>Action</th></tr></thead><tbody>
+{% for u in users %}<tr><td>{{ u.user.username }}</td><td>{{ u.get_role_display }}{% if not u.is_active %} (inactive){% endif %}</td><td>
+<form method="post" class="inline">{% csrf_token %}<input type="hidden" name="action" value="revoke"><input type="hidden" name="user" value="{{ u.user_id }}"><button class="btn ghost btn-sm" type="submit">Revoke</button></form>
+</td></tr>{% endfor %}</tbody></table>
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="role">
+<label>User id <input type="number" name="user" min="1" required></label>
+<label>Role <select name="role">{% for value, label in roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+<button class="btn" type="submit">Assign role</button></form>
+<p class="muted">Enter a user id to assign a group role to an existing account.</p>
+
+<h2>Group billing</h2>
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="billing">
+<label>Mode <select name="mode">{% for value, label in modes %}<option value="{{ value }}" {% if billing and billing.mode == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<button class="btn" type="submit">Save billing mode</button></form>
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="discount">
+<label>Volume discount % <input name="discount_rate" value="{{ billing.discount_rate|default:'0' }}"></label>
+<button class="btn" type="submit">Save discount</button></form>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}{{ campus.name }} settings · {{ organisation.name }}{% endblock %}
+{% block content %}
+<h1>{{ campus.name }} · inherited settings</h1>
+<table><thead><tr><th>Setting</th><th>Value</th><th>Source</th><th>Action</th></tr></thead><tbody>
+{% for row in rows %}<tr><td>{{ row.label }}</td><td><code>{{ row.value_text }}</code></td><td>{{ row.source_label }}</td><td>
+{% if not row.locked %}<form method="post" action="{% url 'enterprise:campus_setting_save' organisation.slug campus.pk %}">{% csrf_token %}
+<input type="hidden" name="key" value="{{ row.key }}"><input name="value" value="{{ row.value_text }}"><button class="btn ghost btn-sm" type="submit">Override</button></form>
+{% else %}Locked by group{% endif %}</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

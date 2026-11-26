@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Students · {{ organisation.name }}{% endblock %}
+{% block content %}
+<h1>{{ campus.name }} · student-level view</h1>
+<p>You have an active, scoped consent grant from this campus. Every view is recorded in "Who accessed our data".</p>
+<table><thead><tr><th>Student number</th><th>Name</th></tr></thead><tbody>
+{% for s in students %}<tr><td>{{ s.student_no }}</td><td>{{ s.user.get_full_name|default:s.user.username }}</td></tr>
+{% empty %}<tr><td colspan="2">No students.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

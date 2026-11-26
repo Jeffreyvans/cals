@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% block title %}{{ organisation.name }} · Group dashboard{% endblock %}
+{% block content %}
+<h1>{{ organisation.name }} · Group dashboard</h1>
+<p>Aggregate figures only. Student names, individual marks, fee rows and health data are never shown here.</p>
+<nav><a href="{% url 'enterprise:group_settings' organisation.slug %}">Shared settings</a> ·
+<a href="{% url 'enterprise:group_billing' organisation.slug %}">Billing</a> ·
+{% if membership.role == 'group_admin' or membership.role == 'group_finance' %}<a href="{% url 'enterprise:group_request_access' organisation.slug %}">Request student-level access</a> ·{% endif %}
+<a href="{% url 'enterprise:group_export' organisation.slug %}?format=xlsx">Excel</a> ·
+<a href="{% url 'enterprise:group_export' organisation.slug %}?format=pdf">PDF</a></nav>
+
+<form method="get" class="card"><label>Campus <select name="campus" multiple>{% for c in dashboard.campuses %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}</select></label>
+<label>Term <input name="term" placeholder="Term id"></label>
+<label>School type <select name="school_type"><option value="">All</option>{% for value, label in school_types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+<label>From <input type="date" name="start"></label><label>To <input type="date" name="end"></label>
+<button class="btn" type="submit">Filter</button></form>
+
+{% if alerts %}<section class="card"><h2>Alerts</h2><ul>{% for alert in alerts %}<li>{{ alert.get_kind_display }}: {{ alert.message }}</li>{% endfor %}</ul></section>{% endif %}
+
+<h2>Campus comparison</h2>
+<table><thead><tr><th>Campus</th><th>Enrolment</th><th>Collected / target</th><th>Attendance</th><th>Pass rate</th><th>Staff</th><th>Subscription</th></tr></thead><tbody>
+{% for row in dashboard.rows %}<tr><td>{{ row.campus }}<div style="font-size:0.75rem">{{ row.campus_label }}</div></td>
+<td>{{ row.enrolment }}</td><td>{{ row.collected }} / {{ row.target }} ({{ row.collection_pct }}%)</td>
+<td>{{ row.attendance }}%</td><td>{{ row.pass_rate }}%</td><td>{{ row.staff }}</td><td>{{ row.subscription }}</td></tr>
+{% empty %}<tr><td colspan="7">No campuses attached.</td></tr>{% endfor %}
+<tr><th>Total</th><th>{{ dashboard.totals.enrolment }}</th><th>{{ dashboard.totals.collected }} / {{ dashboard.totals.target }}</th>
+<th>{{ dashboard.totals.attendance }}%</th><th>{{ dashboard.totals.pass_rate }}%</th><th>{{ dashboard.totals.staff }}</th><th></th></tr>
+</tbody></table>
+
+<h2>Charts</h2>
+<div class="grid">{% for row in dashboard.rows %}<div class="card"><h3>{{ row.campus }}</h3>
+<p>Enrolment <strong>{{ row.enrolment }}</strong></p><div style="background:#e5e7eb;height:10px"><div style="background:#1E3A8A;height:10px;width:{{ row.enrolment }}%"></div></div>
+<p>Collections <strong>{{ row.collection_pct }}%</strong></p><div style="background:#e5e7eb;height:10px"><div style="background:#3B82F6;height:10px;width:{{ row.collection_pct }}%"></div></div>
+<p>Attendance <strong>{{ row.attendance }}%</strong></p><div style="background:#e5e7eb;height:10px"><div style="background:#16a34a;height:10px;width:{{ row.attendance }}%"></div></div>
+<p>Results <strong>{{ row.pass_rate }}%</strong></p><div style="background:#e5e7eb;height:10px"><div style="background:#f59e0b;height:10px;width:{{ row.pass_rate }}%"></div></div>
+</div>{% endfor %}</div>
+
+<h2>Campus switcher (single sign-on)</h2>
+<form method="post" action="{% url 'enterprise:group_switch_campus' organisation.slug %}">{% csrf_token %}
+<select name="campus">{% for c in dashboard.campuses %}<option value="{{ c.pk }}" {% if campus and c.pk == campus.pk %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+<button class="btn" type="submit">Switch campus</button></form>
+{% if membership.role == 'group_admin' or membership.role == 'group_finance' or membership.role == 'group_academic' %}
+<p><a href="{% url 'enterprise:group_students' organisation.slug %}">Student-level view (needs consent)</a></p>{% endif %}
+{% endblock %}

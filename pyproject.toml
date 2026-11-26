@@ -16,17 +16,17 @@ select = ["E", "F", "I", "UP", "B", "DJ"]
 ignore = ["E501", "DJ001"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["accounts", "academics", "finance", "fiscalisation", "lms", "config", "core", "ai", "admissions", "operations", "library", "health", "counselling", "student_affairs", "sports", "boarding", "transport", "catering", "careers", "examinations", "research", "labs", "ict_helpdesk", "api", "platform_admin"]
+known-first-party = ["accounts", "academics", "finance", "fiscalisation", "lms", "config", "core", "ai", "admissions", "operations", "library", "health", "counselling", "student_affairs", "sports", "boarding", "transport", "catering", "careers", "examinations", "research", "labs", "ict_helpdesk", "api", "platform_admin", "enterprise"]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 addopts = "-v --tb=short"
-testpaths = ["accounts", "academics", "finance", "fiscalisation", "admissions", "lms", "operations", "library", "health", "counselling", "student_affairs", "sports", "boarding", "transport", "catering", "careers", "examinations", "research", "labs", "ict_helpdesk", "api", "platform_admin", "ai", "config", "core", "tests"]
+testpaths = ["accounts", "academics", "finance", "fiscalisation", "admissions", "lms", "operations", "library", "health", "counselling", "student_affairs", "sports", "boarding", "transport", "catering", "careers", "examinations", "research", "labs", "ict_helpdesk", "api", "platform_admin", "ai", "config", "core", "enterprise", "tests"]
 filterwarnings = ["ignore::RuntimeWarning"]
 
 [tool.coverage.run]
-source = ["accounts", "academics", "finance", "fiscalisation", "admissions", "lms", "operations", "library", "health", "counselling", "student_affairs", "sports", "boarding", "transport", "catering", "careers", "examinations", "research", "labs", "ict_helpdesk", "api", "platform_admin", "ai", "config", "core"]
+source = ["accounts", "academics", "finance", "fiscalisation", "admissions", "lms", "operations", "library", "health", "counselling", "student_affairs", "sports", "boarding", "transport", "catering", "careers", "examinations", "research", "labs", "ict_helpdesk", "api", "platform_admin", "ai", "config", "core", "enterprise"]
 omit = ["*/migrations/*", "*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]

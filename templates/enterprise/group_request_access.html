@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Request campus data · {{ organisation.name }}{% endblock %}
+{% block content %}
+<h1>Request time-limited campus data access</h1>
+<p>The administrator of {{ campus.name }} decides this request. Access is scoped, expires automatically and can be revoked at any time.</p>
+<form method="post" class="card">{% csrf_token %}
+<label>Categories{% for code in categories %}<label><input type="checkbox" name="categories" value="{{ code }}" checked> {{ code }}</label>{% endfor %}</label>
+<label>Hours <input type="number" name="hours" value="24" min="1" max="168"></label>
+<label>Reason <textarea name="reason" required minlength="20"></textarea></label>
+<button class="btn" type="submit">Send request</button></form>
+{% endblock %}

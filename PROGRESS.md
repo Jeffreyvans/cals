@@ -1070,3 +1070,48 @@ it establishes one narrow, testable boundary to the model provider.
       `makemigrations --check --dry-run` reports "No changes detected";
       `manage.py check` shows only the expected console-email warning. No
       existing feature regressed.
+
+## Session 41 - Enterprise part 1: groups of schools (2026-11-26)
+
+- [x] Added the untracked `enterprise` app and wired it into
+      `INSTALLED_APPS`, the URLconf, module registry, pytest/coverage/isort
+      config and the platform invoice guard. `enterprise.0001_initial` holds
+      ten models and still reports no pending changes.
+- [x] Modelled an organisation as a set of links to existing institutions.
+      Detaching deletes only `OrganisationMembership`; a campus cannot be
+      attached to two organisations, and an old override is ignored when the
+      campus later belongs to a different group.
+- [x] Added group-only roles and a `group_required()` decorator that redirects
+      unauthenticated people to `/g/<slug>/`, checks the organisation in the
+      URL, writes sanitised audit/platform logs and scopes the tenant to the
+      session-selected campus. Auditors are refused every write view.
+- [x] Built the branded group sign-in and dashboard. Campus switching is a
+      session change, not a second login; external `next` destinations are
+      refused. The dashboard shows aggregates only, shares its filters with
+      CSV/XLSX/PDF exports, and upserts alerts so open alerts keep their
+      created time.
+- [x] Student-level group access goes through the existing
+      `AccessRequest`/`DataAccessGrant` flow. `request_group_student_access()`
+      enforces a written reason, allowed categories and a bounded duration;
+      `require_student_grant()` checks the grant again at the view, including
+      idle expiry, and logs the access.
+- [x] Implemented eight shared settings with JSON validation, locked defaults,
+      campus overrides, an affected-campus preview and read-time resolution.
+      No campus record or issued document is rewritten when a default changes.
+- [x] Implemented separate and consolidated platform billing. A consolidated
+      run creates one ordinary `PlatformInvoice` and a `GroupInvoice` with one
+      line per campus; plan volume discounts apply when the rate is empty, an
+      explicit zero stays zero, and rounded line totals equal the invoice
+      total. The platform invoice screen cannot double-bill a campus already
+      on a consolidated group invoice.
+- [x] Added 19 focused tests in `enterprise/tests/test_groups.py` and
+      `docs/GROUPS.md`. Hardening found and fixed: filter/export drift,
+      invalid term ids, absent-document pass rates, JSON form input, campus
+      admin settings access, unsafe redirects, idle grants, double billing,
+      invalid discounts, destructive alert refreshes, rounding mismatch and
+      overrides leaking to a second organisation.
+- [x] Verification after part 1: focused `enterprise` suite **19 passed**;
+      full suite **1,836 passed, 227 warnings in 613.96s**; `ruff check .`
+      clean; `makemigrations --check --dry-run` reports "No changes detected".
+      Existing platform, `/i/<slug>/` and school workflows are unchanged.
+

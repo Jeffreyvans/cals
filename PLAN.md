@@ -629,3 +629,52 @@ feature changes an existing screen or record when it is switched off.
   Status: complete. Parts 1-5 were committed separately as `37d656f`,
   `0e6bea4`, `928e801`, `4f21997` and `bc14690`; this final documentation
   update is its own commit.
+
+## PHASE 18 - Groups, sponsors and white-label (enterprise)
+
+New module codes: `groups`, `sponsor_portal`, `white_label` and `reseller`.
+All are off by default, appear in plan/permission pickers, and close again on a
+non-current subscription. One new `enterprise` app holds the three features so
+existing `Institution`, finance, consent, audit, notification and platform
+billing rows stay the single source of truth.
+
+### Part 1 - Groups of schools
+- [x] New `Organisation`/`OrganisationMembership` model pair links existing
+  `Institution` rows as campuses. A campus can belong to at most one group;
+  detach removes only the link and leaves students, money and documents intact.
+  Overrides stay scoped to the organisation they were made in.
+- [x] `GroupMembership` adds group-only roles (administrator, finance,
+  academic, read-only auditor) checked by `group_required()`. A group role
+  never grants student-level data by itself.
+- [x] `/g/<slug>/` is a branded group sign-in with a campus chooser. It accepts
+  an existing platform login, requires an active group role, stores the chosen
+  campus in the session, and scopes `request.institution` to that campus. The
+  dashboard campus switcher is single sign-on inside that session; "next"
+  URLs are host-checked.
+- [x] The group dashboard is aggregates only. Campus, term, school type and
+  date filters are shared with CSV/Excel/PDF exports; invalid ids and dates
+  are ignored. Alerts are derived from the same figures and upserted, so
+  refreshing a page never recreates an open alert.
+- [x] Student-level pages reuse `AccessRequest`/`DataAccessGrant` through
+  `request_group_student_access()` and `require_student_grant()`. A pending,
+  expired, withdrawn, idle or wrong-category grant gives `GRANT-REQUIRED`;
+  every grant-backed view is logged.
+- [x] Shared settings are JSON rows with inheritance, campus overrides,
+  locking and a preview of affected campuses. Changing a group default never
+  rewrites an institution record or an issued document.
+- [x] Separate and consolidated billing are supported. Consolidated billing
+  creates one ordinary `PlatformInvoice` plus `GroupInvoice`/`GroupInvoiceLine`
+  rows. Plan volume discounts apply when no rate is set, an explicit zero is
+  honoured, and line discounts are rounded before the invoice total. The
+  platform admin area refuses a second, separate invoice for a consolidated
+  campus.
+- [x] Part 1 tests: 19 tests in `enterprise/tests/test_groups.py` cover
+  structure, role scoping, grants and revocation, audit redaction, settings
+  inheritance, aggregates, all three exports, billing modes, rounding,
+  alert upserts, external-redirect refusal and double-billing prevention.
+- [x] Part 1 documentation: `docs/GROUPS.md` explains setup, roles, sign-in,
+  filters, grants, settings and billing in plain English.
+- [x] Verification after part 1: focused `enterprise` suite **19 passed**;
+  full suite **1,836 passed, 227 warnings in 613.96s**; `ruff check .` clean;
+  `makemigrations --check --dry-run` reports "No changes detected".
+

@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Shared settings · {{ organisation.name }}{% endblock %}
+{% block content %}
+<h1>Shared settings and inheritance</h1>
+<p>Changing a group default never rewrites a campus record or an issued document. The preview shows which campuses would inherit the new value.</p>
+{% for row in rows %}<section class="card"><h2>{{ row.label }} <small>({{ row.key }})</small></h2>
+<p>Current value: <code>{{ row.value_text }}</code> {% if row.locked %}· Locked{% endif %}</p>
+<p>Locking a setting makes the group value win over every campus override.</p>
+<ul>{% for p in row.preview %}<li>{{ p.campus }} — {{ p.current }}{% if p.affected %} (would inherit){% endif %}</li>{% endfor %}</ul>
+<form method="post" action="{% url 'enterprise:group_setting_save' organisation.slug %}">{% csrf_token %}
+<input type="hidden" name="key" value="{{ row.key }}">
+<label>JSON value <textarea name="value">{{ row.value_text }}</textarea></label>
+<label><input type="checkbox" name="lock" {% if row.locked %}checked{% endif %}> Lock this setting for every campus</label>
+<button class="btn" type="submit">Save group default</button></form></section>{% endfor %}
+{% endblock %}

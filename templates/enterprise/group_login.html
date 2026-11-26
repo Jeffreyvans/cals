@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}{{ organisation.name }} · Sign in{% endblock %}
+{% block bare %}
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ organisation.name }} · Sign in</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<body style="background:{{ organisation.primary_color|default:'#faf4ec' }};font-family:Figtree,sans-serif;">
+<main style="max-width:440px;margin:6vh auto;background:#fff;padding:2rem;border-radius:18px;">
+{% if organisation.logo %}<img src="{{ organisation.logo.url }}" alt="{{ organisation.name }}" width="80">{% endif %}
+<h1>{{ organisation.name }}</h1><p>{{ organisation.tagline|default:'Group sign-in' }}</p>
+{% if form.errors %}<div class="msg">{{ form.non_field_errors }}{% for e in form.errors.values %}{{ e }}{% endfor %}</div>{% endif %}
+<form method="post">{% csrf_token %}
+{% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+<label>Username or email <input name="username" required autocomplete="username"></label>
+<label>Password <input type="password" name="password" required autocomplete="current-password"></label>
+<label>Campus <select name="campus" required>{% for campus in campuses %}<option value="{{ campus.pk }}">{{ campus.name }}</option>{% endfor %}</select></label>
+<button class="btn" type="submit">Sign in</button></form>
+<p><a href="{% url 'login' %}">Platform sign-in</a></p>
+</main></body></html>
+{% endblock %}

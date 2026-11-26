@@ -37,6 +37,7 @@ urlpatterns = [
     path("settings/api/", include("api.urls_admin")),
     path("", include("platform_admin.urls")),
     path("", include("core.urls")),
+    path("", include("enterprise.urls")),
     path("finance/", include("finance.urls")),
     path("fiscalisation/", include("fiscalisation.urls")),
     path("admissions/", include("admissions.urls")),

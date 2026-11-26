@@ -1220,15 +1220,28 @@ def subscriptions(request):
 def invoices(request):
     form = PlatformInvoiceForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        invoice = form.save()
-        services.log_platform_action(
-            request.user, "invoice.created", institution=invoice.institution,
-            record_type="PlatformInvoice", record_id=invoice.pk,
-            after={"number": invoice.number, "amount": str(invoice.amount)},
-            request=request,
-        )
-        messages.success(request, "Invoice created.")
-        return redirect("platform_admin:invoice_detail", pk=invoice.pk)
+        from enterprise.models import GroupBilling
+
+        consolidated = GroupBilling.objects.filter(
+            organisation__memberships__institution=form.cleaned_data["institution"],
+            mode=GroupBilling.Mode.CONSOLIDATED,
+        ).exists()
+        if consolidated:
+            form.add_error(
+                "institution",
+                "This campus is billed through its organisation's consolidated "
+                "invoice. Issue that invoice from the group's billing page instead.",
+            )
+        else:
+            invoice = form.save()
+            services.log_platform_action(
+                request.user, "invoice.created", institution=invoice.institution,
+                record_type="PlatformInvoice", record_id=invoice.pk,
+                after={"number": invoice.number, "amount": str(invoice.amount)},
+                request=request,
+            )
+            messages.success(request, "Invoice created.")
+            return redirect("platform_admin:invoice_detail", pk=invoice.pk)
     return render(
         request,
         "platform_admin/invoices.html",

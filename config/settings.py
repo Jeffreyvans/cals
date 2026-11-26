@@ -139,6 +139,7 @@ INSTALLED_APPS = [
     "research", "labs", "ict_helpdesk",
     "core",
     "platform_admin",
+    "enterprise",
     "fiscalisation",
     # Optional AI assistance. Every feature is off until switches, consent and
     # the platform kill switch are explicitly enabled; see docs/AI.md.

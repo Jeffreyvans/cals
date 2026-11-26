@@ -32,6 +32,12 @@ ALL_MODULES = [
     "api",
     "sso",
     "fiscalisation",
+    # Enterprise features of higher plans. Off by default so an existing
+    # institution keeps exactly the features it had before they were added.
+    "groups",
+    "sponsor_portal",
+    "white_label",
+    "reseller",
 ]
 
 # The name each module is given on the screens.
@@ -65,6 +71,10 @@ MODULE_LABELS = {
     "api": "API and integrations",
     "sso": "Single sign-on",
     "fiscalisation": "Fiscalisation (ZIMRA FDMS)",
+    "groups": "Groups of schools",
+    "sponsor_portal": "Sponsor and donor portal",
+    "white_label": "White-label and custom domains",
+    "reseller": "Reseller accounts",
 }
 
 
