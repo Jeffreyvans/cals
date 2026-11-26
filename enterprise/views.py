@@ -20,39 +20,65 @@ from django.views.decorators.http import require_POST
 
 from accounts.forms import IdentifierAuthenticationForm
 from core.models import Institution
+from core.tenancy import use_institution
 from enterprise.access import (
     ALL_GROUP_ROLES,
+    SPONSOR_WRITE_ROLES,
     GroupRole,
+    active_sponsor_accounts_for,
     feature_enabled,
     feature_required,
     group_required,
     log_group_action,
+    log_sponsor_action,
+    require_sponsor_sensitive_action,
     require_student_grant,
+    sponsor_required,
+    student_level_grant,
 )
+from enterprise.documents import build_sponsor_receipt_pdf
+from enterprise.forms import SponsorAccountForm, SponsorLinkForm
 from enterprise.models import (
     GroupBilling,
     GroupMembership,
     Organisation,
+    SponsorAccount,
 )
 from enterprise.services import (
+    allocate_sponsor_payment,
     assign_group_role,
     attach_institution,
     create_consolidated_invoice,
     create_organisation,
+    create_sponsor_account,
+    create_sponsor_link,
     detach_institution,
+    donor_report,
     effective_setting,
+    issue_sponsor_credit_note,
     refresh_group_alerts,
     request_group_student_access,
+    resend_sponsor_verification,
     revoke_group_role,
     save_campus_override,
     save_shared_setting,
+    set_sharing_level,
     setting_preview,
+    sponsor_commitments,
+    sponsor_receipts,
+    sponsor_statement,
+    verify_sponsor_account,
+    withdraw_sponsor_sharing,
 )
 from enterprise.services import (
     group_dashboard as group_figures,
 )
 from enterprise.settings_registry import SETTING_KEYS, SHARED_SETTINGS
+from finance.models import Payment
 from platform_admin.access import platform_required
+from platform_admin.forms import PasswordConfirmForm, TwoFactorForm
+from platform_admin.twofa import mark_reauth, new_secret, provisioning_uri
+from platform_admin.twofa import verify as verify_totp
 
 # ---------- platform administration ----------
 
@@ -549,3 +575,540 @@ def group_export(request, slug):
     filename = f"group-{request.organisation.slug}-{timezone.localdate().isoformat()}.{fmt}"
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+# =====================================================================
+# Sponsor portal: platform administration
+# =====================================================================
+
+
+@platform_required("platform.manage_billing")
+def sponsor_account_list(request):
+    accounts = SponsorAccount.objects.select_related(
+        "user", "sponsor", "organisation"
+    ).order_by("sponsor__name", "user__username")
+    return render(
+        request, "enterprise/platform_sponsor_list.html", {"accounts": accounts}
+    )
+
+
+@platform_required("platform.manage_billing")
+def sponsor_account_create(request):
+    form = SponsorAccountForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        account = form.save(commit=False)
+        sponsor = account.sponsor
+        if not feature_enabled("sponsor_portal", sponsor.institution):
+            form.add_error("sponsor", "The sponsor portal is not enabled for this school.")
+        else:
+            try:
+                created = create_sponsor_account(
+                    user=account.user, sponsor=sponsor, role=account.role,
+                    organisation=account.organisation,
+                    sharing_level=account.sharing_level,
+                    consent_evidence=request.POST.get("consent_evidence", ""),
+                    notify_email=account.notify_email,
+                    notify_in_app=account.notify_in_app,
+                    actor=request.user, request=request,
+                )
+            except ValidationError as exc:
+                form.add_error(None, str(exc))
+            else:
+                messages.success(
+                    request, f"Sponsor account created for {created.user.username}."
+                )
+                return redirect("enterprise:sponsor_account_detail", pk=created.pk)
+    return render(request, "enterprise/platform_sponsor_form.html", {"form": form})
+
+
+@platform_required("platform.manage_billing")
+def sponsor_account_detail(request, pk):
+    account = get_object_or_404(SponsorAccount, pk=pk)
+    link_form = SponsorLinkForm(sponsor=account.sponsor)
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        try:
+            if action == "resend":
+                resend_sponsor_verification(account, request=request)
+            elif action == "toggle":
+                account.is_active = not account.is_active
+                account.save(update_fields=["is_active", "updated_at"])
+                log_sponsor_action(
+                    request, "sponsor.account_toggled", account,
+                    {"kind": "active" if account.is_active else "inactive"},
+                )
+            elif action == "link":
+                link_form = SponsorLinkForm(request.POST, sponsor=account.sponsor)
+                if link_form.is_valid():
+                    data = link_form.cleaned_data
+                    create_sponsor_link(
+                        account, data["student"], percentage=data["percentage"],
+                        fixed_amount=data["fixed_amount"], valid_from=data["valid_from"],
+                        valid_to=data["valid_to"], reference=data["reference"],
+                        request=request,
+                    )
+        except ValidationError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "Sponsor account updated.")
+        return redirect("enterprise:sponsor_account_detail", pk=account.pk)
+    commitments = sponsor_commitments(account, request=request)
+    return render(
+        request, "enterprise/platform_sponsor_detail.html",
+        {
+            "account": account,
+            "commitments": commitments,
+            "link_form": link_form,
+            "sharing_labels": dict(SponsorAccount.SharingLevel.choices),
+        },
+    )
+
+
+@platform_required("platform.view_institutions")
+def sponsor_donor_report(request):
+    """Scholarship and donor totals for one school, without student names."""
+    raw = request.GET.get("institution", "")
+    institution = (
+        Institution.objects.filter(pk=int(raw)).first() if raw.isdigit() else None
+    )
+    if institution is None:
+        institution = getattr(request, "institution", None) or request.user.institution
+    start, end = _date_range(request)
+    report = donor_report(institution, start, end)
+    if request.GET.get("format") == "csv":
+        import csv
+
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(["Sponsor", "Students", "Committed", "Scholarship", "Paid",
+                         "Credit notes"])
+        for row in report["rows"]:
+            writer.writerow([
+                row["sponsor"], row["students"], row["committed"],
+                row["scholarship"], row["paid"], row["credit_note"],
+            ])
+        response = HttpResponse(out.getvalue(), content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = (
+            f'attachment; filename="donors-{timezone.localdate().isoformat()}.csv"'
+        )
+        return response
+    return render(
+        request, "enterprise/donor_report.html",
+        {
+            "report": report, "institution": institution,
+            "institutions": Institution.objects.filter(is_active=True),
+            "start": start, "end": end,
+        },
+    )
+
+
+# =====================================================================
+# Sponsor portal: named donor users
+# =====================================================================
+
+
+def _safe_next(request):
+    """Only same-site paths may be used as a post-login destination."""
+    value = request.POST.get("next") or request.GET.get("next") or ""
+    if value and url_has_allowed_host_and_scheme(
+        value, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return value
+    return ""
+
+
+def _date_range(request):
+    """Read optional inclusive from/to dates without ever raising on bad input."""
+    try:
+        start = date.fromisoformat(request.GET["start"]) if request.GET.get("start") else None
+        end = date.fromisoformat(request.GET["end"]) if request.GET.get("end") else None
+    except ValueError:
+        start = end = None
+    return start, end
+
+
+def _portal_destination(account):
+    return (
+        "enterprise:sponsor_verify" if not account.is_verified
+        else "enterprise:sponsor_dashboard"
+    )
+
+
+def sponsor_login(request):
+    """Sign in at /sponsor/ to one or more existing finance sponsors."""
+    next_url = _safe_next(request)
+    if request.method == "POST":
+        form = IdentifierAuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            user = form.get_user()
+            eligible = active_sponsor_accounts_for(user)
+            if not eligible:
+                form.add_error(None, "This account has no active sponsor portal invitation.")
+            else:
+                login(request, user)
+                request.session.pop("sponsor_account_id", None)
+                if len(eligible) > 1:
+                    request.session["sponsor_next"] = next_url
+                    return redirect("enterprise:sponsor_select")
+                account = eligible[0]
+                request.session["sponsor_account_id"] = account.pk
+                return redirect(next_url or _portal_destination(account))
+    else:
+        form = IdentifierAuthenticationForm(request)
+    return render(
+        request, "enterprise/sponsor_login.html",
+        {"form": form, "next_url": next_url},
+    )
+
+
+def sponsor_select(request):
+    """Choose which sponsor to represent when one user has several invitations."""
+    if not request.user.is_authenticated:
+        return redirect("enterprise:sponsor_login")
+    accounts = active_sponsor_accounts_for(request.user)
+    if not accounts:
+        raise PermissionDenied("You do not have an active sponsor portal account.")
+    if request.method == "POST":
+        raw = request.POST.get("account", "")
+        chosen = next(
+            (a for a in accounts if str(a.pk) == raw), None
+        )
+        if chosen is None:
+            messages.error(request, "Choose one of your sponsors.")
+        else:
+            request.session["sponsor_account_id"] = chosen.pk
+            target = request.session.pop("sponsor_next", "")
+            return redirect(target or _portal_destination(chosen))
+    return render(
+        request, "enterprise/sponsor_select.html", {"accounts": accounts}
+    )
+
+
+def sponsor_verify(request):
+    """Enter the one-time code mailed with the sponsor invitation."""
+    if not request.user.is_authenticated:
+        return redirect("enterprise:sponsor_login")
+    accounts = active_sponsor_accounts_for(request.user)
+    if not accounts:
+        raise PermissionDenied("You do not have an active sponsor portal account.")
+    selected = request.session.get("sponsor_account_id")
+    account = next((a for a in accounts if a.pk == selected), None) or accounts[0]
+    if account.is_verified:
+        return redirect("enterprise:sponsor_dashboard")
+    if request.method == "POST":
+        try:
+            verified = verify_sponsor_account(
+                request.user, request.POST.get("token", ""), request=request
+            )
+        except ValidationError as exc:
+            messages.error(request, str(exc))
+        else:
+            request.session["sponsor_account_id"] = verified.pk
+            messages.success(request, "Sponsor account verified. Welcome.")
+            return redirect("enterprise:sponsor_dashboard")
+    return render(
+        request, "enterprise/sponsor_verify.html", {"account": account}
+    )
+
+
+@require_POST
+def sponsor_logout(request):
+    request.session.pop("sponsor_account_id", None)
+    request.session.pop("sponsor_next", None)
+    logout(request)
+    return redirect("enterprise:sponsor_login")
+
+
+@sponsor_required()
+def sponsor_dashboard(request):
+    """Totals only; named detail is opened from the statement when consent allows."""
+    account = request.sponsor_account
+    return render(
+        request, "enterprise/sponsor_dashboard.html",
+        {
+            "account": account,
+            "commitments": sponsor_commitments(account, request=request),
+            "statement": sponsor_statement(account, request=request),
+            "has_named_access": account.allows(3) and student_level_grant(
+                account.user, request.institution,
+                ("personal_data", "finance"), request=request,
+            ) is not None,
+        },
+    )
+
+
+@sponsor_required()
+def sponsor_invoices(request):
+    """Sponsored invoices and the amount each sponsorship can cover."""
+    start, end = _date_range(request)
+    return render(
+        request, "enterprise/sponsor_invoices.html",
+        {
+            "account": request.sponsor_account,
+            "commitments": sponsor_commitments(
+                request.sponsor_account, start, end, request=request
+            ),
+            "start": start, "end": end,
+            "can_pay": request.sponsor_account.role in SPONSOR_WRITE_ROLES,
+        },
+    )
+
+
+@sponsor_required()
+def sponsor_statement_view(request):
+    start, end = _date_range(request)
+    return render(
+        request, "enterprise/sponsor_statement.html",
+        {
+            "account": request.sponsor_account,
+            "statement": sponsor_statement(
+                request.sponsor_account, start, end, request=request
+            ),
+            "start": start, "end": end,
+        },
+    )
+
+
+@sponsor_required()
+def sponsor_receipts_view(request):
+    start, end = _date_range(request)
+    return render(
+        request, "enterprise/sponsor_receipts.html",
+        {
+            "account": request.sponsor_account,
+            "receipts": sponsor_receipts(
+                request.sponsor_account, start, end, request=request
+            ),
+            "start": start, "end": end,
+        },
+    )
+
+
+@sponsor_required()
+def sponsor_receipt_pdf(request, pk):
+    """A sponsor receipt, redacted unless level 3 and a live grant are in force."""
+    account = request.sponsor_account
+    school = account.sponsor.institution
+    with use_institution(school):
+        payment = get_object_or_404(Payment.all_objects, pk=pk, institution=school)
+    if not any(
+        row["payment_id"] == payment.pk
+        for row in sponsor_receipts(account, request=request)
+    ):
+        raise Http404("This payment is not on your sponsor statement.")
+    named = account.allows(3) and student_level_grant(
+        account.user, school, ("personal_data", "finance"), request=request,
+    ) is not None
+    student_name = payment.invoice.student.name if named else None
+    data = build_sponsor_receipt_pdf(
+        account, payment, request=request, student_name=student_name
+    )
+    response = HttpResponse(data, content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'attachment; filename="sponsor-receipt-{payment.receipt_no or payment.pk}.pdf"'
+    )
+    return response
+
+
+@sponsor_required()
+def sponsor_export(request):
+    """Statement and commitment export using only sharing-safe labels."""
+    start, end = _date_range(request)
+    statement = sponsor_statement(request.sponsor_account, start, end, request=request)
+    commitments = sponsor_commitments(request.sponsor_account, start, end, request=request)
+    fmt = request.GET.get("format", "csv")
+    if fmt not in ("csv", "xlsx", "pdf"):
+        fmt = "csv"
+    headers = ["Date", "Kind", "Reference", "Student", "Amount"]
+    data = [[
+        str(row["date"]), row["kind"], row["reference"], row["label"], str(row["amount"]),
+    ] for row in statement["rows"]]
+    if fmt == "csv":
+        import csv
+
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(headers)
+        writer.writerows(data)
+        response = HttpResponse(out.getvalue(), content_type="text/csv; charset=utf-8")
+    elif fmt == "xlsx":
+        from openpyxl import Workbook
+
+        book = Workbook()
+        sheet = book.active
+        sheet.title = "Sponsor statement"
+        sheet.append(headers)
+        for row in data:
+            sheet.append(row)
+        out = io.BytesIO()
+        book.save(out)
+        response = HttpResponse(
+            out.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    else:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
+
+        out = io.BytesIO()
+        doc = SimpleDocTemplate(out, pagesize=A4, title="Sponsor statement")
+        table = Table([headers, *data], repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E3A8A")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+        ]))
+        doc.build([table, Paragraph(
+            f"Committed {commitments['totals']['coverage']} - "
+            f"sharing level {request.sponsor_account.sharing_level}",
+            getSampleStyleSheet()["Normal"],
+        )])
+        response = HttpResponse(out.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'attachment; filename="sponsor-statement-'
+        f'{timezone.localdate().isoformat()}.{fmt}"'
+    )
+    return response
+
+
+@require_POST
+@sponsor_required(*SPONSOR_WRITE_ROLES, write=True)
+def sponsor_pay(request):
+    """Post a sponsor payment, capped by the sponsorship and invoice balance."""
+    account = request.sponsor_account
+    require_sponsor_sensitive_action(account, request)
+    try:
+        payment, credit = allocate_sponsor_payment(
+            account, request.POST.get("invoice"),
+            amount=request.POST.get("amount"),
+            method=request.POST.get("method"),
+            request=request,
+        )
+    except (ValidationError, InvalidOperation, TypeError) as exc:
+        messages.error(request, str(exc))
+    else:
+        if credit is not None:
+            messages.warning(
+                request, f"Payment recorded with {credit.amount:.2f} held as credit."
+            )
+        else:
+            messages.success(request, f"Payment {payment.receipt_no} recorded.")
+    return redirect("enterprise:sponsor_invoices")
+
+
+@require_POST
+@sponsor_required(*SPONSOR_WRITE_ROLES, write=True)
+def sponsor_credit_note(request):
+    """Issue an immutable finance credit note for a sponsored invoice."""
+    account = request.sponsor_account
+    require_sponsor_sensitive_action(account, request)
+    try:
+        waiver = issue_sponsor_credit_note(
+            account, request.POST.get("invoice"),
+            amount=request.POST.get("amount"),
+            reason=request.POST.get("reason", ""),
+            request=request,
+        )
+    except (ValidationError, InvalidOperation, TypeError) as exc:
+        messages.error(request, str(exc))
+    else:
+        messages.success(request, f"Credit note {waiver.note_no} issued.")
+    return redirect("enterprise:sponsor_statement")
+
+
+@sponsor_required()
+def sponsor_settings(request):
+    """Consent, sharing level and notification choices for one sponsor user."""
+    account = request.sponsor_account
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        try:
+            if action == "sharing":
+                set_sharing_level(
+                    account, request.POST.get("level"),
+                    request.POST.get("evidence", ""), request=request,
+                )
+            elif action == "withdraw":
+                withdraw_sponsor_sharing(
+                    account, request.POST.get("reason", ""), request=request
+                )
+            elif action == "notify":
+                account.notify_email = "notify_email" in request.POST
+                account.notify_in_app = "notify_in_app" in request.POST
+                account.save(update_fields=["notify_email", "notify_in_app", "updated_at"])
+                log_sponsor_action(
+                    request, "sponsor.notifications_changed", account,
+                    {"notify_email": account.notify_email,
+                     "notify_in_app": account.notify_in_app},
+                )
+        except (ValidationError, PermissionDenied) as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "Sponsor settings saved.")
+        return redirect("enterprise:sponsor_settings")
+    return render(
+        request, "enterprise/sponsor_settings.html",
+        {
+            "account": account,
+            "levels": [
+                choice for choice in SponsorAccount.SharingLevel.choices
+                if choice[0] != SponsorAccount.SharingLevel.WITHDRAWN
+            ],
+        },
+    )
+
+
+@sponsor_required()
+def sponsor_security(request):
+    """Authenticator setup and password re-check for sensitive sponsor actions."""
+    account = request.sponsor_account
+    form = TwoFactorForm(request.POST or None)
+    reauth_form = PasswordConfirmForm(request.POST or None)
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        if action == "start":
+            account.two_factor_secret = new_secret()
+            account.save(update_fields=["two_factor_secret", "updated_at"])
+            log_sponsor_action(request, "sponsor.two_factor_started", account)
+            messages.info(request, "Scan the code, then enter one code to switch 2FA on.")
+            return redirect("enterprise:sponsor_security")
+        if action == "enable" and form.is_valid():
+            if not account.two_factor_secret:
+                form.add_error("code", "Start the setup first.")
+            elif not verify_totp(account.two_factor_secret, form.cleaned_data["code"]):
+                form.add_error("code", "That code did not match. Try the next one.")
+            else:
+                account.two_factor_enabled = True
+                account.save(update_fields=["two_factor_enabled", "updated_at"])
+                mark_reauth(request, account)
+                log_sponsor_action(request, "sponsor.two_factor_enabled", account)
+                messages.success(request, "Two-factor authentication is on.")
+                return redirect("enterprise:sponsor_security")
+        elif action == "disable":
+            account.two_factor_enabled = False
+            account.save(update_fields=["two_factor_enabled", "updated_at"])
+            log_sponsor_action(request, "sponsor.two_factor_disabled", account)
+            messages.warning(request, "Two-factor authentication is off.")
+            return redirect("enterprise:sponsor_security")
+        elif action == "reauth" and reauth_form.is_valid():
+            if request.user.check_password(reauth_form.cleaned_data["password"]):
+                mark_reauth(request, account)
+                log_sponsor_action(request, "sponsor.reauthenticated", account)
+                messages.success(request, "Password confirmed for the next 15 minutes.")
+                return redirect("enterprise:sponsor_security")
+            reauth_form.add_error("password", "That password is not correct.")
+    uri = (
+        provisioning_uri(account.two_factor_secret, request.user.email)
+        if account.two_factor_secret and not account.two_factor_enabled else ""
+    )
+    return render(
+        request, "enterprise/sponsor_security.html",
+        {
+            "account": account, "form": form, "reauth_form": reauth_form,
+            "uri": uri,
+            "secret": account.two_factor_secret if not account.two_factor_enabled else "",
+        },
+    )

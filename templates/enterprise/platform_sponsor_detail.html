@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block title %}{{ account.user.username }} · Sponsor account{% endblock %}
+{% block content %}
+<h1>{{ account.sponsor.name }} · {{ account.user.username }}</h1>
+<p>Role: {{ account.get_role_display }} · Sharing: {{ account.get_sharing_level_display }} ·
+Verified: {{ account.verified_at|default:'Not yet' }} · Active: {{ account.is_active|yesno }}</p>
+<p><a href="{% url 'enterprise:sponsor_account_list' %}">Back to sponsor accounts</a></p>
+<form method="post" class="card">{% csrf_token %}
+<button class="btn" type="submit" name="action" value="resend">Resend verification code</button>
+<button class="btn secondary" type="submit" name="action" value="toggle">
+{% if account.is_active %}Deactivate{% else %}Reactivate{% endif %}</button></form>
+<h2>Sponsored invoices</h2>
+<table><thead><tr><th>Invoice</th><th>Student label</th><th>Cap</th><th>Balance</th></tr></thead><tbody>
+{% for row in commitments.rows %}<tr><td>#{{ row.invoice_id }}</td><td>{{ row.label }}</td>
+<td>{{ row.cap }}</td><td>{{ row.balance }}</td></tr>
+{% empty %}<tr><td colspan="4">No sponsorships linked yet.</td></tr>{% endfor %}
+</tbody></table>
+<h2>Link a student to this sponsor</h2>
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="link">
+{{ link_form.as_p }}<button class="btn" type="submit">Link student</button></form>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Sponsor statement{% endblock %}
+{% block content %}
+<h1>{{ account.sponsor.name }} · Statement</h1>
+<nav><a href="{% url 'enterprise:sponsor_dashboard' %}">Dashboard</a> ·
+<a href="{% url 'enterprise:sponsor_receipts' %}">Receipts</a> ·
+<a href="{% url 'enterprise:sponsor_export' %}?format=pdf">PDF export</a></nav>
+<form method="get" class="card"><label>From <input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label>
+<label>To <input type="date" name="end" value="{{ end|date:'Y-m-d' }}"></label>
+<button class="btn" type="submit">Filter</button></form>
+<table><thead><tr><th>Date</th><th>Kind</th><th>Reference</th><th>Student</th><th>Amount</th></tr></thead><tbody>
+{% for row in statement.rows %}<tr><td>{{ row.date }}</td><td>{{ row.kind }}</td>
+<td>{{ row.reference }}</td><td>{{ row.label }}</td><td>{{ row.amount }}</td></tr>
+{% empty %}<tr><td colspan="5">No entries in this period.</td></tr>{% endfor %}
+</tbody></table>
+<p>Paid {{ statement.totals.paid }} · Scholarships {{ statement.totals.scholarship }} ·
+Credit notes {{ statement.totals.credit_note }}</p>
+{% endblock %}

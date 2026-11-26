@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Sponsor receipts{% endblock %}
+{% block content %}
+<h1>{{ account.sponsor.name }} · Receipts</h1>
+<nav><a href="{% url 'enterprise:sponsor_statement' %}">Statement</a></nav>
+<form method="get" class="card"><label>From <input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label>
+<label>To <input type="date" name="end" value="{{ end|date:'Y-m-d' }}"></label>
+<button class="btn" type="submit">Filter</button></form>
+<table><thead><tr><th>Date</th><th>Receipt</th><th>Student</th><th>Amount</th><th>PDF</th></tr></thead><tbody>
+{% for row in receipts %}<tr><td>{{ row.date }}</td><td>{{ row.reference }}</td>
+<td>{{ row.label }}</td><td>{{ row.amount }}</td>
+<td><a href="{% url 'enterprise:sponsor_receipt_pdf' row.payment_id %}">Download</a></td></tr>
+{% empty %}<tr><td colspan="5">No receipts in this period.</td></tr>{% endfor %}
+</tbody></table>
+<p>Receipts are redacted below level 3. Named detail requires a live consent grant.</p>
+{% endblock %}

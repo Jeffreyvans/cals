@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Invite a sponsor user{% endblock %}
+{% block content %}
+<h1>Invite a sponsor user</h1>
+<p>The invitation is sent through the central email pipeline with a one-time
+verification code. Money and sponsorships stay in the school's finance records.</p>
+<form method="post" class="card">{% csrf_token %}{{ form.as_p }}
+<label>Reason for sharing above totals only <textarea name="consent_evidence" rows="3"></textarea></label>
+<button class="btn" type="submit">Create account and send invitation</button></form>
+<p><a href="{% url 'enterprise:sponsor_account_list' %}">Back to sponsor accounts</a></p>
+{% endblock %}

@@ -678,3 +678,36 @@ billing rows stay the single source of truth.
   full suite **1,836 passed, 227 warnings in 613.96s**; `ruff check .` clean;
   `makemigrations --check --dry-run` reports "No changes detected".
 
+### Part 2 - Sponsor portal
+- [x] `SponsorAccount` links an existing user to one existing `finance.Sponsor`
+  with a portal role, verification code, consent evidence, sharing level,
+  notification choices and 2FA settings. It stores portal identity only; the
+  sponsor, sponsorships, invoices, discounts, payments, waivers and ledger rows
+  remain in `finance`.
+- [x] Platform staff with `platform.manage_billing` can list, invite, resend,
+  deactivate and inspect sponsor accounts, link an existing student
+  sponsorship and run an institution-scoped donor report with CSV export.
+- [x] `/sponsor/` signs in an invited user, handles a multi-sponsor chooser,
+  verifies the invitation code and logs out. Feature-off hides portal routes as
+  404; an unverified account cannot open anything except verification.
+- [x] Sharing levels 1-3 are enforced at the service and view layers: totals
+  only, coded student references, and named detail requiring both level 3 and
+  a live `DataAccessGrant`. Withdrawal sets level 0, revokes live grants and
+  linked access requests immediately, and drops future labels to generic rows.
+- [x] Statements, receipts, exports and the donor report are scoped to the
+  sponsor's institution; redacted receipts and exports never leak names from
+  another school. Notices are opt-in and reuse existing email codes.
+- [x] Payments and credit notes use `finance.services.receive_payment()` and
+  immutable `finance.Waiver` rows, capped by sponsorship and invoice balance.
+  Payments, credit notes and level-3 consent reuse platform 2FA plus a
+  15-minute password re-check. Audit rows contain no tokens or student names.
+- [x] Part 2 tests: 21 tests in `enterprise/tests/test_sponsors.py` cover
+  feature gating, sign-in/verification, multi-sponsor choice, sharing levels,
+  immediate withdrawal, tenant isolation, redaction, payments, credit notes,
+  donor reports, opt-in notices and audit safety.
+- [x] Part 2 documentation: `docs/SPONSORS.md` and a sponsor portal section in
+  `docs/PILOT_ONBOARDING.md`.
+- [x] Verification after part 2: focused sponsor suite **21 passed**; full
+  suite **1,857 passed, 233 warnings in 570.62s**; `ruff check .` clean;
+  `makemigrations --check --dry-run` reports "No changes detected".
+

@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Choose a sponsor{% endblock %}
+{% block content %}
+<h1>Choose a sponsor</h1>
+<p>You have invitations for more than one sponsor. Choose which one you are representing.</p>
+<form method="post" class="card">{% csrf_token %}
+{% for account in accounts %}
+<label><input type="radio" name="account" value="{{ account.pk }}" required>
+{{ account.sponsor.name }} · {{ account.get_role_display }} · {{ account.get_sharing_level_display }}</label>
+{% endfor %}
+<button class="btn" type="submit">Continue</button></form>
+<form method="post" action="{% url 'enterprise:sponsor_logout' %}">{% csrf_token %}
+<button type="submit" class="btn secondary">Sign out</button></form>
+{% endblock %}

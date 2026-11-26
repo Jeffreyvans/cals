@@ -566,3 +566,550 @@ def notify_consolidated_invoice(group_invoice):
         institution=group_invoice.platform_invoice.institution if group_invoice.platform_invoice else None,
         related_object=group_invoice,
     )
+
+
+# ---------- sponsor portal ----------
+
+
+def _sponsor_school(account):
+    return account.sponsor.institution
+
+
+def create_sponsor_account(*, user, sponsor, role, organisation=None, sharing_level=1,
+                           consent_evidence="", notify_email=False, notify_in_app=True,
+                           actor=None, request=None):
+    """Invite a named user to one existing finance sponsor."""
+    from core.audit import log_action
+    from core.email_types import STAFF_INVITATION
+    from enterprise.access import SponsorRole, log_sponsor_action
+    from enterprise.models import SponsorAccount
+
+    level = int(sharing_level)
+    if level not in (1, 2, 3):
+        raise ValidationError("Choose a sharing level from 1 to 3.")
+    if role not in (SponsorRole.ADMIN, SponsorRole.FINANCE, SponsorRole.VIEWER):
+        raise ValidationError("Choose a recognised sponsor role.")
+    if not sponsor.is_active:
+        raise ValidationError("This sponsor is inactive.")
+    if SponsorAccount.objects.filter(user=user, sponsor=sponsor).exists():
+        raise ValidationError("That user already has an account for this sponsor.")
+    if level > 1 and len((consent_evidence or "").strip()) < 20:
+        raise ValidationError("Give a clear reason for sharing above totals only.")
+    account = SponsorAccount.objects.create(
+        user=user, sponsor=sponsor, organisation=organisation, role=role,
+        sharing_level=level, notify_email=bool(notify_email),
+        notify_in_app=bool(notify_in_app),
+        consent_evidence=(consent_evidence or "").strip(),
+        consented_at=timezone.now() if level > 1 else None,
+    )
+    if request is None:
+        log_action(
+            actor, "sponsor.account_created", instance=account,
+            after={"role": role, "sharing_level": level},
+            institution=sponsor.institution,
+        )
+    else:
+        log_sponsor_action(
+            request, "sponsor.account_created", account,
+            {"sharing_level": level, "sponsor_id": sponsor.pk},
+        )
+    recipient = user.email or sponsor.email
+    if recipient:
+        send_email(
+            STAFF_INVITATION, recipient,
+            "Your sponsor portal invitation",
+            "Hello,\n\nA sponsor portal account has been created for you. "
+            "Sign in at /sponsor/ and enter this verification code:\n\n"
+            f"{account.verification_token}\n\n"
+            "If you did not expect this invitation, contact the school.\n",
+            institution=sponsor.institution, related_object=account,
+        )
+    return account
+
+
+def verify_sponsor_account(user, token, request=None):
+    """Verify an invited account with the one-time code from its invitation."""
+    from enterprise.access import log_sponsor_action
+    from enterprise.models import SponsorAccount
+
+    token = (token or "").strip()
+    account = SponsorAccount.objects.filter(
+        user=user, verification_token=token, is_active=True, verified_at__isnull=True
+    ).first()
+    if account is None:
+        raise ValidationError("That verification code does not match an invited account.")
+    account.verified_at = timezone.now()
+    account.save(update_fields=["verified_at", "updated_at"])
+    if request is not None:
+        log_sponsor_action(request, "sponsor.verified", account, {"kind": "verification"})
+    return account
+
+
+def resend_sponsor_verification(account, request=None):
+    """Send the same invitation code again through the central email pipeline."""
+    from core.email_types import STAFF_INVITATION
+    from enterprise.access import log_sponsor_action
+
+    recipient = account.user.email or account.sponsor.email
+    if recipient:
+        send_email(
+            STAFF_INVITATION, recipient, "Your sponsor portal verification code",
+            f"Your verification code is {account.verification_token}.\n",
+            institution=_sponsor_school(account), related_object=account,
+        )
+    if request is not None:
+        log_sponsor_action(request, "sponsor.verification_resent", account,
+                           {"kind": "verification"})
+    return recipient
+
+
+def create_sponsor_link(account, student, percentage=None, fixed_amount=None,
+                        valid_from=None, valid_to=None, reference="", request=None):
+    """Create an ordinary finance sponsorship for one student."""
+    from core.audit import log_action
+    from finance.models import Sponsorship
+
+    school = _sponsor_school(account)
+    if student.institution_id != school.pk:
+        raise ValidationError("That student does not belong to this sponsor's school.")
+    if not (percentage or fixed_amount):
+        raise ValidationError("Enter a percentage or a fixed amount.")
+    with use_institution(school):
+        link = Sponsorship.objects.create(
+            sponsor=account.sponsor, student=student, percentage=percentage,
+            fixed_amount=fixed_amount, valid_from=valid_from, valid_to=valid_to,
+            reference=reference, is_active=True,
+        )
+    if request is None:
+        log_action(
+            request.user if request else None, "sponsor.student_linked", instance=link,
+            after={"sponsor_id": account.sponsor.pk}, institution=school,
+        )
+    else:
+        from enterprise.access import log_sponsor_action
+
+        log_sponsor_action(request, "sponsor.student_linked", account,
+                           {"sponsor_id": account.sponsor.pk})
+    return link
+
+
+def set_sharing_level(account, level, evidence="", request=None):
+    """Change what the sponsor agrees to share, with 2FA for named detail."""
+    from enterprise.access import log_sponsor_action, require_sponsor_sensitive_action
+
+    level = int(level)
+    if level == 0:
+        return withdraw_sponsor_sharing(account, request=request)
+    if level not in (1, 2, 3):
+        raise ValidationError("Choose a sharing level from 1 to 3.")
+    if level > account.sharing_level:
+        if len((evidence or "").strip()) < 20:
+            raise ValidationError("Give a clear reason for sharing more information.")
+        if level == 3:
+            require_sponsor_sensitive_action(account, request)
+    account.sharing_level = level
+    account.consent_evidence = (evidence or "").strip() if level > 1 else ""
+    account.consented_at = timezone.now()
+    account.withdrawn_at = None
+    account.save(update_fields=[
+        "sharing_level", "consent_evidence", "consented_at", "withdrawn_at", "updated_at"
+    ])
+    if request is not None:
+        log_sponsor_action(request, "sponsor.sharing_changed", account,
+                           {"sharing_level": level})
+    notify_sponsor(
+        account, "Sponsor sharing changed",
+        f"Your sharing level is now {account.get_sharing_level_display()}.",
+        "/sponsor/settings/", "access",
+    )
+    return account
+
+
+def withdraw_sponsor_sharing(account, reason="", request=None):
+    """Stop all student-level sharing now, including existing consent grants."""
+    from enterprise.access import log_sponsor_action
+    from platform_admin.models import AccessRequest, DataAccessGrant
+
+    now = timezone.now()
+    grants = DataAccessGrant.objects.filter(
+        platform_admin=account.user, institution=_sponsor_school(account),
+        revoked_at__isnull=True, expired_at__isnull=True,
+    )
+    request_ids = list(grants.values_list("access_request_id", flat=True))
+    grants.update(
+        revoked_at=now, revoked_by=account.user,
+        revoked_reason=(reason or "Sponsor withdrew sharing consent.")[:200],
+    )
+    if request_ids:
+        AccessRequest.objects.filter(pk__in=request_ids).update(
+            status=AccessRequest.Status.REVOKED,
+            decision_reason=(reason or "Sponsor withdrew sharing consent.")[:200],
+        )
+    account.sharing_level = 0
+    account.withdrawn_at = now
+    account.consent_evidence = ""
+    account.save(update_fields=[
+        "sharing_level", "withdrawn_at", "consent_evidence", "updated_at"
+    ])
+    if request is not None:
+        log_sponsor_action(request, "sponsor.sharing_withdrawn", account,
+                           {"sharing_level": 0, "kind": "withdrawal"})
+    notify_sponsor(
+        account, "Sponsor sharing withdrawn",
+        "Named and coded student information is no longer available. "
+        "Any student-data grant has been revoked.",
+        "/sponsor/settings/", "access",
+    )
+    return account
+
+
+def notify_sponsor(account, title, body, link="", category="general", email_type=None):
+    """Opt-in sponsor notification. Nothing is sent unless the user agreed."""
+    from core.email_types import GENERAL
+    from core.notifications import notify, send_email
+
+    sent = []
+    if account.notify_in_app:
+        sent.append(notify(
+            account.user, title, body, link=link, category=category,
+            institution=_sponsor_school(account),
+        ))
+    if account.notify_email:
+        recipient = account.user.email or account.sponsor.email
+        if recipient:
+            sent.append(send_email(
+                email_type or GENERAL, recipient, title, body,
+                institution=_sponsor_school(account), related_object=account,
+            ))
+    return sent
+
+
+def sponsor_student_label(account, student, request=None):
+    """The most student detail this sponsor may see right now.
+
+    Level 3 needs both the sponsor's consent and a live institution grant. If
+    the grant is missing or withdrawn, the label drops back to a code; it never
+    falls back to a name.
+    """
+    from enterprise.access import student_level_grant
+
+    if not account.is_verified or account.has_withdrawn:
+        return "Student"
+    if account.sharing_level >= 3:
+        grant = student_level_grant(
+            account.user, _sponsor_school(account),
+            ("personal_data", "finance"), request=request,
+        )
+        if grant is not None:
+            return student.name
+    if account.sharing_level >= 2:
+        return f"Student {student.pk}"
+    return "Student"
+
+
+def _sponsored_invoice_rows(account, start=None, end=None):
+    """Invoice-level coverage from active sponsorships, without student names."""
+    from finance.models import Invoice, Sponsorship
+
+    school = _sponsor_school(account)
+    with use_institution(school):
+        links = Sponsorship.all_objects.filter(sponsor=account.sponsor, is_active=True)
+        invoices = Invoice.all_objects.filter(
+            institution=school, student__sponsorships__sponsor=account.sponsor
+        ).distinct()
+        if start:
+            invoices = invoices.filter(due_date__gte=start)
+        if end:
+            invoices = invoices.filter(due_date__lte=end)
+        rows = []
+        for invoice in invoices.select_related("student__user").order_by("due_date", "pk"):
+            caps = [
+                link.covers(invoice) for link in links if link.student_id == invoice.student_id
+            ]
+            cap = sum(caps, Decimal("0"))
+            balance = max(invoice.balance, Decimal("0"))
+            rows.append({
+                "invoice_id": invoice.pk,
+                "description": invoice.description,
+                "due_date": invoice.due_date,
+                "student": invoice.student,
+                "amount": invoice.amount,
+                "balance": balance,
+                "cap": cap,
+                "coverage": min(cap, balance),
+            })
+        return rows
+
+
+def sponsor_commitments(account, start=None, end=None, request=None):
+    """What the sponsor has committed, with a sharing-safe student label."""
+    rows = []
+    for row in _sponsored_invoice_rows(account, start, end):
+        rows.append({
+            **row,
+            "label": sponsor_student_label(account, row["student"], request=request),
+        })
+    return {
+        "rows": rows,
+        "totals": {
+            "amount": sum((r["amount"] for r in rows), Decimal("0")),
+            "cap": sum((r["cap"] for r in rows), Decimal("0")),
+            "coverage": sum((r["coverage"] for r in rows), Decimal("0")),
+            "outstanding": sum((r["balance"] for r in rows), Decimal("0")),
+        },
+    }
+
+
+def sponsor_statement(account, start=None, end=None, request=None):
+    """Discounts, payments and credit notes recorded for this sponsor."""
+    from finance.models import Discount, Payment, Waiver
+
+    school = _sponsor_school(account)
+    marker = f"SPONSOR-{account.sponsor_id}-"
+    rows = []
+    with use_institution(school):
+        # Every row is scoped to the sponsor's school. ``all_objects`` reaches
+        # every institution, so an identically named payer elsewhere must never
+        # appear on this sponsor's statement.
+        sources = [
+            Discount.all_objects.filter(institution=school, sponsor=account.sponsor),
+            Payment.all_objects.filter(
+                institution=school,
+                reference__icontains=marker,
+            ) | Payment.all_objects.filter(
+                institution=school,
+                payer_name__iexact=account.sponsor.name,
+            ),
+            Waiver.all_objects.filter(
+                institution=school,
+                reason__icontains=marker,
+            ) | Waiver.all_objects.filter(
+                institution=school,
+                reason__icontains=account.sponsor.name,
+            ),
+        ]
+        for queryset in sources:
+            date_field = "paid_on__date" if queryset.model is Payment else "created__date"
+            if start:
+                queryset = queryset.filter(**{date_field + "__gte": start})
+            if end:
+                queryset = queryset.filter(**{date_field + "__lte": end})
+            for row in queryset.select_related("invoice__student__user").distinct():
+                student = getattr(getattr(row, "invoice", None), "student", None)
+                rows.append({
+                    "date": (
+                        row.paid_on.date() if queryset.model is Payment else row.created.date()
+                    ),
+                    "kind": {
+                        Discount: "Scholarship",
+                        Payment: "Payment",
+                        Waiver: "Credit note",
+                    }[queryset.model],
+                    "reference": getattr(row, "receipt_no", "") or getattr(row, "note_no", "")
+                    or getattr(row, "name", "") or str(row.pk),
+                    "label": sponsor_student_label(
+                        account, student, request=request
+                    ) if student is not None else "Institution",
+                    "amount": row.amount,
+                    "payment_id": row.pk if queryset.model is Payment else None,
+                })
+    rows.sort(key=lambda item: (item["date"], str(item["reference"])))
+    return {
+        "rows": rows,
+        "totals": {
+            "paid": sum((r["amount"] for r in rows if r["kind"] == "Payment"), Decimal("0")),
+            "scholarship": sum(
+                (r["amount"] for r in rows if r["kind"] == "Scholarship"), Decimal("0")
+            ),
+            "credit_note": sum(
+                (r["amount"] for r in rows if r["kind"] == "Credit note"), Decimal("0")
+            ),
+        },
+    }
+
+
+def sponsor_receipts(account, start=None, end=None, request=None):
+    """Only the payments already selected for this sponsor's statement."""
+    rows = sponsor_statement(account, start, end, request)["rows"]
+    return [row for row in rows if row["kind"] == "Payment" and row["payment_id"]]
+
+
+def allocate_sponsor_payment(account, invoice, amount=None,
+                             method=None, request=None):
+    """Pay a sponsored invoice, capped by the sponsorship and invoice balance."""
+    from enterprise.access import log_sponsor_action
+    from finance.models import Payment, Sponsorship
+    from finance.services import receive_payment
+
+    if method not in Payment.Method.values:
+        raise ValidationError("Choose a recognised payment method.")
+    school = _sponsor_school(account)
+    from finance.models import Invoice as InvoiceModel
+
+    with use_institution(school):
+        target = InvoiceModel.all_objects.select_for_update().filter(
+            pk=getattr(invoice, "pk", invoice), institution=school
+        ).first()
+        if target is None:
+            raise ValidationError("That invoice is not at this school.")
+        links = Sponsorship.all_objects.filter(
+            sponsor=account.sponsor, student=target.student, is_active=True
+        )
+        cap = sum((link.covers(target) for link in links), Decimal("0"))
+        balance = max(target.balance, Decimal("0"))
+        cap = min(cap, balance)
+        value = Decimal(amount) if amount not in (None, "") else cap
+        if value <= 0:
+            raise ValidationError("There is no sponsored balance to pay.")
+        if value > cap:
+            raise ValidationError(f"This sponsorship is capped at {cap:.2f}.")
+        payment, credit = receive_payment(
+            student=target.student, invoice=target, amount=value, method=method,
+            reference=f"SPONSOR-{account.sponsor_id}-{target.pk}",
+            payer_name=account.sponsor.name, received_by=account.user,
+        )
+    if request is not None:
+        log_sponsor_action(
+            request, "sponsor.payment", account,
+            {"invoice_id": target.pk, "amount": str(value), "method": method},
+        )
+    notify_sponsor(
+        account, "Sponsor payment recorded",
+        f"{value:.2f} was applied to invoice {target.number or target.pk}.",
+        "/sponsor/statement/", "finance",
+    )
+    return payment, credit
+
+
+def issue_sponsor_credit_note(account, invoice, amount, reason, request=None):
+    """Issue an ordinary immutable finance credit note through its save hooks."""
+    from enterprise.access import log_sponsor_action
+    from finance.models import Invoice as InvoiceModel
+    from finance.models import Sponsorship, Waiver
+
+    reason = (reason or "").strip()
+    if len(reason) < 10:
+        raise ValidationError("Give a reason of at least 10 characters.")
+    school = _sponsor_school(account)
+    with use_institution(school):
+        target = InvoiceModel.all_objects.filter(
+            pk=getattr(invoice, "pk", invoice), institution=school
+        ).first()
+        if target is None:
+            raise ValidationError("That invoice is not at this school.")
+        links = Sponsorship.all_objects.filter(
+            sponsor=account.sponsor, student=target.student, is_active=True
+        )
+        cap = min(
+            sum((link.covers(target) for link in links), Decimal("0")),
+            max(target.balance, Decimal("0")),
+        )
+        value = Decimal(amount)
+        if value <= 0 or value > cap:
+            raise ValidationError(f"The credit note must be between 0 and {cap:.2f}.")
+        waiver = Waiver(
+            invoice=target, amount=value,
+            reason=f"SPONSOR-{account.sponsor_id}-{target.pk}: {reason}"[:200],
+            recorded_by=account.user,
+        )
+        waiver.save()
+    if request is not None:
+        log_sponsor_action(
+            request, "sponsor.credit_note", account,
+            {"invoice_id": target.pk, "amount": str(value), "kind": "credit_note"},
+        )
+    notify_sponsor(
+        account, "Sponsor credit note issued",
+        f"A credit note for {value:.2f} was posted to the school ledger.",
+        "/sponsor/statement/", "finance",
+    )
+    return waiver
+
+
+def donor_report(institution=None, start=None, end=None):
+    """Scholarship and donor totals by sponsor. Never contains student names."""
+    from finance.models import (
+        Discount,
+        Payment,
+        Sponsor,
+        Sponsorship,
+        Waiver,
+    )
+
+    if institution is None:
+        from core.models import Institution
+        from core.tenancy import current_institution_id
+
+        institution = Institution.objects.filter(pk=current_institution_id()).first()
+    if institution is None:
+        return {"rows": [], "totals": {}}
+    rows = []
+    with use_institution(institution):
+        for sponsor in Sponsor.all_objects.filter(institution=institution, is_active=True):
+            marker = f"SPONSOR-{sponsor.pk}-"
+            committed = sum(
+                _sponsored_invoice_rows_for_sponsor(sponsor, start, end), Decimal("0")
+            )
+            sources = [
+                Discount.all_objects.filter(institution=institution, sponsor=sponsor),
+                Payment.all_objects.filter(
+                    institution=institution, reference__icontains=marker,
+                ) | Payment.all_objects.filter(
+                    institution=institution, payer_name__iexact=sponsor.name,
+                ),
+                Waiver.all_objects.filter(
+                    institution=institution, reason__icontains=marker,
+                ) | Waiver.all_objects.filter(
+                    institution=institution, reason__icontains=sponsor.name,
+                ),
+            ]
+            filtered = []
+            for queryset in sources:
+                date_field = "paid_on__date" if queryset.model is Payment else "created__date"
+                if start:
+                    queryset = queryset.filter(**{date_field + "__gte": start})
+                if end:
+                    queryset = queryset.filter(**{date_field + "__lte": end})
+                filtered.append(queryset)
+            discounts, payments, credits = filtered
+            rows.append({
+                "sponsor_id": sponsor.pk,
+                "sponsor": sponsor.name,
+                "students": Sponsorship.all_objects.filter(
+                    institution=institution, sponsor=sponsor, is_active=True
+                ).count(),
+                "committed": committed,
+                "scholarship": sum(
+                    (r.amount for r in discounts), Decimal("0")
+                ),
+                "paid": sum((r.amount for r in payments), Decimal("0")),
+                "credit_note": sum((r.amount for r in credits), Decimal("0")),
+            })
+    return {
+        "rows": rows,
+        "totals": {
+            "students": sum((r["students"] for r in rows), 0),
+            "committed": sum((r["committed"] for r in rows), Decimal("0")),
+            "scholarship": sum((r["scholarship"] for r in rows), Decimal("0")),
+            "paid": sum((r["paid"] for r in rows), Decimal("0")),
+            "credit_note": sum((r["credit_note"] for r in rows), Decimal("0")),
+        },
+    }
+
+
+def _sponsored_invoice_rows_for_sponsor(sponsor, start=None, end=None):
+    from finance.models import Invoice, Sponsorship
+
+    links = Sponsorship.all_objects.filter(sponsor=sponsor, is_active=True)
+    invoices = Invoice.all_objects.filter(
+        institution=sponsor.institution, student__sponsorships__sponsor=sponsor
+    ).distinct()
+    if start:
+        invoices = invoices.filter(due_date__gte=start)
+    if end:
+        invoices = invoices.filter(due_date__lte=end)
+    return [
+        sum((link.covers(invoice) for link in links
+             if link.student_id == invoice.student_id), Decimal("0"))
+        for invoice in invoices
+    ]

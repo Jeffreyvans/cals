@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Sponsor settings{% endblock %}
+{% block content %}
+<h1>Sponsor settings</h1>
+<p>Sponsor: {{ account.sponsor.name }} · Current sharing: {{ account.get_sharing_level_display }}</p>
+<nav><a href="{% url 'enterprise:sponsor_dashboard' %}">Dashboard</a> ·
+<a href="{% url 'enterprise:sponsor_security' %}">Security</a></nav>
+<h2>Sharing level</h2>
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="sharing">
+<label>Level <select name="level">{% for value, label in levels %}<option value="{{ value }}" {% if value == account.sharing_level %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Reason for changing this level <textarea name="evidence" rows="3"></textarea></label>
+<button class="btn" type="submit">Save sharing level</button></form>
+<p>Level 3 needs two-factor authentication and a recent password check, and named
+detail is released only while the school's consent grant is live.</p>
+{% if not account.has_withdrawn %}
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="withdraw">
+<label>Reason for withdrawal <input name="reason" maxlength="200"></label>
+<button class="btn danger" type="submit">Withdraw sharing now</button></form>
+{% else %}<p class="msg">Sharing has been withdrawn. Coded and named student detail is no longer available.</p>{% endif %}
+<h2>Notifications</h2>
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="notify">
+<label><input type="checkbox" name="notify_email" {% if account.notify_email %}checked{% endif %}> Email me</label>
+<label><input type="checkbox" name="notify_in_app" {% if account.notify_in_app %}checked{% endif %}> In-app notifications</label>
+<button class="btn" type="submit">Save preferences</button></form>
+{% endblock %}

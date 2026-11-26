@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% block title %}Sponsor dashboard{% endblock %}
+{% block content %}
+<h1>{{ account.sponsor.name }} · Sponsor dashboard</h1>
+<p>{{ account.get_role_display }} · Sharing: {{ account.get_sharing_level_display }}</p>
+<nav>
+<a href="{% url 'enterprise:sponsor_invoices' %}">Sponsored invoices</a> ·
+<a href="{% url 'enterprise:sponsor_statement' %}">Statement</a> ·
+<a href="{% url 'enterprise:sponsor_receipts' %}">Receipts</a> ·
+<a href="{% url 'enterprise:sponsor_export' %}?format=csv">Export</a> ·
+<a href="{% url 'enterprise:sponsor_settings' %}">Settings</a> ·
+<a href="{% url 'enterprise:sponsor_security' %}">Security</a>
+</nav>
+<section class="grid">
+<div class="card"><h2>Committed</h2><strong>{{ commitments.totals.coverage }}</strong>
+<p>Across {{ commitments.rows|length }} invoice(s).</p></div>
+<div class="card"><h2>Paid</h2><strong>{{ statement.totals.paid }}</strong></div>
+<div class="card"><h2>Scholarships</h2><strong>{{ statement.totals.scholarship }}</strong></div>
+<div class="card"><h2>Credit notes</h2><strong>{{ statement.totals.credit_note }}</strong></div>
+</section>
+{% if account.sharing_level >= 2 %}
+<p>Student references are coded unless a live consent grant has been approved.
+{% if has_named_access %}Named detail is currently available.{% else %}Named detail is not currently available.{% endif %}</p>
+{% else %}
+<p>Totals only. Student names and codes are not shown at this sharing level.</p>
+{% endif %}
+<form method="post" action="{% url 'enterprise:sponsor_logout' %}">{% csrf_token %}
+<button type="submit" class="btn secondary">Sign out</button></form>
+{% endblock %}

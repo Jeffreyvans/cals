@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-Started: 2026-10-21. Session 1. Last updated: 2026-11-25 (session 40, one-school pilot freeze and readiness complete).
+Started: 2026-10-21. Session 1. Last updated: 2026-11-26 (session 43, enterprise sponsor portal complete).
 
 ## Summary of existing state (read)
 - Apps: `accounts` (User with role admin/registrar/bursar/lecturer/student/parent + `role_required`), `academics` (Programme/Course/Enrollment/Attendance/Activity/Announcement/TimetableEntry/SchoolClass/Subject/AcademicYear/Term/ExamSitting/GradeBand/Guardian + balances_by_student, student search API, portals for student/parent/lecturer), `finance` (Invoice/Payment/Waiver/MoneyLog with overpayment/waiver guards + receipt numbers, audit + reports + exports).
@@ -1114,4 +1114,39 @@ it establishes one narrow, testable boundary to the model provider.
       full suite **1,836 passed, 227 warnings in 613.96s**; `ruff check .`
       clean; `makemigrations --check --dry-run` reports "No changes detected".
       Existing platform, `/i/<slug>/` and school workflows are unchanged.
+
+## Session 43 - Enterprise part 2: sponsor portal (2026-11-26)
+
+- [x] Added `SponsorAccount` and migration `enterprise.0002` as the portal
+      identity layer over the existing `finance.Sponsor`, `Sponsorship`,
+      `Discount`, `Payment` and `Waiver` rows. Platform staff can invite a named
+      user, choose a role and sharing level, resend verification, deactivate an
+      account and attach existing student sponsorships.
+- [x] Built `/sponsor/` sign-in, sponsor selection, verification, logout,
+      dashboard, invoices, statement, receipts, PDF receipt, export, payment,
+      credit note, settings and security screens, plus platform account and
+      donor report screens. Feature-off deliberately returns 404 from the
+      portal so an invited user cannot infer that the feature exists.
+- [x] Sharing levels 1-3 were enforced in services and views. Level 3 adds a
+      name only when the sponsor has consented and a live `DataAccessGrant`
+      covers `personal_data` and `finance`; otherwise the label falls back to
+      a code or generic row. Withdrawal immediately revokes live grants and
+      their access requests, clears the level to 0 and logs the change.
+- [x] Statements, receipts, exports and the donor report are filtered by the
+      sponsor's institution, with persistent date filters. Payments go through
+      `receive_payment()` and are capped by sponsorship and invoice balance;
+      credit notes are immutable `Waiver` rows. Receipt PDFs are redacted for
+      levels 1 and 2.
+- [x] Sensitive actions reuse platform 2FA and password re-authentication with
+      the sponsor account as the staff-like object. Notices are opt-in and
+      reuse existing email codes, so `DEPLOY.md` and the email type test need
+      no change. Audit detail is sanitised: no tokens, bodies or student names.
+- [x] Added 21 focused tests in `enterprise/tests/test_sponsors.py`,
+      `docs/SPONSORS.md` and a sponsor portal onboarding checklist. Hardening
+      fixed feature-off 404s, statement/donor-report tenant scoping, payment
+      login requirements, invitation recipient selection and receipt redaction.
+- [x] Verification after part 2: focused sponsor suite **21 passed**; full
+      suite **1,857 passed, 233 warnings in 570.62s**; `ruff check .` clean;
+      `makemigrations --check --dry-run` reports "No changes detected".
+      Existing platform, `/i/<slug>/` and school workflows remain unchanged.
 

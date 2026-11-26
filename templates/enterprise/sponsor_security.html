@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Sponsor security{% endblock %}
+{% block content %}
+<h1>Sponsor security</h1>
+<nav><a href="{% url 'enterprise:sponsor_dashboard' %}">Dashboard</a> ·
+<a href="{% url 'enterprise:sponsor_settings' %}">Settings</a></nav>
+<p>Two-factor authentication: {% if account.two_factor_enabled %}on{% else %}off{% endif %}.</p>
+{% if not account.two_factor_enabled %}
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="start">
+<button class="btn" type="submit">Start authenticator setup</button></form>
+{% if uri %}<p>Scan this URI in your authenticator app:</p><p><code>{{ uri }}</code></p>
+<p>Secret: <code>{{ secret }}</code></p>
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="enable">
+{{ form.as_p }}<button class="btn" type="submit">Switch 2FA on</button></form>{% endif %}
+{% else %}
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="disable">
+<button class="btn danger" type="submit">Turn 2FA off</button></form>
+{% endif %}
+<h2>Confirm your password</h2>
+<p>Sensitive actions need a password check every 15 minutes.</p>
+<form method="post" class="card">{% csrf_token %}<input type="hidden" name="action" value="reauth">
+{{ reauth_form.as_p }}<button class="btn" type="submit">Confirm password</button></form>
+{% endblock %}

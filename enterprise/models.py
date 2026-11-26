@@ -293,6 +293,90 @@ class GroupAlert(models.Model):
         return self.message
 
 
+def new_sponsor_verification_token():
+    """A one-time code sent out of band when a sponsor user is invited."""
+    return uuid.uuid4().hex
+
+
+class SponsorAccount(models.Model):
+    """A named user's access to one existing ``finance.Sponsor``.
+
+    The sponsor's money, sponsorships and discounts stay in finance. This row
+    adds only portal identity, role, consent and notification choices. A
+    sharing level never overrides the institution's separate consent grant for
+    student-level detail.
+    """
+
+    class Role(models.TextChoices):
+        ADMIN = "sponsor_admin", "Sponsor administrator"
+        FINANCE = "sponsor_finance", "Sponsor finance officer"
+        VIEWER = "sponsor_viewer", "Sponsor viewer (read only)"
+
+    class SharingLevel(models.IntegerChoices):
+        WITHDRAWN = 0, "Withdrawn"
+        SUMMARY = 1, "Totals only"
+        CODED = 2, "Coded student references"
+        IDENTIFIED = 3, "Named student detail with consent grant"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="sponsor_accounts",
+    )
+    sponsor = models.ForeignKey(
+        "finance.Sponsor", on_delete=models.PROTECT, related_name="portal_accounts"
+    )
+    organisation = models.ForeignKey(
+        Organisation, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="sponsor_accounts",
+    )
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.VIEWER)
+    sharing_level = models.PositiveSmallIntegerField(
+        choices=SharingLevel.choices, default=SharingLevel.SUMMARY
+    )
+    consent_evidence = models.TextField(blank=True)
+    consented_at = models.DateTimeField(null=True, blank=True)
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    verification_token = models.CharField(
+        max_length=64, unique=True, default=new_sponsor_verification_token
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    notify_email = models.BooleanField(default=False)
+    notify_in_app = models.BooleanField(default=True)
+    two_factor_enabled = models.BooleanField(default=False)
+    two_factor_secret = models.CharField(max_length=64, blank=True)
+    last_reauth_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "sponsor"], name="uniq_sponsor_account"
+            )
+        ]
+        ordering = ["sponsor__name", "user__username"]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.sponsor.name}"
+
+    @property
+    def is_verified(self):
+        return self.is_active and self.verified_at is not None
+
+    @property
+    def has_withdrawn(self):
+        return self.withdrawn_at is not None or self.sharing_level == 0
+
+    def allows(self, level):
+        """Whether the current sharing consent reaches ``level``."""
+        return (
+            self.is_verified
+            and not self.has_withdrawn
+            and self.sharing_level >= int(level)
+        )
+
+
 class GroupAccessRequestLink(models.Model):
     """Marks an existing access request as a group student-data request.
 

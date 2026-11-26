@@ -182,3 +182,155 @@ def require_student_grant(request, institution, categories=("personal_data",)):
         record_type="Student", record_id="", request=request,
     )
     return grant
+
+
+# ---------- sponsor portal ----------
+
+
+class SponsorRole:
+    ADMIN = "sponsor_admin"
+    FINANCE = "sponsor_finance"
+    VIEWER = "sponsor_viewer"
+
+
+SPONSOR_WRITE_ROLES = (SponsorRole.ADMIN, SponsorRole.FINANCE)
+ALL_SPONSOR_ROLES = (*SPONSOR_WRITE_ROLES, SponsorRole.VIEWER)
+
+SPONSOR_SHARING_LABELS = {
+    0: "Withdrawn",
+    1: "Totals only",
+    2: "Coded student references",
+    3: "Named student detail with consent grant",
+}
+
+
+def sponsor_accounts_for(user):
+    """Active portal accounts for a signed-in user, newest link first."""
+    if not getattr(user, "is_authenticated", False):
+        return []
+    from enterprise.models import SponsorAccount
+
+    return list(
+        SponsorAccount.objects.filter(
+            user=user, is_active=True, sponsor__is_active=True
+        ).select_related("user", "sponsor", "organisation").order_by("pk")
+    )
+
+
+def portal_accounts_for(user):
+    """Accounts whose institution still allows the sponsor portal."""
+    return [
+        account for account in sponsor_accounts_for(user)
+        if feature_enabled("sponsor_portal", account.sponsor.institution)
+    ]
+
+
+def active_sponsor_accounts_for(user):
+    """Portal accounts, or 404 when the plan no longer allows the feature.
+
+    An invited donor must not be able to tell from a permission error that the
+    portal exists but is switched off, so a disabled plan looks like a missing
+    page. A user with no invitation at all still gets the ordinary denial.
+    """
+    accounts = portal_accounts_for(user)
+    if not accounts and sponsor_accounts_for(user):
+        raise Http404("This feature is not enabled for this account.")
+    return accounts
+
+
+def sponsor_required(*roles, write=False):
+    """Allow a verified sponsor account, scoped to that account's sponsor."""
+
+    def deco(view):
+        @wraps(view)
+        def wrapper(request, *args, **kwargs):
+            from django.shortcuts import redirect, reverse
+
+            if not getattr(request.user, "is_authenticated", False):
+                login_url = reverse("enterprise:sponsor_login")
+                return redirect(f"{login_url}?next={request.get_full_path()}")
+            accounts = active_sponsor_accounts_for(request.user)
+            selected = request.session.get("sponsor_account_id")
+            account = next((a for a in accounts if a.pk == selected), None)
+            if account is None:
+                account = accounts[0] if accounts else None
+            if account is None:
+                from core.audit import log_permission_denied
+
+                log_permission_denied(request, ["sponsor_portal.use"])
+                raise PermissionDenied("You do not have an active sponsor portal account.")
+            if not account.is_verified:
+                raise PermissionDenied(
+                    "Verify your sponsor account before opening the portal."
+                )
+            if roles and account.role not in roles:
+                raise PermissionDenied("Your sponsor role does not allow this action.")
+            if write and account.role == SponsorRole.VIEWER:
+                raise PermissionDenied("A sponsor viewer has read-only access.")
+            request.sponsor_account = account
+            request.sponsor = account.sponsor
+            request.institution = account.sponsor.institution
+            request.session["sponsor_account_id"] = account.pk
+            return view(request, *args, **kwargs)
+
+        return wrapper
+
+    return deco
+
+
+def require_sharing(account, level, request=None):
+    """Refuse data above the sponsor's current, unwithdrawn sharing level."""
+    if not account.allows(level):
+        from core.audit import log_permission_denied
+
+        if request is not None:
+            log_permission_denied(request, [f"sponsor_portal.sharing_{level}"])
+        raise PermissionDenied(
+            "This information is outside the sharing level you agreed to. "
+            "Ask the school to change it, or update it in sponsor settings."
+        )
+    return True
+
+
+def require_identified_student_access(account, request):
+    """Named student detail needs both sharing level 3 and a live grant."""
+    require_sharing(account, 3, request)
+    return require_student_grant(
+        request, account.sponsor.institution, ("personal_data", "finance")
+    )
+
+
+def require_sponsor_sensitive_action(account, request):
+    """Payments, notes and level-3 consent need 2FA and a fresh password."""
+    from platform_admin.twofa import ready_for_sensitive_action
+
+    message = ready_for_sensitive_action(account, request)
+    if message:
+        raise PermissionDenied(message)
+    return True
+
+
+def _harmless_sponsor_detail(value):
+    allowed = {
+        "sharing_level", "level", "invoice_id", "amount", "method",
+        "notify_email", "notify_in_app", "sponsor_id", "kind",
+    }
+    return {key: value[key] for key in allowed if key in (value or {})}
+
+
+def log_sponsor_action(request, action, account, detail=None, grant=None):
+    """Write sponsor events to the institution and platform audit logs."""
+    from core.audit import log_action
+    from platform_admin.services import log_platform_action
+
+    school = account.sponsor.institution
+    safe = _harmless_sponsor_detail(detail)
+    log_action(
+        request.user, action, institution=school, request=request,
+        model_name="SponsorAccount", object_id=str(account.pk), after=safe,
+    )
+    log_platform_action(
+        request.user, action, institution=school, grant=grant,
+        record_type="SponsorAccount", record_id=account.pk,
+        detail=safe, request=request,
+    )

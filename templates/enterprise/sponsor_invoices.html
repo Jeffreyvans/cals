@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block title %}Sponsored invoices{% endblock %}
+{% block content %}
+<h1>{{ account.sponsor.name }} · Sponsored invoices</h1>
+<nav><a href="{% url 'enterprise:sponsor_dashboard' %}">Dashboard</a> ·
+<a href="{% url 'enterprise:sponsor_statement' %}">Statement</a> ·
+<a href="{% url 'enterprise:sponsor_export' %}?format=xlsx">Excel</a></nav>
+<form method="get" class="card"><label>From <input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label>
+<label>To <input type="date" name="end" value="{{ end|date:'Y-m-d' }}"></label>
+<button class="btn" type="submit">Filter</button></form>
+<table><thead><tr><th>Student</th><th>Invoice</th><th>Due</th><th>Amount</th><th>Covered by sponsor</th><th>Balance</th></tr></thead><tbody>
+{% for row in commitments.rows %}
+<tr><td>{{ row.label }}</td><td>#{{ row.invoice_id }}</td><td>{{ row.due_date }}</td>
+<td>{{ row.amount }}</td><td>{{ row.cap }}</td><td>{{ row.balance }}</td></tr>
+{% empty %}<tr><td colspan="6">No sponsored invoices in this period.</td></tr>{% endfor %}
+<tr><th colspan="4">Total</th><th>{{ commitments.totals.cap }}</th><th>{{ commitments.totals.outstanding }}</th></tr>
+</tbody></table>
+{% if can_pay %}
+<h2>Pay a sponsored invoice</h2>
+<p>Payments and credit notes need two-factor authentication and a recent password check.</p>
+<form method="post" action="{% url 'enterprise:sponsor_pay' %}" class="card">{% csrf_token %}
+<label>Invoice <select name="invoice">{% for row in commitments.rows %}<option value="{{ row.invoice_id }}">#{{ row.invoice_id }} · {{ row.label }} · {{ row.cap }}</option>{% endfor %}</select></label>
+<label>Amount (blank pays the full covered balance) <input name="amount" inputmode="decimal"></label>
+<label>Method <select name="method"><option value="bank">Bank transfer</option><option value="card">Card</option><option value="mobile">Mobile money</option><option value="cash">Cash</option></select></label>
+<button class="btn" type="submit">Record payment</button></form>
+<h2>Issue a credit note</h2>
+<form method="post" action="{% url 'enterprise:sponsor_credit_note' %}" class="card">{% csrf_token %}
+<label>Invoice <select name="invoice">{% for row in commitments.rows %}<option value="{{ row.invoice_id }}">#{{ row.invoice_id }} · {{ row.label }} · {{ row.cap }}</option>{% endfor %}</select></label>
+<label>Amount <input name="amount" inputmode="decimal" required></label>
+<label>Reason <input name="reason" maxlength="200" required></label>
+<button class="btn" type="submit">Issue credit note</button></form>
+{% endif %}
+{% endblock %}

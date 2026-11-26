@@ -57,6 +57,27 @@ institution** (`/platform/institutions/new/`). The in-app role guides are in
 - [ ] Payment gateway credentials (if used) are in live mode with a real callback URL.
 - [ ] Definition of done: a test payment and a duplicate webhook produce exactly one payment row.
 
+## 6a. School group setup — platform admin + group admin
+
+- [ ] Complete this section only when the school belongs to a group. Enable `groups` for at least one campus (or include it in the plan).
+- [ ] Organisation created at `/platform/groups/new/` with a stable slug, type and contact details; each campus attached with the agreed label.
+- [ ] Named users assigned `group_admin`, `group_finance`, `group_academic` or `group_auditor`; the auditor has been checked and cannot write.
+- [ ] Billing mode chosen: separate campus invoices, or consolidated with the group discount and one line per campus.
+- [ ] Branded sign-in at `/g/<slug>/` tested with a real group user and campus switcher; shared defaults and locked settings previewed before saving.
+- [ ] Student-level access request approved by a campus admin through the existing consent screen; the grant expiry and withdrawal path tested.
+- [ ] Definition of done: dashboard shows aggregates only, with no student names, and the export matches the selected filters.
+
+## 6b. Sponsor portal setup — platform admin + sponsor user
+
+- [ ] Complete this section only when the school uses the sponsor portal. Enable `sponsor_portal` for the school (or include it in the plan).
+- [ ] One real `finance.Sponsor` gives one named user an account at `/platform/sponsors/new/`; role and initial sharing level agreed in writing.
+- [ ] Invitation delivered by email with the verification code; password delivered separately; the user verifies at `/sponsor/verify/`.
+- [ ] Sharing level tested: totals, coded references and named detail with a live grant. Named detail disappears after withdrawal or grant expiry.
+- [ ] Sponsor administrator enables 2FA at `/sponsor/security/`, confirms a TOTP code, re-enters their password and records one test payment and one credit note in the existing ledger.
+- [ ] Statement, redacted receipt PDF and CSV/XLSX/PDF exports checked; no rows from another school appear.
+- [ ] Notification choices confirmed opt-in; audit and access logs contain no verification tokens or student names.
+- [ ] Definition of done: a sponsor viewer can read only, and the donor report at `/platform/sponsors/report/` contains totals but no student names.
+
 ## 7. Tenant isolation spot-check — platform admin
 
 - [ ] Create a second "dummy" institution with one student.

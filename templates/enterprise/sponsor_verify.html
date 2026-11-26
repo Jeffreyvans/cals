@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Verify your sponsor account{% endblock %}
+{% block content %}
+<h1>Verify your sponsor account</h1>
+<p>Enter the one-time code from your invitation for
+<strong>{{ account.sponsor.name }}</strong>. The code is never shown again on this screen.</p>
+<form method="post" class="card">{% csrf_token %}
+<label>Verification code <input name="token" maxlength="64" required autocomplete="off"></label>
+<button class="btn" type="submit">Verify</button></form>
+<form method="post" action="{% url 'enterprise:sponsor_logout' %}">{% csrf_token %}
+<button type="submit" class="btn secondary">Sign out</button></form>
+{% endblock %}

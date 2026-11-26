@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block title %}Donor report{% endblock %}
+{% block content %}
+<h1>Scholarship and donor report</h1>
+<p>Totals by sponsor. Student names are never included.</p>
+<form method="get" class="card">
+<label>School <select name="institution"><option value="">Current school</option>
+{% for item in institutions %}<option value="{{ item.pk }}" {% if institution and item.pk == institution.pk %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></label>
+<label>From <input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label>
+<label>To <input type="date" name="end" value="{{ end|date:'Y-m-d' }}"></label>
+<button class="btn" type="submit">Run report</button>
+<a class="btn secondary" href="?{% if institution %}institution={{ institution.pk }}&{% endif %}format=csv">CSV</a></form>
+<table><thead><tr><th>Sponsor</th><th>Students</th><th>Committed</th><th>Scholarships</th><th>Paid</th><th>Credit notes</th></tr></thead><tbody>
+{% for row in report.rows %}<tr><td>{{ row.sponsor }}</td><td>{{ row.students }}</td>
+<td>{{ row.committed }}</td><td>{{ row.scholarship }}</td><td>{{ row.paid }}</td><td>{{ row.credit_note }}</td></tr>
+{% empty %}<tr><td colspan="6">No active sponsors at this school.</td></tr>{% endfor %}
+<tr><th>Total</th><th>{{ report.totals.students }}</th><th>{{ report.totals.committed }}</th>
+<th>{{ report.totals.scholarship }}</th><th>{{ report.totals.paid }}</th><th>{{ report.totals.credit_note }}</th></tr>
+</tbody></table>
+{% endblock %}
